@@ -36,7 +36,7 @@ export default async function SettingsPage() {
         <p className="mt-1 text-sm text-navy-500">Your public profile — this powers your bio page.</p>
       </div>
       <ProfileForm initial={initial} hasProfile={!!p} />
-      <PrivacySection />
+      <PrivacySection orgSlug={s.org.slug} isOwner={s.role === "owner"} />
       <SupportForm />
     </div>
   );

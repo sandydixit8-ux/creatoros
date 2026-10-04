@@ -6,6 +6,16 @@ import type { PublicBioPage } from "@/lib/bio/page";
 import { SITE_URL } from "@/lib/constants";
 import { formatPrice } from "@/lib/money";
 import { openCashfreeCheckout } from "@/lib/payments/cashfree-checkout";
+import { sanitizeUrl } from "@/lib/url-safety";
+
+/**
+ * Render-time backstop for href sinks. Writes are already scheme-checked at the
+ * API boundary; this also neutralises any unsafe URL already stored in the
+ * database before an allowlist shipped.
+ */
+function safeHref(value: unknown): string {
+  return sanitizeUrl(value) || "#";
+}
 
 export function PublicBioPageView({ bio }: { bio: PublicBioPage }) {
   const theme = bio.page.theme;
@@ -64,7 +74,7 @@ export function PublicBioPageView({ bio }: { bio: PublicBioPage }) {
             {socialLinks.map((s) => (
               <a
                 key={s.key}
-                href={s.url}
+                href={safeHref(s.url)}
                 target="_blank"
                 rel="noreferrer"
                 onClick={() => trackLink(s.url!)}
@@ -249,7 +259,7 @@ function BlockRenderer(props: {
     case "link":
       return (
         <a
-          href={String(p.url || "#")}
+          href={safeHref(p.url)}
           target="_blank"
           rel="noreferrer"
           onClick={() => trackLink(String(p.url || ""))}
@@ -263,7 +273,7 @@ function BlockRenderer(props: {
     case "cta":
       return (
         <a
-          href={String(p.url || "#")}
+          href={safeHref(p.url)}
           target="_blank"
           rel="noreferrer"
           onClick={() => trackLink(String(p.url || ""))}
@@ -276,7 +286,7 @@ function BlockRenderer(props: {
     case "product":
       return (
         <a
-          href={String(p.url || "#")}
+          href={safeHref(p.url)}
           target="_blank"
           rel="noreferrer"
           onClick={() => trackLink(String(p.url || ""))}

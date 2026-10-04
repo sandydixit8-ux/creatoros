@@ -41,14 +41,16 @@ export async function POST(req: NextRequest) {
   if (limits.contacts !== -1 && used >= limits.contacts) return err.conflict("This page has reached its contact limit");
 
   const existing = row<{ id: string }>("SELECT id FROM contacts WHERE tenant_id = ? AND email = ?", bio.tenantId, email.toLowerCase());
+  const consentAt = nowIso();
   if (!existing) {
     const contactId = newId("con");
     run(
-      "INSERT INTO contacts (id, tenant_id, email, name, consent, source, page_id, utm_source, utm_campaign, tags, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, '[]', ?, ?)",
+      "INSERT INTO contacts (id, tenant_id, email, name, consent, consent_at, consent_source, source, page_id, utm_source, utm_campaign, tags, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, 'bio_capture', ?, ?, ?, ?, '[]', ?, ?)",
       contactId,
       bio.tenantId,
       email.toLowerCase(),
       name,
+      consentAt,
       source,
       bio.page.id,
       utm_source,
@@ -59,7 +61,8 @@ export async function POST(req: NextRequest) {
     bumpUsage(bio.tenantId, "contacts");
   } else {
     run(
-      "UPDATE contacts SET consent = 1, source = ?, page_id = ?, utm_source = ?, utm_campaign = ?, updated_at = ? WHERE id = ?",
+      "UPDATE contacts SET consent = 1, consent_at = ?, consent_source = 'bio_capture', source = ?, page_id = ?, utm_source = ?, utm_campaign = ?, updated_at = ? WHERE id = ?",
+      consentAt,
       source,
       bio.page.id,
       utm_source,

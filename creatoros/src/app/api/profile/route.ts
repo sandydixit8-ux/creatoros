@@ -6,21 +6,30 @@ import { row, run, newId, nowIso } from "@/lib/db/db";
 import { can } from "@/lib/auth/rbac";
 import { audit } from "@/lib/audit";
 import { getLimits } from "@/lib/plans";
+import { isSafeUrl } from "@/lib/url-safety";
+
+/**
+ * `z.string().url()` accepts `javascript:`, which would then be rendered into
+ * an href and execute in our origin. Only allowlisted schemes may be stored.
+ */
+const safeUrlField = z
+  .string()
+  .refine((v) => v === "" || isSafeUrl(v), { message: "Unsupported URL scheme" });
 
 const profileSchema = z.object({
   username: z.string().regex(/^[a-z0-9_]{2,30}$/),
   displayName: z.string().max(80).default(""),
   bio: z.string().max(500).default(""),
-  avatarUrl: z.string().url().or(z.literal("")).default(""),
-  website: z.string().url().or(z.literal("")).default(""),
+  avatarUrl: safeUrlField.default(""),
+  website: safeUrlField.default(""),
   timezone: z.string().max(60).default("UTC"),
   socials: z
     .object({
-      instagram: z.string().url().or(z.literal("")).default(""),
-      youtube: z.string().url().or(z.literal("")).default(""),
-      twitter: z.string().url().or(z.literal("")).default(""),
-      linkedin: z.string().url().or(z.literal("")).default(""),
-      tiktok: z.string().url().or(z.literal("")).default(""),
+      instagram: safeUrlField.default(""),
+      youtube: safeUrlField.default(""),
+      twitter: safeUrlField.default(""),
+      linkedin: safeUrlField.default(""),
+      tiktok: safeUrlField.default(""),
     })
     .default({ instagram: "", youtube: "", twitter: "", linkedin: "", tiktok: "" }),
 });

@@ -108,9 +108,12 @@ export async function sendCampaign(campaignId: string): Promise<{ sent: number; 
   }
 
   const stats = { sent, failed, total: recipients.length };
+  // A campaign that only partly delivered must not read as "sent": that hides
+  // bounce storms and quota burn behind a success label.
+  const status = sent === 0 ? "failed" : failed === 0 ? "sent" : "partial";
   run(
     "UPDATE email_campaigns SET status = ?, sent_at = ?, stats = ?, updated_at = ? WHERE id = ?",
-    failed === recipients.length ? "failed" : "sent",
+    status,
     nowIso(),
     JSON.stringify(stats),
     nowIso(),

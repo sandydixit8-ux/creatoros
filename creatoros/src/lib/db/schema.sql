@@ -165,7 +165,9 @@ CREATE TABLE IF NOT EXISTS contacts (
   tenant_id   TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   email       TEXT NOT NULL,
   name        TEXT NOT NULL DEFAULT '',
-  consent     INTEGER NOT NULL DEFAULT 0,     -- GDPR double-opt-in flag
+  consent     INTEGER NOT NULL DEFAULT 0,     -- GDPR double-opt-in flag; ONLY set by explicit opt-in
+  consent_at  TEXT,                           -- when consent was given (provenance)
+  consent_source TEXT NOT NULL DEFAULT '',    -- where consent was captured, e.g. bio_capture
   source      TEXT NOT NULL DEFAULT '',       -- bio page / campaign / qr
   page_id     TEXT REFERENCES bio_pages(id) ON DELETE SET NULL,
   utm_source  TEXT NOT NULL DEFAULT '',
@@ -241,7 +243,7 @@ CREATE TABLE IF NOT EXISTS email_campaigns (
   subject      TEXT NOT NULL,
   body         TEXT NOT NULL DEFAULT '',
   from_name    TEXT NOT NULL DEFAULT '',
-  status       TEXT NOT NULL DEFAULT 'draft',  -- draft | scheduled | sending | sent | canceled
+  status       TEXT NOT NULL DEFAULT 'draft',  -- draft | scheduled | sending | sent | partial | failed | canceled
   scheduled_at TEXT,
   sent_at      TEXT,
   stats        TEXT NOT NULL DEFAULT '{}',     -- JSON {sent, opened, clicked, unsubscribed, failed}

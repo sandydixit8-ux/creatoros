@@ -146,12 +146,14 @@ export function EmailCenter(props: {
                         </span>
                       </div>
                       <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-navy-500">
-                        {c.status === "sent" ? (
+                        {c.status === "sent" || c.status === "partial" || c.status === "failed" ? (
                           <>
                             <span>{c.stats.total} recipients</span>
                             <span>{c.stats.opened} opened</span>
                             <span>{c.stats.clicked} clicked</span>
-                            <span>{c.stats.failed} failed</span>
+                            <span className={c.stats.failed ? "font-medium text-amber-700" : ""}>
+                              {c.stats.failed} failed
+                            </span>
                           </>
                         ) : (
                           <span>Draft{c.from_name ? ` · from ${c.from_name}` : ""}</span>
@@ -159,16 +161,29 @@ export function EmailCenter(props: {
                       </div>
                     </div>
                     <div className="flex shrink-0 gap-2">
-                      {c.status !== "sent" && c.status !== "sending" && props.canWrite && (
+                      {c.status !== "sent" && c.status !== "sending" && c.status !== "partial" && props.canWrite && (
                         <button
                           type="button"
                           disabled={busyId === c.id}
                           onClick={() => sendCampaign(c.id)}
                           className="btn-primary !px-3 !py-1.5 text-xs"
+                          title={
+                            c.status === "failed"
+                              ? "Retry: the previous attempt delivered nothing"
+                              : undefined
+                          }
                         >
                           {busyId === c.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                          Send
+                          {c.status === "failed" ? "Retry" : "Send"}
                         </button>
+                      )}
+                      {c.status === "partial" && (
+                        <span
+                          className="self-center rounded-lg bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800"
+                          title="Some recipients already received this email. Retrying the whole campaign would email them again."
+                        >
+                          Partially sent
+                        </span>
                       )}
                       {props.canWrite && (
                         <button
@@ -267,6 +282,7 @@ export function EmailCenter(props: {
 function statusColor(status: string): string {
   const map: Record<string, string> = {
     sent: "bg-emerald-50 text-emerald-700",
+    partial: "bg-amber-50 text-amber-700",
     sending: "bg-amber-50 text-amber-700",
     failed: "bg-red-50 text-red-700",
     draft: "bg-navy-50 text-navy-600",

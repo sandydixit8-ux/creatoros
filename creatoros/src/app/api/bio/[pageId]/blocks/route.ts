@@ -7,6 +7,7 @@ import { getLimits, withinLimit } from "@/lib/plans";
 import { getUsage, bumpUsage } from "@/lib/usage";
 import { audit } from "@/lib/audit";
 import { can } from "@/lib/auth/rbac";
+import { payloadHasDangerousScheme } from "@/lib/url-safety";
 
 const BLOCK_TYPES = ["profile", "bio", "link", "product", "booking", "email_capture", "cta", "social"] as const;
 
@@ -36,6 +37,15 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ pageId: str
   const body = await readJson(req);
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) return err.validation(parsed.error.flatten().fieldErrors);
+
+  // Block payloads are free-form JSON whose URL-bearing keys vary by block type,
+  // so reject the whole request if any string carries a script-capable scheme.
+  // Rendering these payloads into href makes that stored XSS.
+  for (const b of parsed.data.blocks) {
+    if (b.payload !== undefined && payloadHasDangerousScheme(b.payload)) {
+      return err.validation({ blocks: "Unsupported URL scheme in block content" });
+    }
+  }
 
   // Tenant & page ownership check for each block id to prevent cross-tenant writes
   const validIds = new Set(

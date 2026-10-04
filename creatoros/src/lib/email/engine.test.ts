@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterAll, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { getDb, closeDb, run, newId, nowIso } from "@/lib/db/db";
-import { recipientsFor } from "./engine";
+import { getDb, closeDb, run, row, newId, nowIso } from "@/lib/db/db";
+import { recipientsFor, sendCampaign } from "./engine";
 
 let dir: string;
 
@@ -51,5 +51,129 @@ describe("email engine recipient selection", () => {
     run("INSERT INTO email_list_members (id, tenant_id, list_id, contact_id, created_at) VALUES (?, ?, ?, ?, ?)", newId("emmb"), TENANT, listId, member, nowIso());
     const recips = recipientsFor(TENANT, listId);
     expect(recips.map((r) => r.id)).toEqual([member]);
+  });
+});
+
+const EMAIL_ENV_KEYS = [
+  "NODE_ENV",
+  "EMAIL_PROVIDER",
+  "RESEND_API_KEY",
+  "ALLOW_EMAIL_FILE_FALLBACK",
+] as const;
+
+function seedCampaign(subject: string): string {
+  const id = newId("emc");
+  run(
+    "INSERT INTO email_campaigns (id, tenant_id, subject, body, status, stats, created_at, updated_at) VALUES (?, ?, ?, '<p>hi</p>', 'draft', '{}', ?, ?)",
+    id,
+    TENANT,
+    subject,
+    nowIso(),
+    nowIso()
+  );
+  return id;
+}
+
+describe("D-3: campaign delivery accounting", () => {
+  beforeEach(() => {
+    run("DELETE FROM email_campaigns WHERE tenant_id = ?", TENANT);
+    run("DELETE FROM email_sends WHERE tenant_id = ?", TENANT);
+    // sendCampaign targets every consented contact in the tenant, so clear the
+    // list seeded by the selection tests to keep recipient counts exact.
+    run("DELETE FROM contacts WHERE tenant_id = ?", TENANT);
+    for (const k of EMAIL_ENV_KEYS) delete process.env[k];
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("EMAIL_PROVIDER", "resend");
+    vi.stubEnv("RESEND_API_KEY", "re_test");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("marks the campaign partial when the provider fails for only some recipients", async () => {
+    seedContact("p1@example.com", 1);
+    seedContact("p2@example.com", 1);
+    const campaignId = seedCampaign("Partial");
+
+    let call = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        call += 1;
+        return call === 1
+          ? Response.json({ id: "msg_ok" }, { status: 200 })
+          : new Response("rate limited", { status: 429 });
+      })
+    );
+
+    const result = await sendCampaign(campaignId);
+
+    expect(result.sent).toBe(1);
+    expect(result.failed).toBe(1);
+
+    const campaign = row<{ status: string; stats: string }>(
+      "SELECT status, stats FROM email_campaigns WHERE id = ?",
+      campaignId
+    );
+    // Regression guard: this used to be recorded as a clean "sent".
+    expect(campaign?.status).toBe("partial");
+    expect(JSON.parse(campaign!.stats)).toMatchObject({ sent: 1, failed: 1 });
+  });
+
+  it("marks the campaign failed when nothing is delivered", async () => {
+    seedContact("f1@example.com", 1);
+    const campaignId = seedCampaign("AllFail");
+
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("boom", { status: 500 })));
+
+    const result = await sendCampaign(campaignId);
+    expect(result.sent).toBe(0);
+    expect(result.failed).toBeGreaterThan(0);
+
+    const campaign = row<{ status: string }>("SELECT status FROM email_campaigns WHERE id = ?", campaignId);
+    expect(campaign?.status).toBe("failed");
+  });
+
+  it("records the provider error against the recipient send row", async () => {
+    seedContact("e1@example.com", 1);
+    const campaignId = seedCampaign("Errors");
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("bad key", { status: 401 })));
+
+    await sendCampaign(campaignId);
+
+    const send = row<{ status: string; error: string }>(
+      "SELECT status, error FROM email_sends WHERE campaign_id = ?",
+      campaignId
+    );
+    expect(send?.status).toBe("failed");
+    expect(send?.error).toContain("resend rejected");
+  });
+
+  it("does not record a send row at all when no provider is configured in production", async () => {
+    seedContact("n1@example.com", 1);
+    const campaignId = seedCampaign("NoProvider");
+    vi.stubEnv("EMAIL_PROVIDER", undefined);
+
+    const result = await sendCampaign(campaignId);
+
+    expect(result.sent).toBe(0);
+    expect(result.failed).toBe(1);
+    const send = row<{ status: string }>("SELECT status FROM email_sends WHERE campaign_id = ?", campaignId);
+    expect(send?.status).toBe("failed");
+    const campaign = row<{ status: string }>("SELECT status FROM email_campaigns WHERE id = ?", campaignId);
+    expect(campaign?.status).toBe("failed");
+  });
+
+  it("marks the campaign sent only when every recipient is delivered", async () => {
+    seedContact("s1@example.com", 1);
+    const campaignId = seedCampaign("AllGood");
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ id: "msg_ok" }, { status: 200 })));
+
+    const result = await sendCampaign(campaignId);
+    expect(result.failed).toBe(0);
+    const campaign = row<{ status: string }>("SELECT status FROM email_campaigns WHERE id = ?", campaignId);
+    expect(campaign?.status).toBe("sent");
   });
 });

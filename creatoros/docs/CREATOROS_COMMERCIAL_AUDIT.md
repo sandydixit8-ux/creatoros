@@ -1,0 +1,496 @@
+# CREATOROS_COMMERCIAL AUDIT — Phase 0
+
+**Date:** 4 October 2026
+**Scope:** Production product at `https://usecreatoros.co`
+**Method:** Static source review of the full `creatoros` repository. Every finding below is cited to `file:line`. Absence of a capability is stated as **NOT IMPLEMENTED** rather than assumed.
+**Verification:** All Critical/High findings were re-read directly from source by the author before inclusion. Two claims from the initial automated pass were checked and found **wrong** (see §17).
+
+---
+
+## 0. Headline conclusion
+
+The product is **materially more capable than a 5.5/10 assessment suggests**, and simultaneously carried **four data-protection and security defects that would be regulatory exposure in the UK/EU**. Those two facts are not in tension: a large feature surface was built quickly, and the consent, tenancy, metering and input-validation foundations under it were not.
+
+**Evidence-based score: 5.1/10** (§16). This is *lower* than the 5.5 starting point, not because the product regressed, but because the deeper audit surfaced Critical trust defects that the initial assessment did not look for.
+
+**Status update (4 October 2026):** all four Critical items in §14 are now **fixed and covered by regression tests** — see the remediation log in §14.1. Verified with `npm run typecheck`, `npm run lint`, 170/170 unit tests and 24/24 E2E tests. The score in §16 is deliberately **not** raised yet: it should only move once the fixes are deployed to production and re-verified there.
+
+The next launch blockers are no longer the four Criticals. They are **D-5** (the cookie policy promises consent management that does not exist) and the HIGH payment-lifecycle items **D-10** to **D-13**.
+
+---
+
+## 1. Current product architecture
+
+Nine working product modules, all server-rendered against a single SQLite file:
+
+| Module | Entry point | State |
+|---|---|---|
+| Link-in-bio pages | `/app/bio`, `/u/[username]`, `/u/[username]/[slug]` | LIVE — blocks, publish toggle, QR (`src/app/api/bio/*`) |
+| Lead capture / CRM | `/app/leads` | LIVE — UTM capture, consent gate, CSV export |
+| Bookings | `/app/booking` | LIVE — availability windows, slot computation, buffers (`src/lib/booking/slots.ts`) |
+| Digital store | `/app/store` | LIVE — products, one-time checkout, refunds |
+| Courses | `/app/courses`, `/app/learn` | LIVE — sections/lessons, free + paid enrolment, progress, certificates |
+| Community | `/app/community` | LIVE — posts, comments, reactions |
+| Email | `/app/email` | LIVE — lists, templates, campaigns, unsubscribe, suppression |
+| Analytics | `/app/analytics` | LIVE — first-party traffic, leads, bookings, revenue, MRR |
+| AI growth coach | `/app/coach` | LIVE — LLM-backed, quota-metered |
+| Platform admin | `/app/admin` | LIVE — orgs, plans, feature flags, tickets, cross-tenant refunds |
+
+**Correction to prior assessment:** the AI coach, email automation and plan-limit enforcement all **exist and work**. An earlier review wrongly claimed AI credits were unimplemented. They are enforced at `src/app/api/coach/analyze/route.ts:79-83` (though see defect D-7).
+
+**Weakness:** there is no onboarding layer. Registration lands directly on the dashboard (`src/app/api/auth/register/route.ts` → `/app`). No role or goal capture, no progressive profile setup, no activation milestone.
+
+---
+
+## 2. Current technical architecture
+
+- **Framework:** Next.js `^16.3.4`, App Router, React 19, TypeScript, Tailwind, Zod. `output: "standalone"`, `reactStrictMode: true` (`package.json`, `next.config.ts`).
+- **Rendering:** 104 routes, **all `force-dynamic`**. No static generation, no ISR, no streaming. Every request is a synchronous DB read.
+- **Request pipeline:** `src/proxy.ts` sets security headers + CSP and performs CSRF rejection. It performs **no authentication**. Page protection is the single chokepoint `getSession()` in `src/app/app/layout.tsx:8-9`; **every API handler must self-guard**. All 104 handlers were reviewed — the 16 without a session check are legitimately public.
+- **Data access:** thin synchronous helper over `node:sqlite` (`src/lib/db/db.ts:107-132`). No ORM, no repository layer. Routes issue SQL directly.
+- **Multi-tenancy:** `organizations.id` is the tenant key. Isolation is **manual `tenant_id` predicates** — there is **no row-level security**. Scoping was verified sound on all sampled dynamic routes. **No cross-tenant leak was found.**
+- **Auth:** cookie + password. scrypt with per-user salt and `timingSafeEqual` (`src/lib/auth/password.ts:5-17`) — sound. Stateless HMAC-SHA256 session token (`src/lib/auth/session.ts`).
+- **RBAC:** viewer / editor / admin / owner (`src/lib/auth/rbac.ts:1-40`).
+
+**Strong:** parameterised SQL throughout (no injection found), complete security header set, sound IDOR scoping, correct opt-in lead capture, real in-app support queue.
+
+**Weak:** no transactions in business logic (defect D-3), no error boundaries, no loading states, no pagination anywhere, no CI.
+
+---
+
+## 3. Current payment architecture
+
+| Capability | Status | Evidence |
+|---|---|---|
+| Provider abstraction | LIVE | `src/lib/payments/types.ts:67-102` |
+| Currency-based routing | LIVE | `src/lib/payments/index.ts:47-55` |
+| Stripe (USD) | Implemented, **untested webhooks** | `src/lib/payments/stripe-provider.ts` |
+| Cashfree (INR) | LIVE, verified end-to-end | `src/lib/payments/cashfree-provider.ts` |
+| Mock provider (non-prod) | LIVE | `src/lib/payments/mock.ts` |
+| Provider recorded on order | LIVE | `src/lib/store/orders.ts:166-177` |
+| Cashfree HMAC-SHA256 + `timingSafeEqual` | LIVE | `src/lib/payments/cashfree-provider.ts:266-277` |
+| Stripe signature verification | LIVE, **no unit tests** | `src/lib/payments/stripe-provider.ts:91-101` |
+| Event-ID idempotency ledger | LIVE | `src/app/api/webhooks/stripe/route.ts:42-56`, PK `schema.sql:421-427` |
+| Idempotent fulfilment (conditional UPDATE) | LIVE | `src/lib/store/orders.ts:191-192` |
+| Refunds (full/partial, provider-aware, audited) | LIVE | `src/app/api/admin/orders/[id]/refund/route.ts` |
+| Entitlements revoked on refund | **NOT IMPLEMENTED** | refund route updates order only |
+| Multi-currency | USD + INR only | `STRIPE_CURRENCIES` / `CASHFREE_CURRENCIES` |
+| FX conversion | **NOT IMPLEMENTED** | hardcoded `RATE = 84`, display only (`src/lib/money-format.ts:3`) |
+| Tax / VAT / GST / invoicing | **NOT IMPLEMENTED** | no logic anywhere |
+| Webhook replay-window validation | **NOT IMPLEMENTED** | timestamp used for HMAC only, never for freshness |
+
+All money is stored as integer minor units — correct. The provider abstraction is clean and genuinely extensible.
+
+---
+
+## 4. Current billing architecture
+
+**Live:** monthly subscription checkout, cancel-at-period-end, per-org subscription records, provider webhooks that apply plan changes.
+
+| Capability | Status | Evidence |
+|---|---|---|
+| Monthly subscriptions | LIVE | `src/app/api/billing/checkout/route.ts:65-78` |
+| Cancel | LIVE | `src/app/api/billing/cancel/route.ts:19-24` |
+| States modelled | `active`, `trialing`, `past_due`, `canceled` | `schema.sql:64`, `src/lib/billing/subscriptions.ts:17` |
+| `grace` / `paused` / `expired` states | **NOT IMPLEMENTED** | — |
+| Upgrade / downgrade | **STUB** — provider helper exists, no route or UI | `cashfree-subscriptions.ts:259-261` |
+| Pause / resume | **STUB** — helper only | `cashfree-subscriptions.ts:246-257` |
+| Proration | **NOT IMPLEMENTED** | — |
+| Dunning / retry / grace period | **NOT IMPLEMENTED** | failed renewal only flips to `past_due` (`cashfree-provider.ts:396-399`) |
+| Billing portal (self-serve card/invoice update) | **NOT IMPLEMENTED** | — |
+| Annual plans | **NOT IMPLEMENTED** | — |
+| Double-subscribe protection | PARTIAL — upsert heuristic | `src/lib/billing/subscriptions.ts:45-47` |
+
+**Commercially significant:** a customer whose renewal fails falls to `past_due`, which grants no plan (`subscriptions.ts:85-92`), and there is no retry, no grace period, and no recovery email. Revenue is lost silently and the creator loses access with no warning path.
+
+---
+
+## 5. Current pricing
+
+Free / Starter $9 / Creator $19 / Pro $49 / Business $99.
+
+Pricing **structure** is sound and matches the Framekit crossover logic ($39 ÷ 5% ≈ $780/mo). `src/lib/plans.ts` defines the entitlement matrix.
+
+**Enforcement audit — this is where it fails:**
+
+| Limit | Enforced? | Evidence |
+|---|---|---|
+| `bioPages` | Yes | `src/app/api/bio/route.ts:36-37` |
+| `links` | Yes (both paths) | `src/app/api/bio/[pageId]/route.ts:109-110`, `blocks/route.ts:51-52` |
+| `contacts` | **Bypassable** | checked in 3 routes, but bookings and free enrolment create contacts without `bumpUsage` |
+| `services` | Yes | `src/app/api/booking/services/route.ts:52-53` |
+| `products` | Yes | `src/app/api/store/products/route.ts:48-51` |
+| `courses` | Yes | `src/app/api/courses/route.ts:46` |
+| `viewsPerMonth` | **Enforced but displayed wrong** | writes `"views"` (`src/app/api/track/route.ts:41,45`), UI reads `usage.viewsPerMonth` (`src/app/app/billing/page.tsx:46`) → user always sees 0 |
+| `aiCredits` | **Broken** — checked *after* the paid LLM call | `src/app/api/coach/analyze/route.ts:74-83` |
+| `emailsPerMonth` | Yes, per-recipient | `src/lib/email/engine.ts:63-65` |
+| `customDomain` | No feature exists | column `schema.sql:104`, never read |
+| `emailAutomation` | Gates broadcast send | `src/lib/email/engine.ts:73-74` |
+
+Additional structural problems: quota counters are **append-only with no decrement path** (`src/lib/usage.ts` is the only writer), so deleting a page permanently burns quota; `bumpUsage` is a non-atomic read-modify-write (`src/lib/usage.ts:6-31`) so concurrent increments are lost; periods are UTC months, so resets land at 05:30 IST for the India audience.
+
+---
+
+## 6. Current acquisition channels
+
+**Everything that exists:** the landing page (`src/app/page.tsx`), the pricing page, and whatever direct/word-of-mouth traffic arrives.
+
+**Everything that does not exist:** blog, comparison pages, free tools/calculators, use-case landing pages, `llms.txt`, social links in marketing UI, directory listings, "Powered by CreatorOS" badge, embeddable widget, media kit, public creator directory.
+
+**Sitemap contains 4 URLs** (`src/app/sitemap.ts:4-12`): `/`, `/pricing`, `/auth/login`, `/auth/register`.
+
+**Referral program: NOT IMPLEMENTED. Affiliate program: NOT IMPLEMENTED. Partner program: NOT IMPLEMENTED.** No tables, no routes, no tracking.
+
+This confirms the GTM assessment: CreatorOS is almost entirely dependent on creators bringing their own traffic. That is precisely the dynamic that decelerated Stan's growth, and it is the single largest commercial weakness.
+
+---
+
+## 7. Current GTM gaps
+
+Ranked by business impact:
+
+1. **Zero viral loops.** No referral, affiliate or partner mechanics exist in any form. Every new user is acquired manually.
+2. **No content or SEO surface.** 4 sitemap URLs cannot rank for "creator CRM", "media kit generator", "link in bio" or any other high-intent query. Competitors own these.
+3. **No free tools.** The highest-leverage creator acquisition asset (calculators/generators) is entirely absent.
+4. **No marketplace or discovery.** Creators cannot find each other; buyers cannot find creators. Whop grew 255% YoY on exactly this.
+5. **No product-led loop.** Public creator pages exist and work, but nothing on them recruits other creators.
+6. **The funnel is unmeasurable.** Only `page_view`, `lead`, `booking`, `link_click` are tracked (`schema.sql:208`). Signup, activation, checkout, paid and renewal are **NOT TRACKED**. You cannot compute conversion at any stage, so you cannot optimise it.
+7. **No onboarding.** No role/goal capture, no dynamic dashboard, no activation milestone. Public pages are auto-published on signup, so "activation" is never a deliberate event.
+
+---
+
+## 8. Current legal / trust gaps
+
+**All five legal documents exist as DRAFT and are correctly `noindex`** (`src/components/legal/legal-page.tsx:13`) with a visible "pending legal review" banner (`:23-29`). That part is handled properly.
+
+**Unresolved placeholders — all launch blockers:**
+
+| Field | Value | Line |
+|---|---|---|
+| `entityName` | `[Registered legal entity name]` | `src/components/legal/legal-info.ts:2` |
+| `companyNumber` | `[Company registration number]` | `src/components/legal/legal-info.ts:3` |
+| `address` | `[Registered business address]` | `src/components/legal/legal-info.ts:4` |
+
+Users cannot identify their contracting party. The footer names a technology partner but never the contracting entity (`src/components/layout/site-footer.tsx:22-23`).
+
+**Missing entirely:** cookie consent mechanism, marketing preference centre, public subprocessor list, trust/security page, standalone Acceptable Use Policy, AI terms, DPA.
+
+**The cookie policy contradicts the code.** `src/app/(legal)/cookie-policy/page.tsx:60-63` promises consent is obtained before non-essential cookies and can be withdrawn. In reality tracking fires unconditionally on every public page mount (`src/components/bio/public-view.tsx:13-27` → `POST /api/track`), the endpoint accepts no consent parameter (`src/app/api/track/route.ts:11-19`), and there is no banner, opt-out or preference store. Lead capture gets this right (`src/app/api/leads/capture/route.ts:33`); analytics does not.
+
+**Credit where due:** the site makes **no** unsubstantiated compliance claims. No SOC 2, no "GDPR certified", no "bank-grade", no encryption-at-rest assertions. That is a genuine strength and must be preserved.
+
+---
+
+## 9. Current retention gaps
+
+| Mechanism | Status |
+|---|---|
+| Automated lifecycle / welcome emails | **NOT IMPLEMENTED** — engine exists, no triggers or sequences |
+| Streaks / milestones | **NOT IMPLEMENTED** |
+| Weekly digest | **NOT IMPLEMENTED** |
+| Cancellation feedback ("why are you leaving") | **NOT IMPLEMENTED** — cancel is one click |
+| Downgrade / pause offers on cancel | **NOT IMPLEMENTED** |
+| Cohort / retention curves | **NOT IMPLEMENTED** |
+| Churn-risk detection | **NOT IMPLEMENTED** |
+| In-app notifications | LIVE |
+
+The email engine can send campaigns; nothing sends them automatically at a moment that matters. Retention is entirely dependent on the creator remembering to log in.
+
+---
+
+## 10. Current analytics
+
+**Measurable today:** page views (time, source, device, country, page), leads, bookings, traffic sources, MRR, active subscriptions, last charge, 6-month revenue series.
+
+**Not measurable:** signup, activation, checkout started, payment attempted, purchase, upgrade, cancel, renewal, ARR, ARPU, churn, LTV, cohort retention, CAC, payback.
+
+**Integrity defects:**
+- View counts are **approximately 2× inflated** — the server-side tracker inserts a `page_view` with a fresh random visitor on every render (`src/lib/bio/track.ts:9-21`, called at `src/app/u/[username]/page.tsx:41`) *and* the client posts another (`src/components/bio/public-view.tsx:17-27`). Every server render is also counted as a unique visitor.
+- Server-side views do not call `bumpUsage`, so they bypass the view quota entirely.
+- Hardcoded `× 84` INR conversion in the dashboard (`src/app/app/analytics/page.tsx:128`).
+- Email open/click columns exist but are never written, so engagement is permanently `{opened: 0, clicked: 0}` (`schema.sql:262-263`).
+
+---
+
+## 11. Current database
+
+`node:sqlite` (`DatabaseSync`), local file, WAL + FK enforcement on (`src/lib/db/db.ts:10-14`). Path from `CREATOROS_DB_PATH`.
+
+**41 tables, 15 indexes.** Schema executed from disk on first DB access, then 9 idempotent migrations (`src/lib/db/db.ts:20-76`).
+
+**Structural problems:**
+- **`schema.sql` is not the source of truth.** `payments.order_id`, `orders.refunded_cents`, `subscriptions.customer_id` and several `email_campaigns` columns exist only as `ALTER TABLE` migrations (`src/lib/db/db.ts:30-59`).
+- **Header comment claims "PostgreSQL-portable" but no Postgres driver is declared.** Postgres support: NOT IMPLEMENTED.
+- **Five tables carry `tenant_id` with no FK to `organizations`**, unlike every other tenant table: `order_items` (`schema.sql:413`), `course_sections` (`:452`), `lessons` (`:461`), `enrollments` (`:476`), `lesson_progress` (`:489`).
+- `posts.author_id`, `post_comments.author_id`, `post_reactions.user_id` have **no FK to `users`** (`schema.sql:301,310,319`).
+- **No index on `analytics_events(tenant_id, event_type)`** although every analytics query filters on it.
+- **No `busy_timeout`, no statement cache, no pool** — every DB call re-prepares SQL.
+- **No soft delete anywhere** — removal is hard `DELETE`. Undelete and audit recovery are impossible.
+
+**Dead schema:** `templates` (never read; catalog is hardcoded in `src/lib/templates.ts:23-380`), `automation_workflows` (referenced only by the GDPR table list), `sessions` (only ever deleted — see D-6), `users.role`, `users.email_verified`, `organizations.trial_ends`, `bookings.reminder_sent`, `email_sends.opened_at/clicked_at`.
+
+**Build defect:** `migrate()` reads `schema.sql` at runtime via `process.cwd()` (`src/lib/db/db.ts:21`) while `output: "standalone"` is set and there is **no `outputFileTracingIncludes`**. A copied standalone bundle throws ENOENT on first DB access.
+
+---
+
+## 12. Current integrations
+
+| Integration | State | Fail behaviour |
+|---|---|---|
+| Stripe | Implemented | 503 if unconfigured in production |
+| Cashfree | Implemented, INR | Sandbox by default |
+| Resend / Mailgun / Brevo | Implemented | **Silently falls through to local file, campaign still marked `sent`** |
+| OpenAI-compatible AI | Implemented, key-gated | Fails closed |
+| Cloudflare RUM | Passive (CSP allow) | — |
+| OAuth / social login | **NOT IMPLEMENTED** | — |
+| Object storage / file uploads | **NOT IMPLEMENTED** | media are bare URL strings |
+| SMS / WhatsApp / push | **NOT IMPLEMENTED** | — |
+| External feature-flag service | **NOT IMPLEMENTED** | local global table |
+
+**Two fail-open defects that must be fixed:**
+1. **Email failures are reported as successes.** Non-OK responses from all three providers fall through to writing an HTML file (`src/lib/email/mailer.ts:73-77,91-95,112-116`), and the caller records `status='sent'` and increments quota (`src/lib/email/engine.ts:99-100`). A campaign can report `sent` with zero emails delivered. Not env-gated despite the comment at `mailer.ts:55`.
+2. **The default mailer persists recipient PII to disk.** `EMAIL_PROVIDER` defaults to `log`, which writes every rendered email including the `to:` address under `data/emails/` (`src/lib/email/mailer.ts:119-128`). No retention or cleanup.
+
+---
+
+## 13. Current technical debt
+
+| Item | Detail |
+|---|---|
+| No transactions in business logic | `tx()` exists (`src/lib/db/db.ts:134-145`) but is used **only** by GDPR delete. `fulfillOrder` performs 6 dependent writes unguarded. |
+| No error boundaries | No `error.tsx` / `global-error.tsx` anywhere |
+| No loading states | No `loading.tsx` / `Suspense` on data routes |
+| No pagination | Full-table `SELECT *` on contacts, campaigns, lists, templates, services, analytics events, lead export |
+| N+1 queries | `canSendMore()` runs 3 queries **per recipient** inside the send loop (`src/lib/email/engine.ts:63-65,84`); `getCourse` runs a lesson count per row (`src/app/api/courses/route.ts:29`) |
+| Sequential email sends | No batching or bounded concurrency — a 10k list cannot complete, and a crash leaves `status='sending'` blocking retries forever (`src/app/api/email/campaigns/[id]/send/route.ts:17`) |
+| GET with side effects | `/api/coach/analyze` is a GET that spends AI credits (`route.ts:13,82`) — prefetch-unsafe, no rate limit |
+| AI output unvalidated | `JSON.parse(res.text) as unknown` returned straight to the client (`route.ts:77,85`) |
+| Dead code | `parseBody`, `hasQuota` (duplicates `withinLimit`), `newJti`, `canaryDays` (identity fn), `trackLinkClick`, `SessionGuard`, `createCustomer` (3 implementations, never called) |
+| Duplicated logic | two divergent money formatters (`src/lib/money.ts`, `src/lib/money-format.ts`); IP extraction reimplemented inline instead of `getClientIp` |
+| Hardcoded values | demo credentials in `scripts/seed.ts:8-14` and `e2e/helpers.ts:4-5`; `RATE = 84`; `no-reply@creatoros.dev` |
+| No CI | No `.github/workflows` — nothing runs on push |
+| Test isolation | Vitest and Playwright share a real SQLite file; no per-worker isolation |
+
+---
+
+## 14. Risk register
+
+Severity: **CRITICAL** = regulatory exposure or irreversible data loss · **HIGH** = revenue loss or security weakness · **MEDIUM** = operational/commercial drag.
+
+### CRITICAL
+
+| ID | Issue | Current State | Expected State | Business Impact | Technical Impact | Recommended Fix | Priority | Dependencies | Test Method |
+|---|---|---|---|---|---|---|---|---|---|
+| **D-1** | Purchase and free enrolment silently set marketing consent | **FIXED 2026-10-04** — see §14.1 | Consent set only by explicit opt-in, with timestamp and source | GDPR Art. 6(1)(a)/7, PECR Reg. 22, CCPA/CPRA exposure; complaint and enforcement risk | None — trivial to fix | Never write `consent` on a transactional path. Default `0`. Add `consent_at` + `consent_source` columns | P0 | Migration for the two columns | Test: buy a product → assert `contacts.consent = 0`; assert campaign excludes buyer |
+| **D-2** | "Delete my account" destroys the entire organisation | **FIXED 2026-10-04** — see §14.1 | Removing a user must not delete co-workers' data; org deletion is a separate, owner-only, confirmed action | Irreversible loss of every contact, order, booking, course and email history for the whole workspace | Data loss cascades from one FK | Split into "leave organisation" (remove membership) vs "delete organisation" (owner-only + typed confirmation of org name) | P0 | RBAC role check | Test: `viewer` calls delete → 403; second member's data survives |
+| **D-3** | Email send failures reported as successes | **FIXED 2026-10-04** — see §14.1 | Provider failure must fail loudly; campaign status must reflect reality | Silent list-wide deliverability failure; revenue loss; support burden | Quota consumed for unsent email | Env-gate the file fallback to non-production only; propagate provider errors | P0 | None | Test: mock provider 500 → assert `sendCampaign` does not mark `sent` |
+| **D-4** | Stored XSS via `javascript:` URLs | **FIXED 2026-10-04** — see §14.1 | Only `http:`, `https:`, `mailto:`, `tel:` permitted in any user-supplied URL | Attacker JS executes in site origin on a victim's click, including on authenticated pages | Full XSS despite `HttpOnly` cookies | Allowlist schemes at validation; sanitise bio block URLs | P0 | Shared URL validator | Test: submit `javascript:alert(1)` → 400; render assert `href` never starts with `javascript:` |
+
+### 14.1 Remediation log — D-1 to D-4 (2026-10-04)
+
+All four CRITICAL defects are closed and covered by regression tests. Verified with
+`npm run typecheck`, `npm run lint` (0 problems), `npm test` (170/170) and
+`npm run test:e2e` (24/24).
+
+**D-1 — consent provenance**
+
+- `contacts.consent_at` (nullable timestamp) and `contacts.consent_source` added to
+  `src/lib/db/schema.sql`.
+- Migrations 10-12 in `src/lib/db/db.ts` add the columns and remediate legacy rows
+  that carry `consent = 1` with `source IN ('store','course')` and no
+  `consent_at`. A row is only treated as a genuine opt-in if it has provenance.
+- Transactional paths write `consent = 0` and never touch provenance:
+  `src/lib/store/orders.ts` (product purchase) and the course enrolment path.
+- Explicit opt-in records `consent_at` + `consent_source` in
+  `src/app/api/leads/capture/route.ts`.
+- Free course enrolment now also consumes the contact quota, which it previously
+  bypassed.
+- Tests: `src/lib/contacts-consent.test.ts` (6) — covers purchase-created,
+  course-created, repeat purchase, and preservation of a real opt-in.
+- Known remainder: D-8 quota enforcement is only partially closed. Booking
+  contact creation still needs the same quota bump.
+
+**D-2 — account deletion vs workspace deletion**
+
+- `deleteAccountData` is replaced by two distinct operations in
+  `src/lib/account/gdpr.ts`:
+  - `leaveOrganization(tenantId, userId)` removes only the caller's membership.
+    The identity is erased only when no other workspace holds it (Art. 17), and
+    it returns `nextOrgId` so the session can be re-pointed instead of logging
+    the user out.
+  - `deleteOrganization(tenantId, actorUserId)` deletes the workspace and its
+    tenant data. It deliberately does **not** delete the user row, so a member's
+    other workspaces and teammates survive.
+- `POST /api/account/delete` is owner-only and requires the matching `orgSlug` as
+  typed confirmation. `POST /api/account/leave` is the membership-only path.
+- `src/components/settings/privacy-section.tsx` now offers both actions, shows
+  the delete control only to owners, and sends `orgSlug`.
+- Tests: `src/lib/account/gdpr.test.ts` (6) — including the regression that the
+  old code destroyed the user's other workspaces.
+
+**D-3 — email fail-closed**
+
+- `src/lib/email/mailer.ts`: an unset or unrecognised `EMAIL_PROVIDER` now
+  resolves to `null` instead of silently degrading to the file-log backend.
+  `emailConfigured()` reports false, and `sendEmail` throws in production. A
+  provider that rejects the message propagates the error rather than writing a
+  file and reporting success.
+- `src/lib/email/engine.ts`: campaign status distinguishes `sent`, `partial` and
+  `failed`; the provider error is stored on the recipient send row.
+- Partial campaigns are **not** resumable yet. `POST .../send` rejects them and
+  the UI hides the send button, because re-running would send a second copy to
+  recipients already delivered. Recipient-level retry is the correct fix and is
+  not yet built.
+- Schema comment for `email_campaigns.status` updated to list the new states.
+- Tests: `src/lib/email/mailer.test.ts` (17, +6 for provider resolution and
+  failure handling) and `src/lib/email/engine.test.ts` (8, +5 for partial/failed
+  accounting).
+
+**D-4 — stored XSS via URL schemes**
+
+- New `src/lib/url-safety.ts`: `isSafeUrl` / `sanitizeUrl` / `isHttpUrl` enforce
+  an `http: https: mailto: tel:` allowlist, plus `hasDangerousScheme` and
+  `payloadHasDangerousScheme` for free-form JSON.
+  - Control characters are rejected and stripped before the scheme check, so
+    tab-obfuscated `java&#9;script:` cannot slip through.
+  - Protocol-relative (`//host`) and backslash forms are rejected.
+  - Scheme detection is anchored on an explicit dangerous-scheme list, so ordinary
+    text containing a colon (e.g. a clock time) is not misclassified.
+- Applied at the API boundary: `src/app/api/profile/route.ts` (website, avatar and
+  all five socials) and both bio block write paths
+  (`src/app/api/bio/[pageId]/route.ts`, `src/app/api/bio/[pageId]/blocks/route.ts`).
+- Defence in depth at render: all four `href` sinks in
+  `src/components/bio/public-view.tsx` go through `safeHref`, which also
+  neutralises unsafe URLs already stored before this allowlist shipped.
+- Tests: `src/lib/url-safety.test.ts` (10).
+
+### HIGH
+
+| ID | Issue | Evidence | Impact | Fix |
+|---|---|---|---|---|
+| **D-5** | Cookie policy promises consent; code has none | `cookie-policy/page.tsx:60-63` vs `public-view.tsx:13-27`, `track/route.ts:11-19` | PECR / UK GDPR / EU eConsent exposure; published policy is inaccurate | Consent banner + preference store; gate non-essential tracking on it |
+| **D-6** | Sessions never expire server-side; reset does not invalidate | Payload has no `iat`/`exp` (`src/lib/auth/session.ts:33-40`); `get-session.ts:24-50` checks no age; reset deletes an unused table (`reset-password/route.ts:38-39`) | Stolen cookie valid indefinitely, even after a password reset | Add `iat`/`exp` + server-side session records; make reset revoke |
+| **D-7** | AI credit quota checked *after* the paid LLM call | `src/app/api/coach/analyze/route.ts:74-83` | Unlimited AI over quota; revenue leak on the metered dimension | Check and consume **before** calling; make it POST |
+| **D-8** | Contact quota bypassable | bookings and free enrolment create contacts with no `bumpUsage` | Free-tier abuse of the metered dimension | Centralise contact creation through one metered path |
+| **D-9** | Views meter displays 0 forever | writes `"views"` (`track/route.ts:41,45`), reads `usage.viewsPerMonth` (`billing/page.tsx:46`) | Billing screen contradicts enforcement; upgrade prompts misfire | Unify the metric name |
+| **D-10** | No transactions around money writes | `orders.ts:166-177` (2 writes), `185-205` (5+), refund route (provider call then UPDATE) | Partial failure leaves paid-but-unfulfilled, and the `already_paid` guard makes it unrecoverable | Wrap fulfilment and refund in `tx()`; record refund intent before calling the provider |
+| **D-11** | Webhook events marked processed before work succeeds, never retried | row inserted first, exception returns 200 with row intact (`webhooks/stripe/route.ts:45-52,144-155`) | Paid order can stay `pending` permanently; gateway never retries | Mark processed only after success; return 5xx on failure |
+| **D-12** | Subscription webhook can silently downgrade a tenant to `free` | falls back to `metadata.plan \|\| "free"` (`webhooks/stripe/route.ts:97,118`) | Paying customer loses paid features | Do not downgrade on absent metadata; require explicit signal |
+| **D-13** | No dunning, grace period or recovery on failed renewal | only flips to `past_due` (`cashfree-provider.ts:396-399`); `past_due` grants no plan | Silent revenue loss + creator locked out with no warning | Retry schedule + grace period + recovery email |
+| **D-14** | All five legal docs DRAFT with 3 unresolved placeholders | `src/components/legal/legal-info.ts:2-4` | Users cannot identify the contracting entity | Provide real entity data, obtain counsel review |
+| **D-15** | Unverified email grants platform admin | `ADMIN_EMAILS` match only (`src/lib/admin/access.ts:1-5`); `email_verified` never set (`schema.sql:12`) | Anyone registering a configured admin address gets cross-tenant refund powers | Verify email before granting admin; move admin to a DB role |
+| **D-16** | Rate limits keyed on spoofable `x-forwarded-for`, in-memory | `src/lib/http.ts:39-43`, `src/lib/security/rate-limit.ts:3-36` | Brute force and credential stuffing practical; limits reset on restart | Prefer `CF-Connecting-IP`; shared store; add account-level throttle |
+| **D-17** | CSRF defence keys on `sec-fetch-site` only | `src/proxy.ts:66-75`; `SameSite=Lax` still sends cookies same-site | A compromised sibling subdomain bypasses it | Add `Origin` validation or a CSRF token |
+| **D-18** | Refunds do not revoke entitlements | refund route updates order only | Refunded buyers keep course access | Revoke enrolments on refund |
+| **D-19** | Lead PII sent to an undisclosed AI processor | 5 raw lead emails to the LLM (`coach/analyze/route.ts:42-45,70`); AI provider absent from `docs/LEGAL-DRAFTS.md:20-22` | Undisclosed third-party processing | Redact before send; disclose processor; add AI terms |
+| **D-20** | `webhook_events` retains undeletable third-party PII | no `tenant_id`, no cascade, excluded from export and delete (`schema.sql:421-427`) | Unbounded third-party PII retention | Add `tenant_id`; retention job; include in export/delete |
+| **D-21** | Legal entity placeholders in a DRAFT that is `noindex` but linked | `legal-page.tsx:23-29` | — | See D-14 |
+
+### MEDIUM
+
+| ID | Issue | Evidence |
+|---|---|---|
+| D-22 | Standalone build cannot find `schema.sql` → ENOENT on first DB access | `src/lib/db/db.ts:21` + no `outputFileTracingIncludes` |
+| D-23 | Email open/click never written; engagement permanently 0 | `schema.sql:262-263`, `engine.ts:133-134` |
+| D-24 | `post_comments`, `post_reactions` missing from GDPR export | `src/lib/account/gdpr.ts:4-37` |
+| D-25 | CSV export has no formula-injection guard | `src/app/api/leads/export/route.ts:16-21` |
+| D-26 | CSP uses `unsafe-inline`; `img-src`/`media-src` allow bare `http:`; `connect-src` allows wildcard `ws:` | `src/proxy.ts:14-19` |
+| D-27 | Production IP, domain and admin email committed to docs | `docs/PRODUCTION-READINESS-REPORT.md:6-7,30` |
+| D-28 | Docker bakes `AUTH_SECRET` as a build ARG before `npm run build`; empty ARG silently activates the hardcoded dev secret; container runs as root | `Dockerfile`, `src/lib/auth/session.ts:3` |
+| D-29 | No pagination on any list endpoint | multiple |
+| D-30 | `bumpUsage` non-atomic read-modify-write; concurrent increments lost | `src/lib/usage.ts:6-31` |
+
+---
+
+## 15. Business opportunity matrix
+
+Scored on commercial leverage × implementation cost. "Revenue" = direct or compounding revenue effect.
+
+| Opportunity | Revenue | Cost | Compounds? | Verdict |
+|---|---|---|---|---|
+| Fix consent + tenant-delete + email-fail-open + XSS | Indirect — unlocks EU/UK sale | **Trivial** (≈1 day total) | No, but **gates everything else** | **Do first, unconditionally** |
+| Cookie consent + trust centre | Unlocks EU/UK traffic | Low | No | Do immediately after the four Criticals |
+| Entity + counsel review | Unblocks payment-provider underwriting | Low + external dependency | No | Start the clock now; longest lead time |
+| Annual plans | ARPA uplift, cash-flow benefit | Low | No | High value / low cost |
+| Abandoned-checkout recovery | Direct revenue from existing demand | Low | No | Classic 10–20% recovery |
+| Usage-based AI metering | Direct, aligns cost to price | Medium | No | Fix D-7 first, then price it |
+| Free tools (rate card, media kit, sponsorship calculator) | **Compounding** organic acquisition | Medium | **Yes** | Best GTM ROI available |
+| SEO landing pages per use case | Compounding | Medium | **Yes** | Best GTM ROI available |
+| Referral program | Compounding, viral | Medium | **Yes** | Strongest single GTM unlock |
+| CreatorOS affiliate program | Compounding, low CAC | Medium | **Yes** | High leverage |
+| Upgrade/downgrade + proration + dunning | Direct revenue recovery + retention | Medium | No | Must-have for paid credibility |
+| Marketplace commission | Large but needs critical mass | **Very high** | Yes | Defer — Whop-scale problem |
+| Brand-deal marketplace | Large | **Very high** | Yes | Defer; long sales cycle |
+| Brand kit / rate card | Differentiator vs Linktree/Beacons | Low–medium | No | Cheap credibility win |
+| Partner program | Compounding | Medium | Yes | After referral works |
+
+**Strategic read:** the highest-return work is **not** the marketplace. It is (a) closing the four Critical trust defects, and (b) referral + free tools + SEO, which are the only three mechanisms that make growth independent of creators bringing their own traffic. The marketplace is the largest prize but the most expensive and slowest; attempting it before the acquisition loops exist would produce an empty marketplace.
+
+---
+
+## 16. Prioritised roadmap
+
+### P0 — Launch blockers (do not take paid UK/EU traffic until closed)
+
+| # | Item | Defect | Est. |
+|---|---|---|---|
+| 1 | Never set marketing consent on a transactional path | D-1 | 1h |
+| 2 | Split "leave org" from "delete org"; owner-only + role check | D-2 | 3h |
+| 3 | Env-gate the email file fallback; propagate provider errors | D-3 | 2h |
+| 4 | Allowlist URL schemes; sanitise bio block URLs | D-4 | 3h |
+| 5 | Add session `iat`/`exp`; make password reset revoke | D-6 | 4h |
+| 6 | Webhook: process-then-mark; 5xx on failure | D-11 | 2h |
+| 7 | Wrap `fulfillOrder` + refund in transactions | D-10 | 4h |
+| 8 | Verify email before granting admin | D-15 | 3h |
+| 9 | Stripe live keys + webhook verification tests | — | 2h |
+| 10 | Subscription lifecycle: upgrade, downgrade, cancel, dunning, grace | D-13 | 1–2d |
+| 11 | Cookie consent + preference store | D-5 | 1d |
+| 12 | Resolve entity placeholders; counsel review | D-14 | external |
+| 13 | Cookie policy reconciled with actual behaviour | D-5 | 2h |
+
+### P1 — Revenue engine
+
+Annual plans · abandoned-checkout recovery · usage-based AI pricing · upgrade/downgrade/proration · billing portal · referral program · CreatorOS affiliate · free tools (3–5) · fix quota metering (D-7, D-8, D-9, D-30) · revenue funnel instrumentation.
+
+### P2 — Growth engine
+
+SEO landing pages per use case · AEO/GEO (FAQ schema, `llms.txt`, comparison pages) · creator discovery · "Powered by CreatorOS" badge · embeddable widget · media kit + rate card · partner program.
+
+### P3 — Retention & platform
+
+Lifecycle email sequences · creator health score · cancellation feedback + downgrade offers · cohort retention · marketplace (deferred until P2 loops prove demand) · brand-deal marketplace · public API.
+
+---
+
+## 17. Corrections to prior assessments
+
+Recorded for accuracy, because both would otherwise have caused wrong prioritisation:
+
+1. **"AI credits are not implemented."** Wrong. The coach is live at `/app/coach`, backed by `/api/coach/analyze`, metered, RBAC-guarded and feature-flagged. The *quota check is misplaced* (D-7), which is a different and smaller problem.
+2. **"Pricing needs restructuring to $19/$49."** Wrong — pricing is already $9/$19/$49/$99 and the structure is sound.
+3. **"Legal pages are indexable / missing `noindex`."** Wrong. `legalMetadata` sets `robots: { index: false, follow: true }` at `src/components/legal/legal-page.tsx:13`, and a visible draft banner is rendered.
+
+A fourth claim was partially right and is now precisely scoped: **"Custom domain" is not implemented.** The column (`schema.sql:104`) and plan flag (`src/lib/plans.ts:19`) exist, but there is no middleware, no host routing and no settings input. The feature was removed from public pricing in commit `6d973f7`, along with `Team seats`, `White-label` and `API access`, which had no implementation whatsoever.
+
+---
+
+## 18. Evidence-based scorecard
+
+Scores reflect **verified current state**, not roadmap intent.
+
+| Area | Score | Basis |
+|---|---:|---|
+| Market & Timing | 8 | Creator economy $313B, infra segment +41% YoY; SaaS is well positioned |
+| Product | 7 | Nine working modules is genuinely broad breadth; but no onboarding, activation untracked, four monetization meters broken |
+| Technical | 7 | Strong fundamentals (typed, 159 tests, parameterised SQL, complete headers, sound IDOR) offset by no transactions on money paths, no error boundaries, no CI, broken standalone build |
+| Monetization | 5 | Pricing structure sound and limits mostly enforced; three limits bypassable, one displays wrong, no annual plans, no upgrade/downgrade, no usage pricing |
+| Payments | 5 | Real live INR payments, clean provider abstraction, idempotent fulfilment, HMAC verify; but no transactions, no dunning, no portal, no proration, no entitlement revocation, no tax, Stripe webhooks untested |
+| GTM | 2 | No referral, affiliate, partner, content, tools, marketplace or product-led loop; 4-URL sitemap; funnel unmeasurable |
+| Legal / Trust | 2 | Docs correctly `noindex` with no false claims (good), but three entity placeholders, consent defect, policy contradicts code, no consent UI, no trust centre |
+| Retention | 2 | Notifications only; no lifecycle email, no cancellation feedback, no cohorts, no churn detection |
+| Unit Economics | 2 | MRR visible; ARR/ARPU/churn/LTV/CAC absent; funnel unmeasurable; hardcoded FX rate |
+| **Overall** | **5.1** | Weighted |
+
+**What would legitimately move this to 8+:** closing P0 raises Legal/Trust to ~7 and Payments to ~7. Instrumenting the revenue funnel plus referral, affiliate and free tools raises GTM to ~6–7. Annual plans, dunning, recovery and usage pricing raise Monetization to ~7. Retention work adds ~1 point overall. Landing near **8** is plausible in two focused quarters; **8.5+** additionally requires the marketplace, which is a different-scale programme.
+
+**Scores were not inflated to match the target.** Two areas were scored *down* versus the starting assessment because deeper evidence justified it.

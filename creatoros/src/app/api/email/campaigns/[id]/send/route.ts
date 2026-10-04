@@ -12,9 +12,20 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   if (!can(s.role as never, "email:write")) return err.forbidden();
   const { id } = await params;
 
-  const owned = row("SELECT id, status FROM email_campaigns WHERE id = ? AND tenant_id = ?", id, s.org.id);
+  const owned = row<{ id: string; status: string }>(
+    "SELECT id, status FROM email_campaigns WHERE id = ? AND tenant_id = ?",
+    id,
+    s.org.id
+  );
   if (!owned) return err.notFound();
   if (owned.status === "sending") return err.conflict("Campaign is already sending");
+  // A partial campaign already delivered to part of the audience. Re-running it
+  // would send a second copy to those recipients, so resume is not offered yet.
+  if (owned.status === "partial") {
+    return err.conflict(
+      "This campaign was partially delivered. Sending it again would email recipients a second time."
+    );
+  }
 
   try {
     const result = await sendCampaign(id);

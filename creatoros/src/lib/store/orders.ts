@@ -52,11 +52,13 @@ export function createOrderForProduct(
   const existing = row<{ id: string }>("SELECT id FROM contacts WHERE tenant_id = ? AND email = ?", product.tenant_id, email);
   if (existing) {
     contactId = existing.id;
-    run("UPDATE contacts SET consent = 1, updated_at = ? WHERE id = ?", nowIso(), contactId);
+    // Buying is not consent to marketing. `consent` is only ever set by an
+    // explicit opt-in (see /api/leads/capture), never by a transactional path.
+    run("UPDATE contacts SET updated_at = ? WHERE id = ?", nowIso(), contactId);
   } else {
     contactId = newId("con");
     run(
-      "INSERT INTO contacts (id, tenant_id, email, name, consent, source, page_id, tags, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?, '[]', ?, ?)",
+      "INSERT INTO contacts (id, tenant_id, email, name, consent, source, page_id, tags, created_at, updated_at) VALUES (?, ?, ?, ?, 0, ?, ?, '[]', ?, ?)",
       contactId,
       product.tenant_id,
       email,
@@ -117,11 +119,11 @@ export function createOrderForCourse(
   const existing = row<{ id: string }>("SELECT id FROM contacts WHERE tenant_id = ? AND email = ?", course.tenant_id, email);
   if (existing) {
     contactId = existing.id;
-    run("UPDATE contacts SET consent = 1, updated_at = ? WHERE id = ?", nowIso(), contactId);
+    run("UPDATE contacts SET updated_at = ? WHERE id = ?", nowIso(), contactId);
   } else {
     contactId = newId("con");
     run(
-      "INSERT INTO contacts (id, tenant_id, email, name, consent, source, tags, created_at, updated_at) VALUES (?, ?, ?, ?, 1, 'course', '[]', ?, ?)",
+      "INSERT INTO contacts (id, tenant_id, email, name, consent, source, tags, created_at, updated_at) VALUES (?, ?, ?, ?, 0, 'course', '[]', ?, ?)",
       contactId,
       course.tenant_id,
       email,

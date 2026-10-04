@@ -73,6 +73,34 @@ const MIGRATIONS: Array<{ id: number; up: (db: DatabaseSync) => void }> = [
       db.exec("CREATE INDEX IF NOT EXISTS idx_password_reset_user ON password_reset_tokens(user_id)");
     },
   },
+  {
+    // Consent provenance: a controller must be able to prove when and where a
+    // contact opted in. Absent these, `consent` alone is unverifiable.
+    id: 10,
+    up: (db) => addColumn(db, "contacts", "consent_at", "TEXT"),
+  },
+  {
+    id: 11,
+    up: (db) => addColumn(db, "contacts", "consent_source", "TEXT NOT NULL DEFAULT ''"),
+  },
+  {
+    // Remediation for the consent defect: purchases and free enrolments used to
+    // write consent = 1, silently subscribing every buyer to the creator's
+    // marketing campaigns. Transactional contacts are identifiable by source and
+    // carry no consent_at, because no opt-in was ever captured for them. Genuine
+    // opt-ins are left alone: they either have consent_at set or a non-
+    // transactional source.
+    id: 12,
+    up: (db) => {
+      db.exec(
+        `UPDATE contacts
+            SET consent = 0, consent_source = 'revoked_transactional'
+          WHERE consent = 1
+            AND consent_at IS NULL
+            AND source IN ('store', 'course')`
+      );
+    },
+  },
 ];
 
 function addColumn(db: DatabaseSync, table: string, column: string, ddl: string) {

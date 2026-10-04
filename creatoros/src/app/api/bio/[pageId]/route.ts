@@ -7,6 +7,7 @@ import { getLimits, withinLimit } from "@/lib/plans";
 import { getUsage, bumpUsage } from "@/lib/usage";
 import { audit } from "@/lib/audit";
 import { can } from "@/lib/auth/rbac";
+import { payloadHasDangerousScheme } from "@/lib/url-safety";
 
 const BLOCK_TYPES = ["profile", "bio", "link", "product", "booking", "email_capture", "cta", "social"] as const;
 
@@ -102,6 +103,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ pageId: st
   const body = await readJson(req);
   const parsed = blockSchema.safeParse(body);
   if (!parsed.success) return err.validation(parsed.error.flatten().fieldErrors);
+
+  // Free-form payload: reject script-capable schemes before they reach an href.
+  if (payloadHasDangerousScheme(parsed.data.payload ?? {})) {
+    return err.validation({ payload: "Unsupported URL scheme in block content" });
+  }
 
   const nextPos = (all<{ m: number }>("SELECT COALESCE(MAX(position), -1) AS m FROM bio_blocks WHERE page_id = ?", pageId)[0]?.m ?? -1) + 1;
   if (parsed.data.type === "link") {

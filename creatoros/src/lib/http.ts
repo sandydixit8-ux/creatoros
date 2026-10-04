@@ -11,7 +11,7 @@ export function fail(message: string, status = 400, code = "error"): NextRespons
 
 export const err = {
   auth: () => fail("Not authenticated", 401, "auth_required"),
-  forbidden: () => fail("You don't have permission", 403, "forbidden"),
+  forbidden: (message = "You don't have permission") => fail(message, 403, "forbidden"),
   notFound: () => fail("Not found", 404, "not_found"),
   conflict: (message = "Conflict") => fail(message, 409, "conflict"),
   validation: (details: unknown) =>
