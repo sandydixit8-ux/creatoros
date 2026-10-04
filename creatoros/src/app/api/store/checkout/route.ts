@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { ok, err, readJson, getClientIp } from "@/lib/http";
 import { row } from "@/lib/db/db";
-import { getPaymentProviderForCurrency } from "@/lib/payments";
+import { getPaymentProviderForCurrency, cashfreeSdkMode } from "@/lib/payments";
 import { getProduct, createOrderForProduct, attachCheckoutSession } from "@/lib/store/orders";
 import { getLimits } from "@/lib/plans";
 import { getUsage } from "@/lib/usage";
@@ -78,7 +78,15 @@ export async function POST(req: NextRequest) {
       metadata: { orderId: order.id, tenantId: product.tenant_id },
     });
     attachCheckoutSession(order.id, provider.name, session.sessionId);
-    return ok({ url: session.url, orderId: order.id });
+    // Cashfree cannot be opened by URL: the browser SDK needs the session id.
+    // sdkMode is sent from the server so the client never reads server env.
+    return ok({
+      url: session.url ?? null,
+      clientSessionId: session.clientSessionId ?? null,
+      sdk: session.clientSessionId ? "cashfree" : null,
+      sdkMode: session.clientSessionId ? cashfreeSdkMode() : null,
+      orderId: order.id,
+    });
   } catch (e) {
     // The provider reason is the only way to debug a declined currency,
     // customer field or gateway rule, so log it instead of swallowing it.

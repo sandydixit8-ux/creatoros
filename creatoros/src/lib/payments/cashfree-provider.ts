@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { SITE_URL } from "@/lib/constants";
 import type { PaymentProvider, CheckoutSessionResult, PaymentStatus, ProviderWebhookEvent } from "./types";
 import {
   subscriptionsConfigured,
@@ -143,22 +144,14 @@ export function cashfreeCustomerId(email?: string): string {
   return cleaned.length >= 3 ? cleaned : `cust_${crypto.createHash("sha256").update(source).digest("hex").slice(0, 16)}`;
 }
 
-/**
- * Cashfree's create-order response has no `payment_url`: it returns
- * `payment_session_id`, and the hosted checkout link is assembled from it
- * (`payments.cashfree.com` live, `payments-test.cashfree.com` sandbox).
- */
-export function cashfreeCheckoutUrl(paymentSessionId: string, orderId: string): string {
-  const host = sandbox() ? "https://payments-test.cashfree.com" : "https://payments.cashfree.com";
-  return `${host}/checkout?payment_session_id=${encodeURIComponent(paymentSessionId)}&order_id=${encodeURIComponent(orderId)}`;
-}
-
 interface CreateOrderArgs {
   orderId: string;
   amountCents: number;
   currency: string;
   title: string;
   successUrl: string;
+  /** Where Cashfree posts payment webhooks for this order. */
+  notifyUrl?: string;
   customerEmail?: string;
   customerPhone?: string;
   metadata: Record<string, string>;
@@ -185,20 +178,22 @@ async function createOrder(args: CreateOrderArgs): Promise<CheckoutSessionResult
       },
       order_meta: {
         return_url: returnUrl,
+        // Set per order so the webhook works even before an endpoint is added in
+        // the Cashfree dashboard. Same HMAC verification either way.
+        notify_url: args.notifyUrl || undefined,
         payment_methods: PAYMENT_METHODS,
       },
     },
   });
 
-  const paymentUrl =
-    data.payment_url ||
-    (data.payment_session_id ? cashfreeCheckoutUrl(data.payment_session_id, data.order_id || orderId) : "");
-  if (!paymentUrl) {
-    throw new Error("Cashfree did not return a payment URL");
+  const paymentSessionId = data.payment_session_id;
+  if (!paymentSessionId) {
+    throw new Error("Cashfree did not return a payment session id");
   }
 
-  // order_id doubles as the provider session id so the webhook can fulfil by session.
-  return { sessionId: data.order_id || orderId, url: paymentUrl };
+  // order_id doubles as the provider session id so the webhook can fulfil by
+  // session; the browser opens checkout with clientSessionId via the SDK.
+  return { sessionId: data.order_id || orderId, clientSessionId: paymentSessionId };
 }
 
 export const cashfreeProvider: PaymentProvider = {
@@ -227,6 +222,7 @@ export const cashfreeProvider: PaymentProvider = {
       currency,
       title,
       successUrl,
+      notifyUrl: `${SITE_URL}/api/webhooks/stripe`,
       customerEmail,
       customerPhone: normalisePhone(customerPhone),
       metadata,

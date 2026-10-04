@@ -22,7 +22,18 @@ export interface SubscriptionSessionInput {
 
 export interface CheckoutSessionResult {
   sessionId: string;
-  url: string;
+  /**
+   * Hosted redirect URL, for providers that hand one back (Stripe).
+   *
+   * Cashfree no longer returns `order_token`/`payment_link`: the create-order
+   * response only carries `payment_session_id`, and the docs are explicit that
+   * "you cannot redirect the customer to the checkout page just by using the
+   * API" — the browser SDK must open checkout. So Cashfree fills
+   * `clientSessionId` instead and leaves `url` unset.
+   */
+  url?: string;
+  /** Payment session the browser must hand to the Cashfree SDK. */
+  clientSessionId?: string;
 }
 
 /**

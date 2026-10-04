@@ -37,4 +37,32 @@ test.describe("payment failure handling", () => {
     await expect(page.getByRole("heading", { name: "Payment processing" })).toBeVisible();
     await expect(page.locator("dl").getByText("canceled")).toBeVisible();
   });
+
+  test("a Cashfree-style return with no session_id still confirms the payment", async ({ page }) => {
+    await login(page);
+
+    const productsRes = await page.request.get("/api/store/products");
+    const products = (await productsRes.json()).data.products as Array<{ id: string; name: string }>;
+    const product = products.find((p) => p.name === "E2E Digital Guide");
+    expect(product).toBeTruthy();
+
+    const checkoutRes = await page.request.post("/api/store/checkout", {
+      data: { productId: product!.id, email: `return-${Date.now()}@example.com`, phone: "9876543210" },
+    });
+    const orderId = ((await checkoutRes.json()).data as { orderId: string }).orderId;
+
+    // Cashfree redirects with cf_order_id (or nothing usable), never
+    // session_id, so the route must confirm from the stored session instead of
+    // skipping the provider check.
+    const success = await page.request.get(`/api/store/checkout/success?order=${orderId}&cf_order_id=${orderId}`, {
+      maxRedirects: 0,
+    });
+    expect(success.status()).toBe(303);
+    const location = success.headers()["location"];
+    expect(location).toContain("/store/receipt/");
+
+    await page.goto(location);
+    await expect(page.getByRole("heading", { name: "Payment received" })).toBeVisible();
+    await expect(page.locator("dl").getByText("paid")).toBeVisible();
+  });
 });

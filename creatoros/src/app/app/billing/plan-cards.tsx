@@ -2,21 +2,7 @@
 
 import { useState } from "react";
 import { Check } from "lucide-react";
-
-const SDK_SRC = "https://sdk.cashfree.com/js/v3/cashfree.js";
-
-type CashfrontInstance = {
-  subscriptionsCheckout: (opts: {
-    subsSessionId: string;
-    redirectTarget?: "_self" | "_blank";
-  }) => Promise<{ error?: { message?: string } } | void>;
-};
-
-declare global {
-  interface Window {
-    Cashfree?: (opts: { mode: "sandbox" | "production" }) => CashfrontInstance;
-  }
-}
+import { loadCashfree } from "@/lib/payments/cashfree-checkout";
 
 export interface PlanCardData {
   key: string;
@@ -33,26 +19,8 @@ export interface PlanCardData {
   };
 }
 
-function loadCashfront(mode: "sandbox" | "production"): Promise<CashfrontInstance> {
-  return new Promise((resolve, reject) => {
-    if (window.Cashfree) {
-      resolve(window.Cashfree({ mode }));
-      return;
-    }
-    const existing = document.querySelector<HTMLScriptElement>(`script[src="${SDK_SRC}"]`);
-    const script = existing || document.createElement("script");
-    script.src = SDK_SRC;
-    script.async = true;
-    script.onload = () => {
-      if (!window.Cashfree) {
-        reject(new Error("Cashfree checkout could not start. Please try again."));
-        return;
-      }
-      resolve(window.Cashfree({ mode }));
-    };
-    script.onerror = () => reject(new Error("Could not reach Cashfree. Check your connection and try again."));
-    if (!existing) document.head.appendChild(script);
-  });
+function loadCashfront(mode: "sandbox" | "production") {
+  return loadCashfree(mode);
 }
 
 /** Cashfree wants a 10-digit Indian mobile for domestic mandates. */
@@ -135,6 +103,7 @@ export default function PlanCards({
 
       if (provider === "cashfree" && sessionId) {
         const cashfree = await loadCashfront(mode);
+        if (!cashfree.subscriptionsCheckout) throw new Error("Cashfree checkout could not start. Please try again.");
         const result = await cashfree.subscriptionsCheckout({
           subsSessionId: sessionId,
           redirectTarget: "_self",

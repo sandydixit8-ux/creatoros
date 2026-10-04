@@ -5,6 +5,7 @@ import { ArrowRight, CalendarCheck, Check, Instagram, Globe, Youtube, Linkedin, 
 import type { PublicBioPage } from "@/lib/bio/page";
 import { SITE_URL } from "@/lib/constants";
 import { formatPrice } from "@/lib/money";
+import { openCashfreeCheckout } from "@/lib/payments/cashfree-checkout";
 
 export function PublicBioPageView({ bio }: { bio: PublicBioPage }) {
   const theme = bio.page.theme;
@@ -135,10 +136,11 @@ function BuyProductCard(props: {
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [handedOff, setHandedOff] = useState(false);
 
   async function startCheckout(e: React.FormEvent) {
     e.preventDefault();
-    if (!email.trim()) return;
+    if (!email.trim() || busy) return;
     setBusy(true);
     setError("");
     try {
@@ -148,15 +150,26 @@ function BuyProductCard(props: {
         body: JSON.stringify({ productId: product.id, email: email.trim(), phone: phone.trim(), visitorId }),
       });
       const j = await res.json();
+      if (j.ok && j.data?.clientSessionId) {
+        // Cashfree: the SDK opens checkout; there is no hosted URL to redirect to.
+        // The SDK resolves as soon as it hands off to the hosted page, so keep
+        // the button disabled — otherwise a slow load invites a second click and
+        // a duplicate live order.
+        await openCashfreeCheckout(j.data.clientSessionId, j.data.sdkMode === "sandbox" ? "sandbox" : "production");
+        setHandedOff(true);
+        return;
+      }
       if (j.ok && j.data?.url) {
+        setHandedOff(true);
         window.location.href = j.data.url;
         return;
       }
       setError(j.error?.message || "Checkout unavailable right now");
-    } catch {
-      setError("Network error");
+    } catch (e) {
+      setError(e instanceof Error && e.message ? e.message : "Checkout could not start. Please try again.");
     } finally {
-      setBusy(false);
+      // A handed-off checkout must stay locked until the page navigates away.
+      if (!handedOff) setBusy(false);
     }
   }
 

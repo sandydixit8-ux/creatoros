@@ -3,7 +3,7 @@ import { z } from "zod";
 import { ok, err, readJson, getClientIp } from "@/lib/http";
 import { getCourse, enrollmentFor } from "@/lib/courses/engine";
 import { createOrderForCourse, attachCheckoutSession } from "@/lib/store/orders";
-import { getPaymentProviderForCurrency } from "@/lib/payments";
+import { getPaymentProviderForCurrency, cashfreeSdkMode } from "@/lib/payments";
 import { row } from "@/lib/db/db";
 import { SITE_URL } from "@/lib/constants";
 import { rateLimit, rateKey } from "@/lib/security/rate-limit";
@@ -65,7 +65,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       metadata: { orderId: order.id, tenantId: course.tenant_id, courseId: course.id },
     });
     attachCheckoutSession(order.id, provider.name, session.sessionId);
-    return ok({ url: session.url, orderId: order.id });
+    // Cashfree cannot be opened by URL: the browser SDK needs the session id.
+    // sdkMode is sent from the server so the client never reads server env.
+    return ok({
+      url: session.url ?? null,
+      clientSessionId: session.clientSessionId ?? null,
+      sdk: session.clientSessionId ? "cashfree" : null,
+      sdkMode: session.clientSessionId ? cashfreeSdkMode() : null,
+      orderId: order.id,
+    });
   } catch (e) {
     console.error(`[course-checkout] ${provider.name} session failed for order ${order.id}:`, e);
     return err.server();

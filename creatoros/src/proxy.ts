@@ -7,16 +7,20 @@ const isProd = process.env.NODE_ENV === "production";
 // `media-src` and `img-src` allow user-supplied media/video/avatar URLs.
 const CSP = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isProd ? "" : " 'unsafe-eval'"}`,
+  // Cashfree's checkout is opened by its JS SDK, so sdk.cashfree.com must be
+  // scriptable; Cloudflare auto-injects its RUM beacon at
+  // static.cloudflareinsights.com. Both were blocked, which left the buy button
+  // hanging on the SDK's "Redirecting…" state.
+  `script-src 'self' 'unsafe-inline' https://sdk.cashfree.com https://static.cloudflareinsights.com${isProd ? "" : " 'unsafe-eval'"}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https: http:",
   "media-src 'self' data: blob: https: http:",
   "frame-src 'self' https: http:",
-  "connect-src 'self' https://api.stripe.com https://js.stripe.com https://checkout.stripe.com ws: wss:",
+  "connect-src 'self' https://api.stripe.com https://js.stripe.com https://checkout.stripe.com https://sdk.cashfree.com https://api.cashfree.com ws: wss:",
   "font-src 'self' data:",
   "object-src 'none'",
   "base-uri 'self'",
-  "form-action 'self'",
+  "form-action 'self' https://api.cashfree.com https://sdk.cashfree.com",
   "frame-ancestors 'none'",
   ...(isProd ? ["upgrade-insecure-requests"] : []),
 ].join("; ");

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import { openCashfreeCheckout } from "@/lib/payments/cashfree-checkout";
 
 export function EnrollmentForm(props: { courseId: string; isPaid: boolean }) {
   const router = useRouter();
@@ -28,7 +29,10 @@ export function EnrollmentForm(props: { courseId: string; isPaid: boolean }) {
       const j = await res.json();
       if (j.ok && j.data) {
         setResult(j.data);
-        if (j.data.url) {
+        if (j.data.clientSessionId) {
+          // Cashfree: the SDK opens checkout; there is no hosted URL to redirect to.
+          await openCashfreeCheckout(j.data.clientSessionId, j.data.sdkMode === "sandbox" ? "sandbox" : "production");
+        } else if (j.data.url) {
           window.location.href = j.data.url;
         }
       } else {

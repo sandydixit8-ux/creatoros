@@ -1,5 +1,5 @@
-import { describe, it, expect, afterEach } from "vitest";
-import { cashfreeCustomerId, cashfreeCheckoutUrl } from "./cashfree-provider";
+import { describe, it, expect } from "vitest";
+import { cashfreeCustomerId } from "./cashfree-provider";
 
 describe("cashfreeCustomerId", () => {
   it("strips the characters Cashfree rejects from an email", () => {
@@ -21,30 +21,5 @@ describe("cashfreeCustomerId", () => {
   it("uses guest when there is no email", () => {
     expect(cashfreeCustomerId()).toBe("guest");
     expect(cashfreeCustomerId("  ")).toBe("guest");
-  });
-});
-
-describe("cashfreeCheckoutUrl", () => {
-  const prev = process.env.CASHFREE_ENV;
-
-  afterEach(() => {
-    if (prev === undefined) delete process.env.CASHFREE_ENV;
-    else process.env.CASHFREE_ENV = prev;
-  });
-
-  it("builds the live hosted checkout link from the payment session id", () => {
-    process.env.CASHFREE_ENV = "live";
-    const url = cashfreeCheckoutUrl("session_abc-123", "ord_1");
-    expect(url).toBe("https://payments.cashfree.com/checkout?payment_session_id=session_abc-123&order_id=ord_1");
-  });
-
-  it("uses the test host in sandbox", () => {
-    process.env.CASHFREE_ENV = "sandbox";
-    expect(cashfreeCheckoutUrl("s_1", "ord_1")).toContain("https://payments-test.cashfree.com/checkout?");
-  });
-
-  it("url-encodes ids so a session id cannot break the query string", () => {
-    process.env.CASHFREE_ENV = "live";
-    expect(cashfreeCheckoutUrl("a b&c=d", "ord_2")).toContain("payment_session_id=a%20b%26c%3Dd");
   });
 });
