@@ -24,6 +24,17 @@ export function getLimits(plan: string): PlanLimits {
   return PLANS[plan] ?? PLANS.free;
 }
 
+/**
+ * Upgrade order. `PLANS` is declared ascending, so declaration order *is* the
+ * ranking - used when a tenant has more than one live subscription and we must
+ * pick which one grants access.
+ */
+const PLAN_RANK: ReadonlyMap<string, number> = new Map(Object.keys(PLANS).map((plan, i) => [plan, i]));
+
+export function planRank(plan: string): number {
+  return PLAN_RANK.get(plan) ?? 0;
+}
+
 export function usageKey(metric: string): string {
   return metric;
 }

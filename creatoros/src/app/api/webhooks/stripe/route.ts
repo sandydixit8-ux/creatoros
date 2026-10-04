@@ -95,7 +95,10 @@ export async function POST(req: NextRequest) {
         const metadata = (sub.metadata ?? {}) as Record<string, unknown>;
         const tenantId = str(metadata.tenantId);
         if (tenantId) {
-          const plan = str(metadata.plan) || "free";
+          // No plan in metadata means the gateway did not say - never that the plan is
+          // `free`. Reading absence as `free` downgraded paying tenants on any update
+          // event that omitted metadata (D-12).
+          const plan = str(metadata.plan) || null;
           const status = str(sub.status);
           const applied = applySubscription({
             tenantId,
@@ -117,7 +120,10 @@ export async function POST(req: NextRequest) {
         if (tenantId) {
           const applied = applySubscription({
             tenantId,
-            plan: str(metadata.plan) || "free",
+            // Same rule as above: keep the stored plan instead of rewriting it to
+            // `free`. applySubscription only drops the org when no active
+            // subscription remains.
+            plan: str(metadata.plan) || null,
             provider: provider.name,
             providerId: str(sub.id),
             customerId: str(sub.customer),

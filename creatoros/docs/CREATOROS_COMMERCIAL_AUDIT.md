@@ -15,7 +15,7 @@ The product is **materially more capable than a 5.5/10 assessment suggests**, an
 
 **Status update (4 October 2026):** all four Critical items in §14 are now **fixed and covered by regression tests** — see the remediation log in §14.1. Verified with `npm run typecheck`, `npm run lint`, 170/170 unit tests and 24/24 E2E tests. The score in §16 is deliberately **not** raised yet: it should only move once the fixes are deployed to production and re-verified there.
 
-The next launch blockers are no longer the four Criticals. **D-5** is now fixed as well — see §14.2. The remaining launch blockers are the HIGH payment-lifecycle items **D-10** to **D-13**.
+The next launch blockers are no longer the four Criticals. **D-5** is now fixed as well — see §14.2. The remaining launch blocker is the HIGH payment-lifecycle item **D-13** (dunning, grace and recovery); **D-10**, **D-11** and **D-12** are closed.
 
 ---
 
@@ -742,6 +742,75 @@ non-deletable while payments reference it, or accept the nullable reference deli
 document it. That is a design decision with accounting consequences, not a defect to patch in
 passing, so it is recorded here for a proper decision rather than changed quietly.
 
+### 14.8 Remediation log - D-12 subscriptions silently downgraded to free (2026-10-04)
+
+**The bug.** A subscription webhook could take a paying tenant to the free plan without any
+signal to anybody. The absence of a plan was being read as the literal plan `free`, in both
+halves of the path:
+
+```
+route    str(metadata.plan) || "free"
+module   wrote that to subscriptions.plan, then - because status was "active" -
+         ran UPDATE organizations SET plan = 'free'
+```
+
+Gateways routinely omit metadata on update and renewal events. So the first
+`customer.subscription.updated` that arrived without a `plan` key moved an `org` from `pro` to
+`free` while the customer was still being charged. No error, no audit trail that looked like a
+problem, no alert: the tenant simply lost the features they were paying for, and the state looked
+like ordinary billing. `customer.subscription.deleted` had the same `|| "free"`, which additionally
+rewrote the historical record of what the tenant had been on.
+
+**The fix.** Absence now means *the gateway did not say*, not `free`:
+
+- `applySubscription` takes `plan: string | null`. The route passes `null` rather than inventing
+  a value, and there is no remaining `|| "free"` on a plan.
+- The plan written to the row is `input.plan || existing.plan || org.plan || 'free'` — it keeps
+  what is already known rather than overwriting a paid plan with a guess.
+- `organizations.plan` is raised only when a plan **and** an active status are both present.
+  An active subscription with no plan grants nothing new and revokes nothing.
+- A distinct `billing.subscription_plan_unknown` audit action makes the case visible instead of
+  silent, so a provider that never sends metadata shows up as a signal rather than as churn.
+
+**A second gap found while testing it.** The original code set `organizations.plan = 'free'` for
+*any* non-active status. A tenant holding two live subscriptions had the whole tenant evicted
+when either one was cancelled, even though the other was still paying. Entitlement is now
+recomputed from whatever is still live: highest remaining plan (via a new `planRank`, using the
+ascending declaration order in `PLANS`), or `free` when nothing active remains.
+
+**Tests.** `src/lib/subscription-plan-downgrade.test.ts` (10) plus the existing 5 in
+`subscriptions.test.ts`. They are written at the **route** level as well as the module level,
+because the bug lived in both — a module-only test would not have caught `|| "free"` in the
+route. Coverage: a plan-less renewal does not downgrade; a plan-less event for a subscription
+never seen before does not downgrade; a plan-bearing event still grants; a plan-less event
+converges as soon as a later event carries the plan; a cancellation without metadata keeps the
+recorded plan while still revoking access; one of two subscriptions ending does not evict;
+the last one ending does; a plan-less event cannot rewrite a subscription it does not own.
+
+Checked against the pre-fix code first: **8 of the 10 fail**, so they pin the defect rather than
+merely describing the new behaviour. Verified with `npm run typecheck`, `npm run lint`,
+**261/261** unit tests, **34/34** E2E.
+
+**Scope held at D-12 on purpose.** Two adjacent questions were found and deliberately *not*
+answered here, because answering them is D-13:
+
+- `past_due` grants no plan at all. A single failed card evicts the tenant instantly, with no
+  warning and no grace. This is unchanged by this fix — it is the dunning/grace/recovery gap, and
+  a different design (retry schedule, grace window, recovery email) rather than a patch.
+- Unrecognised statuses are treated as inactive, which revokes.
+
+The same principle already exists in the sibling RankPilot app (`planClaimedByEvent`,
+`COALESCE(?, plan)`, "only touch `organizations.plan` when we positively know what it should be").
+Worth noting that CreatorOS's version is stricter, since it also recomputes from remaining
+subscriptions instead of blanket-setting `free` on cancellation.
+
+**Known limitation, out of scope.** The route only handles a subscription event when
+`metadata.tenantId` is present. A subscription created before that key was added has no tenant in
+its metadata, so its later lifecycle events are acknowledged and ignored — the tenant can neither
+be upgraded nor cancelled by webhook. RankPilot handles this with a fallback that matches the
+subscription id against a stored provider reference. Safe against the D-12 downgrade (nothing is
+applied at all), but it is a real gap; recorded rather than expanded into here.
+
 ### HIGH
 
 | ID | Issue | Evidence | Impact | Fix |
@@ -754,8 +823,7 @@ passing, so it is recorded here for a proper decision rather than changed quietl
 | ~~**D-10**~~ **FIXED** | No transactions around money writes | closed 2026-10-04, see §14.4 | Partial failure left paid-but-unfulfilled, and the `already_paid` guard made it unrecoverable; refund could double-refund after a crash | `tx()` hardened and used; refund intent recorded before the provider call |
 | ~~**D-5 follow-up**~~ **FIXED** | Consent gate bypassed on the server render path | closed 2026-10-04, see §14.5 | Public bio pages recorded a `page_view` for every visitor with no consent check, defeating the banner and surviving withdrawal | Server render path gated on the same signed receipt |
 | ~~**D-11**~~ **FIXED** | Webhook events marked processed before work succeeds | closed 2026-10-04, see §14.7 | A delivery that failed once was dropped as a duplicate on retry *and* the 200 stopped the gateway retrying, so a paid order stayed `pending` permanently | Claim/process/mark lifecycle; `processed_at` only on success; 502 on failure so the gateway retries |
-| **D-11** | Webhook events marked processed before work succeeds, never retried | row inserted first, exception returns 200 with row intact (`webhooks/stripe/route.ts:45-52,144-155`) | Paid order can stay `pending` permanently; gateway never retries | Mark processed only after success; return 5xx on failure |
-| **D-12** | Subscription webhook can silently downgrade a tenant to `free` | falls back to `metadata.plan \|\| "free"` (`webhooks/stripe/route.ts:97,118`) | Paying customer loses paid features | Do not downgrade on absent metadata; require explicit signal |
+| ~~**D-12**~~ **FIXED** | Subscription webhook can silently downgrade a tenant to `free` | closed 2026-10-04, see §14.8 | Any update or renewal event without `metadata.plan` moved a paying org to `free` while still charging them; a cancellation also erased the plan history | `plan` is nullable; absent metadata keeps what is known, grants nothing, and audits `billing.subscription_plan_unknown`; entitlement recomputed from remaining subscriptions |
 | **D-13** | No dunning, grace period or recovery on failed renewal | only flips to `past_due` (`cashfree-provider.ts:396-399`); `past_due` grants no plan | Silent revenue loss + creator locked out with no warning | Retry schedule + grace period + recovery email |
 | **D-14** | All five legal docs DRAFT with 3 unresolved placeholders | `src/components/legal/legal-info.ts:2-4` | Users cannot identify the contracting entity | Provide real entity data, obtain counsel review |
 | **D-15** | Unverified email grants platform admin | `ADMIN_EMAILS` match only (`src/lib/admin/access.ts:1-5`); `email_verified` never set (`schema.sql:12`) | Anyone registering a configured admin address gets cross-tenant refund powers | Verify email before granting admin; move admin to a DB role |
