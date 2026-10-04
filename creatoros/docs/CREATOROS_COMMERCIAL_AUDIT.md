@@ -708,6 +708,40 @@ gateway redelivers. Fixing the code forward does not retroactively repair those 
   reclaiming an abandoned claim.
 - Verified with `npm run typecheck`, `npm run lint`, **251/251** unit tests, **34/34** E2E.
 
+**Production verification.** Migration 14 applied on deploy; `processed_at` confirmed nullable,
+status index present, `integrity_check` `ok`, all 15 pre-existing events backfilled to
+`processed` with `attempts=1`. Unsigned and malformed deliveries are refused with 400 — which
+means the lifecycle could not be driven end-to-end on the live box, because production verifies
+Cashfree's HMAC and forging one against a live payment system is not something to do. The
+failure and retry paths are proven by the test suite, which can sabotage a throwaway database
+safely; the live check confirms the deployment, schema and the refusal path.
+
+**Reconciliation: nobody was harmed by this bug.** Every `checkout.session.completed` event on
+file was matched against its order to find a paid-but-unfulfilled one. There are **zero**. The
+single real order is `paid` with a `succeeded` payment, consistent. The bug was capable of
+stranding a payment and had not yet done so.
+
+**One commit described a change it did not contain.** The first attempt at the health-check fix
+reported success in its message while the file write had not persisted, so the diff held only
+the audit note. The deploy gate caught the consequence — the new build still answered
+`{"ok":true}` without `db:"ok"` and the deploy failed loudly, which is the gate working. Worth
+recording because a commit message is not evidence, and the check that noticed was the one
+built to.
+
+### Observation, deliberately not changed: payments have no foreign key to orders
+
+Found during the same reconciliation. `payments.order_id` was added by a migration with no
+`REFERENCES`, and `schema.sql` does not declare the column at all, so a payment can outlive its
+order. Seven such orphans exist, all `pending` ₹1 Cashfree sessions from abandoned checkouts —
+no money moved, so no harm, but the integrity gap is real.
+
+**Not fixed here on purpose.** The obvious repair — `ON DELETE CASCADE` from payments to orders
+— would mean deleting an order destroys its payment record, which is strictly worse for a
+financial ledger. The safe direction is the opposite: retain the payment and make the order
+non-deletable while payments reference it, or accept the nullable reference deliberately and
+document it. That is a design decision with accounting consequences, not a defect to patch in
+passing, so it is recorded here for a proper decision rather than changed quietly.
+
 ### HIGH
 
 | ID | Issue | Evidence | Impact | Fix |
