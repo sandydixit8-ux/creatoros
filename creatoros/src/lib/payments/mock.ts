@@ -12,6 +12,10 @@ export const mockProvider: PaymentProvider = {
   name: "mock",
   isConfigured: () => true,
 
+  requiresCustomerPhone: false,
+
+  supportsCurrency: () => true,
+
   async createCustomer(): Promise<{ customerId: string }> {
     return { customerId: `cus_mock_${nanoid(12)}` };
   },

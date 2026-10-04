@@ -196,6 +196,7 @@ function BuyProductCard(props: {
           <input
             type="tel"
             inputMode="tel"
+            required
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             placeholder="Phone number"

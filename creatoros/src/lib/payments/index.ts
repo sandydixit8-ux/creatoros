@@ -36,6 +36,50 @@ export function paymentConfigured(): boolean {
 }
 
 /**
+ * Resolve the provider for a specific currency.
+ *
+ * The preferred provider (PAYMENT_PROVIDER) wins whenever it supports the
+ * currency. Otherwise any other configured provider that supports it is used —
+ * a live INR-only Cashfree account cannot settle USD, so USD orders go to
+ * Stripe and INR orders stay on Cashfree. Falls back to the preferred provider
+ * so the caller produces the usual "not configured" error rather than throwing.
+ */
+export function getPaymentProviderForCurrency(currency: string): PaymentProvider {
+  const preferred = getPaymentProvider();
+  if (preferred.isConfigured() && preferred.supportsCurrency(currency)) return preferred;
+
+  for (const candidate of [cashfreeProvider, stripeProvider]) {
+    if (candidate.isConfigured() && candidate.supportsCurrency(currency)) return candidate;
+  }
+  return preferred;
+}
+
+/** Provider recorded on an order/subscription, so refunds and status checks hit the right gateway. */
+export function providerByName(name: string | null | undefined): PaymentProvider | null {
+  const wanted = (name || "").trim().toLowerCase();
+  if (!wanted) return null;
+  if (wanted === "cashfree") return cashfreeProvider;
+  if (wanted === "stripe") return stripeProvider;
+  if (wanted === "mock") return mockProvider;
+  return null;
+}
+
+/**
+ * Every configured provider, for endpoints that must verify an inbound webhook
+ * without knowing which gateway sent it. Cashfree signs with
+ * `x-webhook-signature` + `x-webhook-timestamp`, Stripe with `stripe-signature`.
+ */
+export function webhookProviders(): PaymentProvider[] {
+  const ordered: PaymentProvider[] = [];
+  const preferred = getPaymentProvider();
+  if (preferred.name !== "unconfigured") ordered.push(preferred);
+  for (const candidate of [cashfreeProvider, stripeProvider]) {
+    if (candidate.isConfigured() && !ordered.some((p) => p.name === candidate.name)) ordered.push(candidate);
+  }
+  return ordered;
+}
+
+/**
  * Cashfront mode for the browser SDK. It must mirror the server-side
  * environment or the hosted checkout will not resolve the session id.
  */
@@ -55,6 +99,10 @@ export function billingCurrency(): "usd" | "inr" {
 const unconfiguredProvider: PaymentProvider = {
   name: "unconfigured",
   isConfigured: () => false,
+
+  requiresCustomerPhone: false,
+
+  supportsCurrency: () => false,
   async createCustomer() {
     throw new Error("Payments are not configured");
   },

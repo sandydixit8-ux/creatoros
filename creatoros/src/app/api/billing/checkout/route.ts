@@ -5,7 +5,7 @@ import { run, row, nowIso } from "@/lib/db/db";
 import { getSession } from "@/lib/auth/get-session";
 import { can } from "@/lib/auth/rbac";
 import { PLANS, PLAN_PRICES } from "@/lib/plans";
-import { getPaymentProvider, billingCurrency } from "@/lib/payments";
+import { getPaymentProviderForCurrency, billingCurrency } from "@/lib/payments";
 import { normalisePhone } from "@/lib/payments/cashfree-subscriptions";
 import { applySubscription } from "@/lib/billing/subscriptions";
 import { SITE_URL } from "@/lib/constants";
@@ -47,7 +47,8 @@ export async function POST(req: NextRequest) {
   if (!org) return err.notFound();
 
   const phone = normalisePhone(parsed.data.phone);
-  const provider = getPaymentProvider();
+  const currency = billingCurrency();
+  const provider = getPaymentProviderForCurrency(currency);
   const cashfreeReady = provider.name === "cashfree" && provider.isConfigured();
   const stripeReady = provider.name === "stripe" && provider.isConfigured();
 
@@ -55,7 +56,6 @@ export async function POST(req: NextRequest) {
     // Price the plan in the configured billing currency. Cashfree supports
     // both USD and INR mandates, so this is a merchant choice.
     const prices = PLAN_PRICES[plan];
-    const currency = billingCurrency();
     const amountCents = (currency === "inr" ? prices.inr : prices.usd) * 100;
 
     if (cashfreeReady && !phone) {

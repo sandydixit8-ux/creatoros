@@ -14,7 +14,7 @@ test.describe("payment failure handling", () => {
 
     // Start a checkout with the mock provider and pull the order + session id.
     const checkoutRes = await page.request.post("/api/store/checkout", {
-      data: { productId: product!.id, email: `fail-${Date.now()}@example.com` },
+      data: { productId: product!.id, email: `fail-${Date.now()}@example.com`, phone: "9876543210" },
     });
     expect(checkoutRes.ok()).toBeTruthy();
     const checkout = (await checkoutRes.json()).data as { url: string; orderId: string };

@@ -23,10 +23,21 @@ import {
  *   CASHFREE_ENV           - "sandbox" (default) | "live"
  *   CASHFREE_API_VERSION   - defaults to 2025-01-01
  *   CASHFREE_PAYMENT_METHODS - defaults to "cc,dc,upi,nb"
+ *   CASHFREE_CURRENCIES - currencies this merchant account can settle,
+ *                          defaults to "inr" (India-domestic accounts are
+ *                          INR-only; add "usd" once international is enabled)
  */
 
 const API_VERSION = process.env.CASHFREE_API_VERSION || "2025-01-01";
 const PAYMENT_METHODS = process.env.CASHFREE_PAYMENT_METHODS || "cc,dc,upi,nb";
+
+/** Read lazily so a config change (or a test) does not need a module reload. */
+function currencies(): string[] {
+  return (process.env.CASHFREE_CURRENCIES || "inr")
+    .split(",")
+    .map((c) => c.trim().toLowerCase())
+    .filter(Boolean);
+}
 
 function sandbox(): boolean {
   return (process.env.CASHFREE_ENV || "sandbox").toLowerCase() !== "live";
@@ -118,6 +129,30 @@ function safeOrderId(raw: string): string {
   return cleaned.length >= 3 ? cleaned : `cf_${Date.now().toString(36)}`;
 }
 
+/**
+ * Cashfree rejects `customer_details.customer_id` with HTTP 400
+ * `customer_details.customer_id_invalid` unless it is alphanumeric and may
+ * contain only underscores or hyphens, so an email address cannot be sent as
+ * the id. Strip the disallowed characters and fall back to a stable hash when
+ * nothing usable is left, keeping the value the same for the same email.
+ */
+export function cashfreeCustomerId(email?: string): string {
+  const source = (email || "").trim().toLowerCase();
+  if (!source) return "guest";
+  const cleaned = source.replace(/[^a-z0-9_-]/g, "").slice(0, 100);
+  return cleaned.length >= 3 ? cleaned : `cust_${crypto.createHash("sha256").update(source).digest("hex").slice(0, 16)}`;
+}
+
+/**
+ * Cashfree's create-order response has no `payment_url`: it returns
+ * `payment_session_id`, and the hosted checkout link is assembled from it
+ * (`payments.cashfree.com` live, `payments-test.cashfree.com` sandbox).
+ */
+export function cashfreeCheckoutUrl(paymentSessionId: string, orderId: string): string {
+  const host = sandbox() ? "https://payments-test.cashfree.com" : "https://payments.cashfree.com";
+  return `${host}/checkout?payment_session_id=${encodeURIComponent(paymentSessionId)}&order_id=${encodeURIComponent(orderId)}`;
+}
+
 interface CreateOrderArgs {
   orderId: string;
   amountCents: number;
@@ -144,7 +179,7 @@ async function createOrder(args: CreateOrderArgs): Promise<CheckoutSessionResult
       order_currency: toIso(args.currency),
       order_note: args.title.slice(0, 200),
       customer_details: {
-        customer_id: (args.customerEmail || "guest").replace(/[^A-Za-z0-9@._-]/g, "-").slice(0, 100),
+        customer_id: cashfreeCustomerId(args.customerEmail),
         customer_email: args.customerEmail || undefined,
         customer_phone: args.customerPhone,
       },
@@ -155,12 +190,15 @@ async function createOrder(args: CreateOrderArgs): Promise<CheckoutSessionResult
     },
   });
 
-  if (!data.payment_url) {
+  const paymentUrl =
+    data.payment_url ||
+    (data.payment_session_id ? cashfreeCheckoutUrl(data.payment_session_id, data.order_id || orderId) : "");
+  if (!paymentUrl) {
     throw new Error("Cashfree did not return a payment URL");
   }
 
   // order_id doubles as the provider session id so the webhook can fulfil by session.
-  return { sessionId: data.order_id || orderId, url: data.payment_url };
+  return { sessionId: data.order_id || orderId, url: paymentUrl };
 }
 
 export const cashfreeProvider: PaymentProvider = {
@@ -168,10 +206,16 @@ export const cashfreeProvider: PaymentProvider = {
 
   isConfigured: configured,
 
+  requiresCustomerPhone: true,
+
+  supportsCurrency: (currency) => currencies().includes((currency || "").trim().toLowerCase()),
+
   async createCustomer({ email }) {
     // Cashfree has no customer-create endpoint; customer_details.customer_id
-    // carries our own identifier, so the email is the stable handle.
-    return { customerId: email.toLowerCase() };
+    // carries our own identifier, and Cashfree only accepts an alphanumeric
+    // (plus `_`/`-`) value there, so the email is normalised by
+    // cashfreeCustomerId rather than sent verbatim.
+    return { customerId: cashfreeCustomerId(email) };
   },
 
   async createCheckoutSession({ lines, currency, successUrl, customerEmail, customerPhone, metadata }) {

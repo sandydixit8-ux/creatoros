@@ -3,6 +3,14 @@ import type { CheckoutSessionResult, PaymentProvider, PaymentStatus, ProviderWeb
 
 let _stripe: Stripe | null = null;
 
+/** Currencies this deployment bills Stripe in (default: USD). Read lazily. */
+function stripeCurrencies(): string[] {
+  return (process.env.STRIPE_CURRENCIES || "usd")
+    .split(",")
+    .map((c) => c.trim().toLowerCase())
+    .filter(Boolean);
+}
+
 function client(): Stripe | null {
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key || !key.startsWith("sk_")) return null;
@@ -13,6 +21,10 @@ function client(): Stripe | null {
 export const stripeProvider: PaymentProvider = {
   name: "stripe",
   isConfigured: () => client() !== null,
+
+  requiresCustomerPhone: false,
+
+  supportsCurrency: (currency) => stripeCurrencies().includes((currency || "").trim().toLowerCase()),
 
   async createCustomer({ email, name }) {
     const stripe = client();

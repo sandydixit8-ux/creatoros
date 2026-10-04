@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { row } from "@/lib/db/db";
-import { getPaymentProvider } from "@/lib/payments";
+import { getPaymentProvider, providerByName } from "@/lib/payments";
 import { fulfillOrder, type OrderRow } from "@/lib/store/orders";
 
 /**
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   if (order.status === "pending") {
     const sessionMatches = !sessionId || sessionId === order.provider_session_id;
     if (sessionMatches) {
-      const provider = getPaymentProvider();
+      const provider = providerByName(order.provider) ?? getPaymentProvider();
       const status = sessionId ? await provider.getCheckoutPaymentStatus(sessionId) : "unknown";
       if (status === "paid") fulfillOrder(order.id);
     }

@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { run, row, nowIso } from "@/lib/db/db";
-import { getPaymentProvider } from "@/lib/payments";
+import { webhookProviders, type PaymentProvider, type ProviderWebhookEvent } from "@/lib/payments";
 import { fulfillOrderBySession, markOrderFailed, type FulfillResult } from "@/lib/store/orders";
 import { applySubscription } from "@/lib/billing/subscriptions";
 import { ok, fail } from "@/lib/http";
@@ -16,15 +16,27 @@ function str(v: unknown): string {
  * one-time product/course purchases and recurring plan subscriptions.
  */
 export async function POST(req: NextRequest) {
-  const provider = getPaymentProvider();
-  if (provider.name === "unconfigured") return fail("Payments not configured", 503, "payments_not_configured");
+  const providers = webhookProviders();
+  if (providers.length === 0) return fail("Payments not configured", 503, "payments_not_configured");
 
   const raw = await req.text();
-  const cashfree = provider.name === "cashfree";
-  const signature = (cashfree ? req.headers.get("x-webhook-signature") : req.headers.get("stripe-signature")) || "";
-  const timestamp = (cashfree ? req.headers.get("x-webhook-timestamp") : "") || "";
-  const event = await provider.verifyWebhook(raw, signature, timestamp);
-  if (!event) return fail("Invalid signature", 400, "invalid_signature");
+
+  // The sender is whichever gateway's signature verifies: Cashfree signs with
+  // x-webhook-signature + x-webhook-timestamp, Stripe with stripe-signature.
+  let provider: PaymentProvider | null = null;
+  let event: ProviderWebhookEvent | null = null;
+  for (const candidate of providers) {
+    const cashfree = candidate.name === "cashfree";
+    const signature = (cashfree ? req.headers.get("x-webhook-signature") : req.headers.get("stripe-signature")) || "";
+    const timestamp = (cashfree ? req.headers.get("x-webhook-timestamp") : "") || "";
+    const verified = await candidate.verifyWebhook(raw, signature, timestamp);
+    if (verified) {
+      provider = candidate;
+      event = verified;
+      break;
+    }
+  }
+  if (!provider || !event) return fail("Invalid signature", 400, "invalid_signature");
 
   // Idempotency: a duplicate delivery must not process twice.
   const existed = row("SELECT id FROM webhook_events WHERE id = ?", event.id);

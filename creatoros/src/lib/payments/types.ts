@@ -57,6 +57,19 @@ export interface PaymentProvider {
   readonly name: string;
   /** False when the provider cannot create sessions (missing credentials). */
   isConfigured(): boolean;
+  /**
+   * True when the provider rejects a checkout that has no `customer_phone`
+   * (Cashfree requires it). Callers must validate the phone before creating an
+   * order so the buyer gets a field error instead of a failed payment.
+   */
+  readonly requiresCustomerPhone: boolean;
+  /**
+   * False when the merchant account cannot settle `currency` (Cashfree rejects
+   * a live INR-only account with `order Currency not enabled for this merchant
+   * account`). Callers route by currency so a USD order goes to the provider
+   * that actually supports USD.
+   */
+  supportsCurrency(currency: string): boolean;
   createCustomer(input: { email: string; name?: string }): Promise<{ customerId: string }>;
   createCheckoutSession(input: {
     lines: CheckoutLine[];

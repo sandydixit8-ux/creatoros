@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getSession } from "@/lib/auth/get-session";
 import { ok, err, readJson, getClientIp } from "@/lib/http";
 import { isPlatformAdmin } from "@/lib/admin/access";
-import { getPaymentProvider } from "@/lib/payments";
+import { getPaymentProvider, providerByName } from "@/lib/payments";
 import { row, run, nowIso } from "@/lib/db/db";
 import { audit } from "@/lib/audit";
 import { rateLimit, rateKey } from "@/lib/security/rate-limit";
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     });
   }
 
-  const provider = getPaymentProvider();
+  const provider = providerByName(order.provider) ?? getPaymentProvider();
   if (!provider.isConfigured()) return err.server();
 
   const totalRefunded = alreadyRefunded + amountCents;

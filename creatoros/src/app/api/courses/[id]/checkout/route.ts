@@ -3,7 +3,7 @@ import { z } from "zod";
 import { ok, err, readJson, getClientIp } from "@/lib/http";
 import { getCourse, enrollmentFor } from "@/lib/courses/engine";
 import { createOrderForCourse, attachCheckoutSession } from "@/lib/store/orders";
-import { getPaymentProvider } from "@/lib/payments";
+import { getPaymentProviderForCurrency } from "@/lib/payments";
 import { row } from "@/lib/db/db";
 import { SITE_URL } from "@/lib/constants";
 import { rateLimit, rateKey } from "@/lib/security/rate-limit";
@@ -34,8 +34,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return err.conflict("This email is already enrolled");
   }
 
-  const provider = getPaymentProvider();
+  const provider = getPaymentProviderForCurrency(course.currency);
   if (!provider.isConfigured()) return err.server();
+
+  if (!provider.supportsCurrency(course.currency)) {
+    return err.conflict(`${course.currency.toUpperCase()} payments are not available yet`);
+  }
+
+  // Cashfree rejects an order without customer_phone, so validate before the
+  // order row is created rather than failing after Cashfree has been called.
+  if (provider.requiresCustomerPhone && !parsed.data.phone.trim()) {
+    return err.validation({ phone: "A phone number is required for payment" });
+  }
 
   const profile = row<{ username: string }>("SELECT username FROM profiles WHERE tenant_id = ? ORDER BY created_at ASC LIMIT 1", course.tenant_id);
   const order = createOrderForCourse(course, {
@@ -56,7 +66,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
     attachCheckoutSession(order.id, provider.name, session.sessionId);
     return ok({ url: session.url, orderId: order.id });
-  } catch {
+  } catch (e) {
+    console.error(`[course-checkout] ${provider.name} session failed for order ${order.id}:`, e);
     return err.server();
   }
 }

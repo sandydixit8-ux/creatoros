@@ -1,7 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createHmac } from "node:crypto";
 import { mockProvider } from "./mock";
-import { getPaymentProvider, cashfreeSdkMode, billingCurrency } from "./index";
+import { getPaymentProvider, getPaymentProviderForCurrency, providerByName, webhookProviders, cashfreeSdkMode, billingCurrency } from "./index";
 import { cashfreeProvider } from "./cashfree-provider";
 import { planIdFor, subscriptionIdFor, createSubscription, normalisePhone as cfPhone } from "./cashfree-subscriptions";
 
@@ -64,6 +64,63 @@ describe("payment provider abstraction", () => {
       restoreEnv("CASHFREE_CLIENT_ID", prev.id);
       restoreEnv("CASHFREE_SECRET_KEY", prev.secret);
     }
+  });
+});
+
+describe("currency-based provider routing", () => {
+  const keys = [
+    "PAYMENT_PROVIDER",
+    "CASHFREE_CLIENT_ID",
+    "CASHFREE_SECRET_KEY",
+    "CASHFREE_CURRENCIES",
+    "STRIPE_SECRET_KEY",
+    "STRIPE_CURRENCIES",
+  ];
+  const saved = new Map(keys.map((k) => [k, process.env[k]]));
+
+  beforeEach(() => {
+    for (const k of keys) delete process.env[k];
+    process.env.PAYMENT_PROVIDER = "cashfree";
+    process.env.CASHFREE_CLIENT_ID = "test_id";
+    process.env.CASHFREE_SECRET_KEY = "test_secret";
+  });
+
+  afterEach(() => {
+    for (const k of keys) restoreEnv(k, saved.get(k));
+  });
+
+  it("keeps INR on Cashfree, its default settlement currency", () => {
+    expect(getPaymentProviderForCurrency("inr").name).toBe("cashfree");
+  });
+
+  it("sends USD to Stripe when only Cashfree is configured", () => {
+    // An INR-only Cashfree account rejects USD with
+    // "order Currency not enabled for this merchant account".
+    expect(cashfreeProvider.supportsCurrency("usd")).toBe(false);
+    expect(getPaymentProviderForCurrency("usd").name).toBe("cashfree"); // falls back, so the route can report it
+
+    process.env.STRIPE_SECRET_KEY = "sk_test_123";
+    expect(getPaymentProviderForCurrency("usd").name).toBe("stripe");
+    expect(getPaymentProviderForCurrency("INR").name).toBe("cashfree");
+  });
+
+  it("honours an explicit currency allowlist once Cashfree international is enabled", () => {
+    process.env.CASHFREE_CURRENCIES = "inr,usd";
+    expect(cashfreeProvider.supportsCurrency("usd")).toBe(true);
+    expect(getPaymentProviderForCurrency("usd").name).toBe("cashfree");
+  });
+
+  it("resolves the provider recorded on an order for refunds and status checks", () => {
+    expect(providerByName("cashfree")?.name).toBe("cashfree");
+    expect(providerByName("stripe")?.name).toBe("stripe");
+    expect(providerByName("")).toBeNull();
+    expect(providerByName("nope")).toBeNull();
+  });
+
+  it("offers every configured gateway to the webhook endpoint", () => {
+    expect(webhookProviders().map((p) => p.name)).toEqual(["cashfree"]);
+    process.env.STRIPE_SECRET_KEY = "sk_test_123";
+    expect(webhookProviders().map((p) => p.name)).toEqual(["cashfree", "stripe"]);
   });
 });
 

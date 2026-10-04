@@ -74,6 +74,7 @@ export function EnrollmentForm(props: { courseId: string; isPaid: boolean }) {
         <input
           type="tel"
           inputMode="tel"
+          required
           className="input w-40 !py-2 text-sm"
           placeholder="Phone"
           value={phone}

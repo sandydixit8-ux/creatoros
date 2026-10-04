@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { ok, err, readJson, getClientIp } from "@/lib/http";
 import { row } from "@/lib/db/db";
-import { getPaymentProvider } from "@/lib/payments";
+import { getPaymentProviderForCurrency } from "@/lib/payments";
 import { getProduct, createOrderForProduct, attachCheckoutSession } from "@/lib/store/orders";
 import { getLimits } from "@/lib/plans";
 import { getUsage } from "@/lib/usage";
@@ -30,9 +30,21 @@ export async function POST(req: NextRequest) {
   const product = getProduct(parsed.data.productId);
   if (!product || product.active !== 1) return err.notFound();
 
-  const provider = getPaymentProvider();
+  const provider = getPaymentProviderForCurrency(product.currency);
   if (!provider.isConfigured()) {
     return err.server();
+  }
+
+  // A configured provider that cannot settle this currency would fail at the
+  // gateway, so say so up front instead of creating a doomed order.
+  if (!provider.supportsCurrency(product.currency)) {
+    return err.conflict(`${product.currency.toUpperCase()} payments are not available yet`);
+  }
+
+  // Cashfree rejects an order without customer_phone, so validate before the
+  // order row is created rather than failing after Cashfree has been called.
+  if (provider.requiresCustomerPhone && !parsed.data.phone.trim()) {
+    return err.validation({ phone: "A phone number is required for payment" });
   }
 
   // Respect tenant contact limit for brand-new buyers (existing contacts always allowed).
@@ -67,7 +79,10 @@ export async function POST(req: NextRequest) {
     });
     attachCheckoutSession(order.id, provider.name, session.sessionId);
     return ok({ url: session.url, orderId: order.id });
-  } catch {
+  } catch (e) {
+    // The provider reason is the only way to debug a declined currency,
+    // customer field or gateway rule, so log it instead of swallowing it.
+    console.error(`[store-checkout] ${provider.name} session failed for order ${order.id}:`, e);
     return err.server();
   }
 }

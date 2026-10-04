@@ -12,6 +12,7 @@ test.describe("store checkout", () => {
     await buyNow.click();
 
     await page.getByPlaceholder("you@email.com").fill("buyer-e2e@example.com");
+    await page.getByPlaceholder("Phone number").fill("9876543210");
     await page.getByRole("button", { name: /Pay \$5\.00/ }).click();
 
     // Mock provider confirms immediately and redirects to the receipt.
