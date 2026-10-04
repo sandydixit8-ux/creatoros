@@ -811,6 +811,22 @@ be upgraded nor cancelled by webhook. RankPilot handles this with a fallback tha
 subscription id against a stored provider reference. Safe against the D-12 downgrade (nothing is
 applied at all), but it is a real gap; recorded rather than expanded into here.
 
+**Production verification.** The bug was live but had not yet fired: production has **zero
+subscription rows** and all four orgs are on `free`, so there was never a paying subscription for
+the downgrade to take hold on. That makes this a fix that landed *before* the first paying
+customer rather than a repair afterwards — worth stating plainly, because the code path was
+genuinely wrong and would have hit the first real renewal.
+
+Deployed as BUILD_ID `KNAoH5NY42nKw5bMV8eZ_`, snapshot
+`/home/ubuntu/data/creatoros.db.snapshot-2026-10-04T18-28-54`, migrations 1–14, health
+`{"ok":true,"db":"ok"}`, service active, `NRestarts=0`. The deployed bundle was grepped for
+`billing.subscription_plan_unknown` to confirm the running app carries the fix and not just the
+repository. An unsigned `customer.subscription.updated` probe was refused with **400** and wrote
+nothing (`webhook_events` unchanged at 15), so the signature gate is still intact after the change.
+The plan-preservation logic itself cannot be driven on the live box, because production verifies
+Cashfree's HMAC and forging one against a live payment system is not something to do; the test
+suite is where that path is proven.
+
 ### HIGH
 
 | ID | Issue | Evidence | Impact | Fix |
