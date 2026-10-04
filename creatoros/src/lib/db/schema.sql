@@ -442,13 +442,32 @@ CREATE INDEX IF NOT EXISTS idx_refunds_order ON refunds(order_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_refunds_one_pending ON refunds(order_id) WHERE status = 'pending';
 
 -- Payment provider webhook events (idempotency ledger)
+-- Gateway event receipts.
+--
+-- `processed_at` is null until the work actually succeeds. It used to be set at
+-- insert time, which meant a failed delivery was on file as done and was then
+-- never retried, so a paid order could stay pending for ever.
+--
+-- status: received -> processing -> processed | failed. `updated_at` is the lease
+-- clock: a row left in `processing` by a crashed worker is reclaimable once it
+-- goes stale, instead of wedging the event forever.
 CREATE TABLE IF NOT EXISTS webhook_events (
   id           TEXT PRIMARY KEY,  -- provider event id
   provider     TEXT NOT NULL DEFAULT 'stripe',
   type         TEXT NOT NULL,
   payload      TEXT NOT NULL DEFAULT '{}',
-  processed_at TEXT NOT NULL
+  received_at  TEXT NOT NULL DEFAULT '',
+  processed_at TEXT,
+  status       TEXT NOT NULL DEFAULT 'received',
+  attempts     INTEGER NOT NULL DEFAULT 0,
+  last_error   TEXT,
+  updated_at   TEXT NOT NULL DEFAULT ''
 );
+
+-- No index on status here on purpose. schema.sql runs *before* the migrations,
+-- so on an upgrade this table still has its old shape and an index over the new
+-- columns fails outright. The index is created by migration 14 instead, which is
+-- the only place that knows the table has just been rebuilt.
 
 CREATE INDEX IF NOT EXISTS idx_orders_tenant ON orders(tenant_id, status);
 CREATE INDEX IF NOT EXISTS idx_orders_session ON orders(provider_session_id);

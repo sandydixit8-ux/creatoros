@@ -638,6 +638,68 @@ row under test has to identify that row by something unique — a marker written
 a captured primary key — not by a column shared with every row of its kind. "Delete the test's
 rows" is only safe when the test's rows are distinguishable from the data.
 
+### 14.7 Remediation log - D-11 webhooks marked processed before the work ran (2026-10-04)
+
+`webhook_events` was written with `processed_at` already populated **at insert time**, before
+any of the event's work had run, and the route returned **200 even when the work threw**. Each
+of those alone is survivable; together they made a transient failure permanent in two
+independent ways:
+
+1. On the gateway's retry, the duplicate check found the row and returned early, so the work
+   was never attempted again.
+2. The 200 told the gateway the delivery had succeeded, so it stopped sending.
+
+The result: a `checkout.session.completed` whose enrolment insert failed once left a **paid
+order stuck at `pending` for ever**. The customer was charged and had no access, nothing was
+queued for retry, and nothing looked wrong — the event table said `processed` and the gateway
+said delivered. The original comment ("the event is already persisted, so a retry would be a
+duplicate no-op... acknowledge to stop the gateway retry loop") shows the intent was to
+prevent double-processing, and the cost was that failures could not be recovered at all.
+
+**Receipt and outcome are now separate facts.** `received -> processing -> processed`, with
+`failed` as a *retryable* state rather than a terminal one:
+
+- `processed_at` is nullable and only set once the work succeeds. SQLite cannot relax a
+  `NOT NULL` column, so migration 14 rebuilds the table; it is guarded so a fresh install,
+  which already has the new shape, is not rebuilt for nothing.
+- The route **claims** the event before processing (`src/lib/payments/webhook-events.ts`). The
+  claim is an insert-or-take-over inside one transaction, so two simultaneous deliveries
+  cannot both decide they are first — the loser backs off rather than running the work twice.
+- On failure the event is marked `failed` with the error text, and the route answers **502**.
+  The gateway redelivers, the claim treats it as a retry, and fulfilment runs again. Because
+  `fulfillOrder` and `applySubscription` are idempotent, a re-run converges instead of
+  double-charging or double-enrolling.
+- `attempts` counts deliveries, so "this event has been retried four times" is answerable
+  without reading logs.
+
+**A lease, because the obvious fix has the opposite bug.** Without one, a process killed
+mid-handler leaves the row in `processing` and wedges the event permanently — trading a lost
+payment for a stuck one. A claim older than five minutes is reclaimable, so a crashed worker
+costs some duplicate work rather than a lost order.
+
+**A schema-ordering trap caught in rehearsal, before production.** The first attempt put
+`CREATE INDEX idx_webhook_events_status` in `schema.sql`. `migrate()` executes the whole
+schema *before* running migrations, so on an upgrade the `webhook_events` table still has its
+old shape and the index fails with `no such column: status` — taking the whole app down at
+boot, on exactly the databases that needed upgrading. `scripts/check-migrations.ts` caught it
+on a copy. The index now lives in migration 14, the only place that knows the table was just
+rebuilt. Verified on a copy at migration 13: applies cleanly, `integrity_check` `ok`, the
+existing row backfilled as `status='processed', attempts=1`.
+
+**Honest limit on the backfill.** Every pre-existing row was acknowledged to its gateway with
+a 200, so they map to `processed` — which is what the gateways were told. But the table cannot
+distinguish which of those actually failed, because the old code never recorded the outcome.
+Any historical failure is unrecoverable from this table and would only resurface if the
+gateway redelivers. Fixing the code forward does not retroactively repair those orders.
+
+- Tests: `src/lib/webhook-delivery.test.ts` (12). The central case drops the `enrollments`
+  table to force a fulfilment failure and asserts the whole recovery: 5xx, order still
+  `pending`, event **not** marked processed, then the same event id redelivered after the
+  table is restored comes back 200 with the order `paid`. Also covers attempts counting,
+  retained error text, settled events not re-running, one-of-two concurrent claims, and
+  reclaiming an abandoned claim.
+- Verified with `npm run typecheck`, `npm run lint`, **251/251** unit tests, **34/34** E2E.
+
 ### HIGH
 
 | ID | Issue | Evidence | Impact | Fix |
@@ -649,6 +711,7 @@ rows" is only safe when the test's rows are distinguishable from the data.
 | **D-9** | Views meter displays 0 forever | writes `"views"` (`track/route.ts:41,45`), reads `usage.viewsPerMonth` (`billing/page.tsx:46`) | Billing screen contradicts enforcement; upgrade prompts misfire | Unify the metric name |
 | ~~**D-10**~~ **FIXED** | No transactions around money writes | closed 2026-10-04, see §14.4 | Partial failure left paid-but-unfulfilled, and the `already_paid` guard made it unrecoverable; refund could double-refund after a crash | `tx()` hardened and used; refund intent recorded before the provider call |
 | ~~**D-5 follow-up**~~ **FIXED** | Consent gate bypassed on the server render path | closed 2026-10-04, see §14.5 | Public bio pages recorded a `page_view` for every visitor with no consent check, defeating the banner and surviving withdrawal | Server render path gated on the same signed receipt |
+| ~~**D-11**~~ **FIXED** | Webhook events marked processed before work succeeds | closed 2026-10-04, see §14.7 | A delivery that failed once was dropped as a duplicate on retry *and* the 200 stopped the gateway retrying, so a paid order stayed `pending` permanently | Claim/process/mark lifecycle; `processed_at` only on success; 502 on failure so the gateway retries |
 | **D-11** | Webhook events marked processed before work succeeds, never retried | row inserted first, exception returns 200 with row intact (`webhooks/stripe/route.ts:45-52,144-155`) | Paid order can stay `pending` permanently; gateway never retries | Mark processed only after success; return 5xx on failure |
 | **D-12** | Subscription webhook can silently downgrade a tenant to `free` | falls back to `metadata.plan \|\| "free"` (`webhooks/stripe/route.ts:97,118`) | Paying customer loses paid features | Do not downgrade on absent metadata; require explicit signal |
 | **D-13** | No dunning, grace period or recovery on failed renewal | only flips to `past_due` (`cashfree-provider.ts:396-399`); `past_due` grants no plan | Silent revenue loss + creator locked out with no warning | Retry schedule + grace period + recovery email |
@@ -714,7 +777,7 @@ Scored on commercial leverage × implementation cost. "Revenue" = direct or comp
 | 3 | Env-gate the email file fallback; propagate provider errors | D-3 | 2h |
 | 4 | Allowlist URL schemes; sanitise bio block URLs | D-4 | 3h |
 | 5 | Add session `iat`/`exp`; make password reset revoke | D-6 | 4h |
-| 6 | Webhook: process-then-mark; 5xx on failure | D-11 | 2h |
+| 6 | ~~Webhook: process-then-mark; 5xx on failure~~ **done** (§14.7) | D-11 | 2h |
 | 7 | ~~Wrap `fulfillOrder` + refund in transactions~~ **done** (§14.4) | D-10 | 4h |
 | 8 | Verify email before granting admin | D-15 | 3h |
 | 9 | Stripe live keys + webhook verification tests | — | 2h |

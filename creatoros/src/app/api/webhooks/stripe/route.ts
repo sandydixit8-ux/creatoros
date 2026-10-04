@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
-import { run, row, nowIso } from "@/lib/db/db";
+import { row } from "@/lib/db/db";
 import { webhookProviders, type PaymentProvider, type ProviderWebhookEvent } from "@/lib/payments";
+import { claimWebhookEvent, markWebhookProcessed, markWebhookFailed } from "@/lib/payments/webhook-events";
 import { fulfillOrderBySession, markOrderFailed, type FulfillResult } from "@/lib/store/orders";
 import { applySubscription } from "@/lib/billing/subscriptions";
 import { ok, fail } from "@/lib/http";
@@ -11,9 +12,16 @@ function str(v: unknown): string {
 }
 
 /**
- * Payment provider webhook (spec §9): signature-verified, idempotent,
- * records every event in webhook_events before processing. Handles both
- * one-time product/course purchases and recurring plan subscriptions.
+ * Payment provider webhook (spec §9): signature-verified, idempotent, and safe
+ * to redeliver. Handles both one-time product/course purchases and recurring
+ * plan subscriptions.
+ *
+ * Ordering matters more than it looks (D-11). The event is *claimed* first so a
+ * crash cannot lose it, the work runs next, and only a success marks it
+ * processed. A failure answers 502 so the gateway redelivers, and the claim makes
+ * the redelivery a retry rather than a discarded duplicate. Answering 200 on
+ * failure — which this route used to do — is what made a single transient error
+ * permanently lose a paid order.
  */
 export async function POST(req: NextRequest) {
   const providers = webhookProviders();
@@ -38,25 +46,18 @@ export async function POST(req: NextRequest) {
   }
   if (!provider || !event) return fail("Invalid signature", 400, "invalid_signature");
 
-  // Idempotency: a duplicate delivery must not process twice.
-  const existed = row("SELECT id FROM webhook_events WHERE id = ?", event.id);
-  if (existed) return ok({ received: true, duplicate: true });
-  try {
-    run(
-      "INSERT INTO webhook_events (id, provider, type, payload, processed_at) VALUES (?, ?, ?, ?, ?)",
-      event.id,
-      provider.name,
-      event.type,
-      JSON.stringify(event.data).slice(0, 10000),
-      nowIso()
-    );
-  } catch {
-    // concurrent duplicate won the insert race — treat as processed
-    return ok({ received: true, duplicate: true });
+  const claim = claimWebhookEvent({
+    id: event.id,
+    provider: provider.name,
+    type: event.type,
+    payload: event.data,
+  });
+  if (!claim.claimed) {
+    return ok({ received: true, duplicate: true, reason: claim.reason });
   }
 
   const sessionId = str(event.data.id);
-  let result: FulfillResult | "subscription_applied" | "tenant_not_found" | "ignored" | "error" = "ignored";
+  let result: FulfillResult | "subscription_applied" | "tenant_not_found" | "ignored" | "not_payable" = "ignored";
 
   try {
     switch (event.type) {
@@ -142,11 +143,15 @@ export async function POST(req: NextRequest) {
         result = "ignored";
     }
   } catch (e) {
-    // The event is already persisted in webhook_events, so a retry would be a
-    // duplicate no-op. Log and acknowledge to stop the gateway retry loop.
-    result = "error";
-    console.error(`[webhook] ${provider.name} ${event.type} ${event.id} failed:`, e);
+    // Leave the event retryable and tell the gateway to come back. The receipt
+    // stays on file with the reason, so this is visible to support rather than a
+    // silent no-op.
+    markWebhookFailed(event.id, e);
+    console.error(`[webhook] ${provider.name} ${event.type} ${event.id} failed (attempt ${claim.attempts}):`, e);
+    return fail("Webhook processing failed", 502, "webhook_processing_failed");
   }
+
+  markWebhookProcessed(event.id);
 
   if (result === "paid") {
     audit({ action: "store.webhook_fulfilled", resource: sessionId });

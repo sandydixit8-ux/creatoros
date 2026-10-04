@@ -140,6 +140,49 @@ const MIGRATIONS: Array<{ id: number; up: (db: DatabaseSync) => void }> = [
       db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_refunds_one_pending ON refunds(order_id) WHERE status = 'pending'");
     },
   },
+  {
+    // D-11. webhook_events recorded `processed_at` at INSERT time, so an event
+    // was on file as finished before the work had run. Combined with the route
+    // returning 200 on failure, a delivery that failed once was dropped as a
+    // duplicate on the gateway's retry and never attempted again - a paid order
+    // stuck pending for good, with no error anywhere.
+    //
+    // processed_at has to become nullable to mean "not done yet", and SQLite
+    // cannot relax a NOT NULL column, so the table is rebuilt. Every existing row
+    // was acknowledged to the gateway with a 200 and so was, as far as the
+    // gateways were concerned, handled: they map to status 'processed'.
+    id: 14,
+    up: (db) => {
+      // A fresh install already has the new shape from schema.sql, so only an
+      // older table needs rebuilding.
+      const cols = db.prepare("PRAGMA table_info(webhook_events)").all() as unknown as { name: string }[];
+      if (!cols.some((c) => c.name === "status")) {
+        db.exec(`
+          CREATE TABLE webhook_events_new (
+            id           TEXT PRIMARY KEY,
+            provider     TEXT NOT NULL DEFAULT 'stripe',
+            type         TEXT NOT NULL,
+            payload      TEXT NOT NULL DEFAULT '{}',
+            received_at  TEXT NOT NULL DEFAULT '',
+            processed_at TEXT,
+            status       TEXT NOT NULL DEFAULT 'received',
+            attempts     INTEGER NOT NULL DEFAULT 0,
+            last_error   TEXT,
+            updated_at   TEXT NOT NULL DEFAULT ''
+          )
+        `);
+        db.exec(`
+          INSERT INTO webhook_events_new
+            (id, provider, type, payload, received_at, processed_at, status, attempts, last_error, updated_at)
+          SELECT id, provider, type, payload, processed_at, processed_at, 'processed', 1, NULL, processed_at
+          FROM webhook_events
+        `);
+        db.exec("DROP TABLE webhook_events");
+        db.exec("ALTER TABLE webhook_events_new RENAME TO webhook_events");
+      }
+      db.exec("CREATE INDEX IF NOT EXISTS idx_webhook_events_status ON webhook_events(status, updated_at)");
+    },
+  },
 ];
 
 function addColumn(db: DatabaseSync, table: string, column: string, ddl: string) {
