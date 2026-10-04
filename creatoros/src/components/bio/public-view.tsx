@@ -24,7 +24,9 @@ export function PublicBioPageView({ bio }: { bio: PublicBioPage }) {
   const [visitorId] = useState(() => (typeof globalThis !== "undefined" && globalThis.crypto ? globalThis.crypto.randomUUID() : `v${Date.now()}`));
   // D-5: analytics are opt-in. Without consent the page still renders fully -
   // we simply do not report the visit, and `/api/track` refuses it anyway.
-  const { analyticsAllowed, consentSignal } = useConsent();
+  // The request carries no consent flag: the server authorises from the signed
+  // receipt cookie that the consent flow set, which this script cannot forge.
+  const { analyticsAllowed } = useConsent();
 
   // fire-and-forget view tracking on mount (first-party)
   useEffect(() => {
@@ -37,10 +39,9 @@ export function PublicBioPageView({ bio }: { bio: PublicBioPage }) {
         pageSlug: bio.page.slug,
         eventType: "page_view",
         visitorId,
-        consent: consentSignal,
       }),
     }).catch(() => {});
-  }, [bio.profile.username, bio.page.slug, visitorId, analyticsAllowed, consentSignal]);
+  }, [bio.profile.username, bio.page.slug, visitorId, analyticsAllowed]);
 
   function trackLink(url: string) {
     if (!analyticsAllowed) return;
@@ -53,7 +54,6 @@ export function PublicBioPageView({ bio }: { bio: PublicBioPage }) {
         eventType: "link_click",
         ref: url,
         visitorId,
-        consent: consentSignal,
       }),
     }).catch(() => {});
   }

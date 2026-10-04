@@ -4,15 +4,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { NextRequest } from "next/server";
 import { getDb, closeDb, run, all, nowIso } from "@/lib/db/db";
-import { POST } from "@/app/api/track/route";
+import { POST as track } from "@/app/api/track/route";
+import { POST as recordConsent } from "@/app/api/consent/route";
+import { CONSENT_COOKIE_NAME } from "@/lib/consent-receipt";
 
 /**
  * D-5: the consent gate must hold on the server.
  *
  * Hiding the tracking call in the browser is not a control - /api/track is a
- * public endpoint anyone can call directly. These tests call the route the same
- * way an attacker or a curl command would, and assert that nothing is written
- * to storage without consent.
+ * public endpoint anyone can call directly. These tests call the routes the way
+ * an attacker or a curl command would, and assert that nothing reaches storage
+ * without a consent receipt the server itself minted.
  */
 
 let dir: string;
@@ -20,16 +22,39 @@ const TENANT = "org_consent_gate";
 const USER = "usr_consent_gate";
 const USERNAME = "consentgate";
 
-function request(body: unknown, ip = "203.0.113.9"): NextRequest {
+function trackRequest(body: unknown, cookie?: string, ip = "203.0.113.9"): NextRequest {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "x-forwarded-for": ip,
+  };
+  if (cookie) headers.Cookie = cookie;
   return new NextRequest("https://usecreatoros.co/api/track", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "x-forwarded-for": ip },
+    headers,
     body: JSON.stringify(body),
   });
 }
 
 function eventCount(): number {
   return all("SELECT id FROM analytics_events WHERE tenant_id = ?", TENANT).length;
+}
+
+/** Pull the Set-Cookie value the consent endpoint issued. */
+async function grantViaApi(
+  analytics: boolean,
+  source: "banner" | "preferences" | "withdrawn" = "banner"
+): Promise<string> {
+  const res = await recordConsent(
+    new NextRequest("https://usecreatoros.co/api/consent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-forwarded-for": "203.0.113.10" },
+      body: JSON.stringify({ analytics, source }),
+    })
+  );
+  expect(res.status).toBe(200);
+  const setCookie = res.headers.get("set-cookie");
+  expect(setCookie).toBeTruthy();
+  return `${CONSENT_COOKIE_NAME}=${(setCookie as string).split(`${CONSENT_COOKIE_NAME}=`)[1].split(";")[0]}`;
 }
 
 beforeAll(() => {
@@ -84,9 +109,9 @@ afterAll(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-describe("D-5: /api/track refuses to record without consent", () => {
-  it("records nothing when the consent field is absent entirely", async () => {
-    const res = await POST(request({ username: USERNAME, eventType: "page_view" }));
+describe("D-5: /api/track refuses to record without a consent receipt", () => {
+  it("records nothing when no cookie is sent at all", async () => {
+    const res = await track(trackRequest({ username: USERNAME, eventType: "page_view" }));
     const json = (await res.json()) as { ok: boolean; data: { tracked: boolean; consent: boolean } };
 
     expect(json.ok).toBe(true);
@@ -95,42 +120,112 @@ describe("D-5: /api/track refuses to record without consent", () => {
     expect(eventCount()).toBe(0);
   });
 
-  it("records nothing when consent is explicitly refused", async () => {
-    const res = await POST(
-      request({ username: USERNAME, eventType: "page_view", consent: { analytics: false } })
+  it("records nothing for an unrelated cookie", async () => {
+    const res = await track(
+      trackRequest({ username: USERNAME, eventType: "page_view" }, "creatoros_session=abc")
     );
     const json = (await res.json()) as { data: { tracked: boolean } };
-
     expect(json.data.tracked).toBe(false);
     expect(eventCount()).toBe(0);
   });
 
-  it("records nothing for a link click without consent either", async () => {
-    const res = await POST(
-      request({ username: USERNAME, eventType: "link_click", ref: "https://example.com" })
+  it("records nothing for a link click without a receipt either", async () => {
+    const res = await track(
+      trackRequest({ username: USERNAME, eventType: "link_click", ref: "https://example.com" })
     );
     const json = (await res.json()) as { data: { tracked: boolean } };
-
     expect(json.data.tracked).toBe(false);
     expect(eventCount()).toBe(0);
   });
 
-  it("still rejects a malformed payload rather than defaulting to consent", async () => {
-    const res = await POST(request({ username: USERNAME, consent: { analytics: "yes" } }));
-    expect(res.status).toBe(400);
+  it("records nothing when the visitor refused consent", async () => {
+    const cookie = await grantViaApi(false, "banner");
+    const res = await track(trackRequest({ username: USERNAME, eventType: "page_view" }, cookie));
+    const json = (await res.json()) as { data: { tracked: boolean } };
+    expect(json.data.tracked).toBe(false);
+    expect(eventCount()).toBe(0);
+  });
+
+  it("records nothing after consent is withdrawn", async () => {
+    const cookie = await grantViaApi(false, "withdrawn");
+    const res = await track(trackRequest({ username: USERNAME, eventType: "page_view" }, cookie));
+    const json = (await res.json()) as { data: { tracked: boolean } };
+    expect(json.data.tracked).toBe(false);
+    expect(eventCount()).toBe(0);
+  });
+
+  it("ignores a body flag claiming consent when no receipt was ever issued", async () => {
+    const res = await track(
+      trackRequest({
+        username: USERNAME,
+        eventType: "page_view",
+        consent: { analytics: true },
+        consentGranted: true,
+      })
+    );
+    const json = (await res.json()) as { data: { tracked: boolean } };
+    expect(json.data.tracked).toBe(false);
+    expect(eventCount()).toBe(0);
+  });
+
+  it("ignores a body flag claiming consent after a refusal", async () => {
+    const cookie = await grantViaApi(false, "banner");
+    const res = await track(
+      trackRequest({ username: USERNAME, eventType: "page_view", consent: { analytics: true } }, cookie)
+    );
+    const json = (await res.json()) as { data: { tracked: boolean } };
+    expect(json.data.tracked).toBe(false);
     expect(eventCount()).toBe(0);
   });
 });
 
-describe("D-5: /api/track records once consent is given", () => {
-  it("stores the event when analytics consent is present", async () => {
-    const res = await POST(
-      request({
-        username: USERNAME,
-        eventType: "page_view",
-        visitorId: "visitor-abc",
-        consent: { analytics: true },
-      })
+describe("D-5: a forged cookie cannot unlock tracking", () => {
+  it("refuses an unsigned hand-rolled consent payload", async () => {
+    const forged = Buffer.from(
+      JSON.stringify({ a: "1", d: new Date().toISOString(), s: "banner", v: "1" })
+    ).toString("base64url");
+
+    const res = await track(
+      trackRequest({ username: USERNAME, eventType: "page_view" }, `${CONSENT_COOKIE_NAME}=${forged}`)
+    );
+    const json = (await res.json()) as { data: { tracked: boolean } };
+    expect(json.data.tracked).toBe(false);
+    expect(eventCount()).toBe(0);
+  });
+
+  it("refuses a valid payload with a tampered signature", async () => {
+    const cookie = await grantViaApi(true, "banner");
+    const tampered = cookie.slice(0, -1) + (cookie.endsWith("A") ? "B" : "A");
+
+    const res = await track(
+      trackRequest({ username: USERNAME, eventType: "page_view" }, tampered)
+    );
+    const json = (await res.json()) as { data: { tracked: boolean } };
+    expect(json.data.tracked).toBe(false);
+    expect(eventCount()).toBe(0);
+  });
+
+  it("refuses a refusal receipt edited into a grant", async () => {
+    // Take the real receipt for a refusal and flip the flag without re-signing.
+    const cookie = await grantViaApi(false, "banner");
+    const token = cookie.slice(`${CONSENT_COOKIE_NAME}=`.length);
+    const [body, sig] = token.split(".");
+    const payload = JSON.parse(Buffer.from(body, "base64url").toString("utf8"));
+    payload.a = "1";
+    const edited = `${CONSENT_COOKIE_NAME}=${Buffer.from(JSON.stringify(payload)).toString("base64url")}.${sig}`;
+
+    const res = await track(trackRequest({ username: USERNAME, eventType: "page_view" }, edited));
+    const json = (await res.json()) as { data: { tracked: boolean } };
+    expect(json.data.tracked).toBe(false);
+    expect(eventCount()).toBe(0);
+  });
+});
+
+describe("D-5: /api/track records once a receipt authorises it", () => {
+  it("stores the event when the receipt grants analytics", async () => {
+    const cookie = await grantViaApi(true, "banner");
+    const res = await track(
+      trackRequest({ username: USERNAME, eventType: "page_view", visitorId: "visitor-abc" }, cookie)
     );
     const json = (await res.json()) as { data: { tracked: boolean } };
 
@@ -139,15 +234,18 @@ describe("D-5: /api/track records once consent is given", () => {
   });
 
   it("captures the visitor fields only after consent", async () => {
-    await POST(
-      request({
-        username: USERNAME,
-        eventType: "link_click",
-        ref: "https://example.com",
-        utm_source: "newsletter",
-        visitorId: "visitor-xyz",
-        consent: { analytics: true },
-      })
+    const cookie = await grantViaApi(true, "banner");
+    await track(
+      trackRequest(
+        {
+          username: USERNAME,
+          eventType: "link_click",
+          ref: "https://example.com",
+          utm_source: "newsletter",
+          visitorId: "visitor-xyz",
+        },
+        cookie
+      )
     );
 
     const ev = all<{ event_type: string; ref: string; utm_source: string; visitor_id: string }>(
@@ -165,44 +263,76 @@ describe("D-5: /api/track records once consent is given", () => {
 
   it("does not consume the views quota for an unconsented request", async () => {
     const before = all("SELECT * FROM plans_usage WHERE tenant_id = ?", TENANT).length;
-    await POST(request({ username: USERNAME, eventType: "page_view" }));
+    await track(trackRequest({ username: USERNAME, eventType: "page_view" }));
     const after = all("SELECT * FROM plans_usage WHERE tenant_id = ?", TENANT).length;
     expect(after).toBe(before);
   });
 
   it("still validates the bio page exists for a consenting request", async () => {
-    const res = await POST(
-      request({ username: "does-not-exist", consent: { analytics: true } })
+    const cookie = await grantViaApi(true, "banner");
+    const res = await track(
+      trackRequest({ username: "does-not-exist" }, cookie)
     );
     expect(res.status).toBe(404);
     expect(eventCount()).toBe(0);
   });
-});
 
-describe("D-5: consent cannot be smuggled through extra fields", () => {
-  it("ignores an unknown top-level consent flag", async () => {
-    const res = await POST(
-      request({ username: USERNAME, eventType: "page_view", consentGranted: true })
+  it("rejects a malformed payload rather than defaulting it into a tracked event", async () => {
+    const cookie = await grantViaApi(true, "banner");
+    const res = await track(
+      trackRequest({ username: USERNAME, eventType: "not_a_real_event" }, cookie)
     );
-    const json = (await res.json()) as { data: { tracked: boolean } };
-    expect(json.data.tracked).toBe(false);
-    expect(eventCount()).toBe(0);
-  });
-
-  it("rejects a null consent object rather than coercing it", async () => {
-    // `.default()` only fills in `undefined`. An explicit null is a malformed
-    // payload and must be refused, not quietly treated as a decision.
-    const res = await POST(request({ username: USERNAME, consent: null }));
     expect(res.status).toBe(400);
     expect(eventCount()).toBe(0);
   });
 
-  it("does not accept an unknown id field as a substitute for consent", async () => {
-    const res = await POST(
-      request({ username: USERNAME, eventType: "page_view", consentId: "abc", jti: "x" })
+  it("stops recording immediately once the receipt is replaced by a withdrawal", async () => {
+    const granted = await grantViaApi(true, "banner");
+    await track(trackRequest({ username: USERNAME, eventType: "page_view" }, granted));
+    expect(eventCount()).toBe(1);
+
+    const withdrawn = await grantViaApi(false, "withdrawn");
+    await track(trackRequest({ username: USERNAME, eventType: "page_view" }, withdrawn));
+    expect(eventCount()).toBe(1);
+  });
+});
+
+describe("D-5: /api/consent mints receipts", () => {
+  it("issues an HttpOnly cookie and confirms the decision", async () => {
+    const res = await recordConsent(
+      new NextRequest("https://usecreatoros.co/api/consent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-forwarded-for": "203.0.113.11" },
+        body: JSON.stringify({ analytics: true, source: "preferences" }),
+      })
     );
-    const json = (await res.json()) as { data: { tracked: boolean } };
-    expect(json.data.tracked).toBe(false);
-    expect(eventCount()).toBe(0);
+    const json = (await res.json()) as { data: { saved: boolean; analytics: boolean } };
+
+    expect(json.data).toEqual({ saved: true, analytics: true });
+    expect(res.headers.get("set-cookie")).toContain("HttpOnly");
+  });
+
+  it("refuses a decision that is not a boolean", async () => {
+    const res = await recordConsent(
+      new NextRequest("https://usecreatoros.co/api/consent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ analytics: "yes" }),
+      })
+    );
+    expect(res.status).toBe(400);
+    expect(res.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("refuses an unrecognised source", async () => {
+    const res = await recordConsent(
+      new NextRequest("https://usecreatoros.co/api/consent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ analytics: true, source: "curl" }),
+      })
+    );
+    expect(res.status).toBe(400);
+    expect(res.headers.get("set-cookie")).toBeNull();
   });
 });

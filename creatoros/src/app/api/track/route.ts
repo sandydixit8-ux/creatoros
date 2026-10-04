@@ -7,6 +7,7 @@ import { rateLimit, rateKey } from "@/lib/security/rate-limit";
 import { row } from "@/lib/db/db";
 import { getLimits } from "@/lib/plans";
 import { getUsage, bumpUsage } from "@/lib/usage";
+import { analyticsGranted } from "@/lib/consent-receipt";
 
 const trackSchema = z.object({
   username: z.string().min(1).max(60),
@@ -16,25 +17,30 @@ const trackSchema = z.object({
   utm_source: z.string().max(100).default(""),
   utm_campaign: z.string().max(100).default(""),
   visitorId: z.string().default(""),
+});
+
+export async function POST(req: NextRequest) {
   /**
    * Consent signal (D-5). The Cookie Policy promises consent before any
    * non-essential storage, so this endpoint refuses to record anything without
    * it. Gating in the browser alone would be theatre - this endpoint is
    * directly callable, so the check has to live here.
+   *
+   * Authorisation comes from the signed consent receipt the server minted in
+   * `/api/consent`, NOT from the request body. A body flag is just the caller
+   * asserting its own consent, which a withdrawn visitor could send by hand; the
+   * receipt cannot be forged from the browser because it is HttpOnly and signed.
+   * There is deliberately no `consent` field in the schema above.
    */
-  consent: z.object({ analytics: z.boolean() }).default({ analytics: false }),
-});
+  if (!analyticsGranted(req.headers.get("cookie"))) {
+    // Nothing below this line may read the caller's IP, device or country into
+    // storage for a visitor who has not agreed.
+    return ok({ tracked: false, consent: false });
+  }
 
-export async function POST(req: NextRequest) {
   const body = await readJson(req);
   const parsed = trackSchema.safeParse(body);
   if (!parsed.success) return err.validation(parsed.error.flatten().fieldErrors);
-
-  // No analytics consent, no analytics. Nothing below this line may read the
-  // caller's IP, device or country into storage.
-  if (!parsed.data.consent.analytics) {
-    return ok({ tracked: false, consent: false });
-  }
 
   const ip = getClientIp(req);
   const rl = rateLimit(rateKey("track", ip), 120);

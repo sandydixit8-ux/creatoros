@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useConsent } from "@/lib/use-consent";
 
 /**
@@ -11,6 +12,33 @@ import { useConsent } from "@/lib/use-consent";
  */
 export function ConsentPreferences() {
   const { ready, record, analyticsAllowed, setAnalytics, withdraw, rejectAll } = useConsent();
+  // The server has to mint a consent receipt before a change counts, which is a
+  // round trip. The checkbox is controlled by `analyticsAllowed`, so without
+  // local state a toggle would snap straight back and look unresponsive on a
+  // slow connection. `pending` holds the user's intent until the server has
+  // caught up, and is discarded once `record` changes or the save is refused.
+  const [pending, setPending] = useState<boolean | null>(null);
+
+  const shown = pending ?? analyticsAllowed;
+
+  async function handleToggle(next: boolean) {
+    setPending(next);
+    const saved = await setAnalytics(next);
+    // Drop the optimistic value once the server has spoken: null falls back to
+    // the real record, and a refused save shows the switch as it actually is
+    // rather than leaving it on while nothing was recorded.
+    setPending(saved ? null : analyticsAllowed);
+  }
+
+  async function handleWithdraw() {
+    setPending(null);
+    await withdraw();
+  }
+
+  async function handleRejectAll() {
+    setPending(null);
+    await rejectAll();
+  }
 
   return (
     <section
@@ -44,8 +72,8 @@ export function ConsentPreferences() {
           <input
             type="checkbox"
             data-testid="policy-analytics-toggle"
-            checked={analyticsAllowed}
-            onChange={(e) => setAnalytics(e.target.checked)}
+            checked={shown}
+            onChange={(e) => handleToggle(e.target.checked)}
             className="h-4 w-4"
             aria-label="Allow analytics"
           />
@@ -55,7 +83,7 @@ export function ConsentPreferences() {
           <button
             type="button"
             data-testid="policy-withdraw"
-            onClick={withdraw}
+            onClick={handleWithdraw}
             className="btn-secondary !px-3 !py-1.5 text-xs"
           >
             Withdraw consent
@@ -63,7 +91,7 @@ export function ConsentPreferences() {
           <button
             type="button"
             data-testid="policy-reject-all"
-            onClick={rejectAll}
+            onClick={handleRejectAll}
             className="btn-secondary !px-3 !py-1.5 text-xs"
           >
             Reject all non-essential

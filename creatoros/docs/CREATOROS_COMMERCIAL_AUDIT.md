@@ -411,15 +411,78 @@ All four CRITICAL defects are closed and covered by regression tests. Verified w
 - Verified with `npm run typecheck`, `npm run lint` (0 problems), **201/201** unit
   tests, **30/30** E2E tests, and a production standalone build.
 
-**Known limitation, stated rather than hidden:** the gate is default-deny and
-refuses malformed input, but the consent signal is still supplied by the client,
-so it is not a tamper-evident server-side consent receipt. A caller who ignores
-their own stored preference can still send `analytics: true`. For anonymous page
-measurement this is not an unauthorised action — the caller is asserting consent
-in their own request — but it does mean there is no central, auditable consent
-record. Adding a signed HttpOnly consent receipt would close that gap and is the
-recommended follow-up before treating D-5 as fully closed from an evidential
-standpoint.
+**Known limitation at first deploy, closed immediately afterwards:** the gate above is
+default-deny and refuses malformed input, but the consent signal was still supplied by the
+caller, so it was not a tamper-evident server-side receipt and there was no central record of
+a decision ever having been made. That gap was closed in the same remediation - see §14.3.
+
+### 14.3 Remediation log - signed consent receipt (2026-10-04)
+
+**Closing the evidential gap left open by D-5**
+
+- New `src/lib/consent-receipt.ts`: the decision is captured **server-side** at the
+  moment it is expressed and carried in a signed `HttpOnly; SameSite=Lax`
+  `creatoros_consent` cookie holding `{ analytics, decidedAt, source, version }`.
+  Reuses the session module's HMAC `sign`/`verify` (constant-time comparison)
+  rather than duplicating crypto.
+  - `readConsentReceipt` returns `null` for a missing, malformed, wrongly
+    versioned, undated or tampered cookie — callers must read that as "no
+    consent".
+  - `analyticsGranted` is the single question the tracking endpoint asks, and is
+    strict on purpose.
+- New `src/app/api/consent/route.ts`: the only way to obtain a receipt. Validates
+  `{ analytics: boolean, source: banner|preferences|withdrawn }`, rate-limits,
+  and mints the cookie. Withdrawal posts `analytics: false` rather than clearing
+  the cookie, so a decision (including a refusal) is remembered and the banner
+  does not reappear every visit. The cookie is strictly necessary to remember the
+  choice, so setting it needs no consent of its own.
+- `src/app/api/track/route.ts` now authorises **from the receipt only**. The
+  `consent` field was removed from the request schema entirely, so nothing in the
+  body can influence the decision — a hand-crafted `{ analytics: true }` is now
+  ignored rather than honoured, and a withdrawn visitor cannot unlock tracking by
+  editing their request. The consent check also moved ahead of body parsing and
+  rate limiting, so an unconsented caller cannot make the server parse or
+  fingerprint anything.
+- `src/lib/use-consent.ts`: `save` is now async and calls `/api/consent` **first**.
+  The server is the authority; localStorage is written afterwards as a UI mirror
+  for instant paint and cross-tab sync. If the receipt is refused nothing is
+  stored and the banner stays up — the conservative outcome, since no receipt
+  means no tracking. A local-only save would have shown "allowed" in the UI while
+  the server still refused to record.
+- `src/components/bio/public-view.tsx`: stops sending a consent flag entirely;
+  the cookie travels with the request.
+- `src/components/consent/consent-preferences.tsx`: the analytics toggle is now
+  optimistic. With an async save, a controlled checkbox driven straight off server
+  state snapped back on click and looked broken on a slow connection, which is a
+  real defect rather than a test artefact. If the save is refused the switch falls
+  back to what the server actually believes instead of staying lit.
+- Policy text updated: the consent receipt cookie is named, described as strictly
+  necessary, and the page states plainly that it is what gets checked before
+  anything is recorded.
+- Tests: `src/lib/consent-receipt.test.ts` (13) treats the receipt as a security
+  boundary — unsigned hand-rolled payloads, tampered signatures, a refusal receipt
+  edited into a grant, unexpected sources, missing/unparseable timestamps and
+  future schema versions are all refused. `src/lib/consent-gate.test.ts` (19)
+  exercises both routes end to end: no cookie, an unrelated cookie, a refusal, a
+  withdrawal and a body flag claiming consent all record nothing; a granted receipt
+  records exactly one event; and replacing a grant with a withdrawal stops
+  recording immediately. `e2e/consent.spec.ts` (7) drives the **real** consent flow
+  and asserts the receipt cookie exists and is `HttpOnly`, that a body flag is
+  gone, and that withdrawing stops tracking.
+- Verified with `npm run typecheck`, `npm run lint` (0 problems), **222/222** unit
+  tests, **31/31** E2E tests.
+
+**Deployment integrity issue found while verifying this in production.** The first
+D-5 deploy reported success but shipped nothing: `deploy.sh` hardcoded
+`tar -xzf /home/ubuntu/app7.tar.gz` and silently ignored its argument, so it
+re-extracted the previous build. This was caught only because the endpoint was
+probed live over HTTPS after deploying rather than trusted on the deploy script's
+"=== DONE ===". Fixed by taking the archive as `$1` (with the previous path as a
+default), failing if it is absent, printing its `sha256sum`, and printing the
+`BUILD_ID` so a stale build is visible in the deploy log. Verified live: five
+probe requests (no consent / refusal / smuggled flag / malformed / genuine
+consent) produced `tracked:false` for the first four and exactly one stored row
+for the last, with the row count reconciling exactly against the baseline.
 
 ### HIGH
 
@@ -504,7 +567,7 @@ Scored on commercial leverage × implementation cost. "Revenue" = direct or comp
 | 11 | ~~Cookie consent + preference store~~ **done** | D-5 | 1d |
 | 12 | Resolve entity placeholders; counsel review | D-14 | external |
 | 13 | ~~Cookie policy reconciled with actual behaviour~~ **done** | D-5 | 2h |
-| 14 | Signed server-side consent receipt (closes the evidential gap in §14.2) | D-5 follow-up | 3h |
+| 14 | ~~Signed server-side consent receipt~~ **done** (§14.3) | D-5 follow-up | 3h |
 
 ### P1 — Revenue engine
 

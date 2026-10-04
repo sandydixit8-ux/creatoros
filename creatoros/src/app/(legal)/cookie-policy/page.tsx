@@ -27,10 +27,11 @@ export default function CookiePolicyPage() {
         <LegalList
           items={[
             <>
-              <strong>Strictly necessary:</strong> a single session cookie required to log you in
-              and keep the service secure. It cannot be switched off through our site. We also
-              store your consent choice in your browser&apos;s local storage, which is strictly
-              necessary because it is how we remember to stop asking.
+              <strong>Strictly necessary:</strong> a session cookie required to log you in and
+              keep the service secure, plus a consent receipt cookie that records the choice you
+              made and the time you made it. Both cannot be switched off through our site. We
+              also keep a copy of your choice in your browser&apos;s local storage, which is
+              strictly necessary because it is how we remember to stop asking.
             </>,
             <>
               <strong>Analytics:</strong> first-party tracking of page views and link clicks on
@@ -39,6 +40,11 @@ export default function CookiePolicyPage() {
             </>,
           ]}
         />
+        <p>
+          The consent receipt is what we check before recording anything. It is set only when you
+          actively choose, and clearing it or withdrawing your choice means the analytics endpoint
+          refuses to record, even if a request is sent to it directly.
+        </p>
       </LegalSection>
 
       <LegalSection heading="Third parties">

@@ -11,6 +11,21 @@ import {
 
 const EVENT = "creatoros:consent-change";
 
+/** Ask the server to mint a consent receipt. Resolves false if it refused. */
+async function persistDecision(record: ConsentRecord): Promise<boolean> {
+  try {
+    const res = await fetch("/api/consent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ analytics: record.analytics, source: record.source }),
+      credentials: "same-origin",
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Read and write the visitor's consent record.
  *
@@ -46,15 +61,32 @@ export function useConsent() {
     };
   }, []);
 
-  const save = useCallback((next: ConsentRecord) => {
+  /**
+   * Persist the decision.
+   *
+   * The server is called first because it is the authority: it mints the signed
+   * consent receipt that `/api/track` actually authorises from, and a local-only
+   * save would show "allowed" in the UI while the server still refused to record
+   * anything. localStorage is then written as a mirror so the banner and the
+   * preferences panel render correctly on the next paint without waiting on a
+   * round trip, and so tabs stay in sync.
+   *
+   * On failure nothing is written and the banner stays up, which is the
+   * conservative outcome: no receipt means no tracking.
+   */
+  const save = useCallback(async (next: ConsentRecord) => {
+    const persisted = await persistDecision(next);
+    if (!persisted) return false;
+
     try {
       window.localStorage.setItem(CONSENT_STORAGE_KEY, JSON.stringify(next));
     } catch {
-      // Storage unavailable (private mode). The in-memory state still applies
-      // for this page view; consent simply will not persist across visits.
+      // Private mode or storage full: the receipt still authorises tracking for
+      // this and future visits, only the UI mirror is lost.
     }
     setRecord(next);
     window.dispatchEvent(new Event(EVENT));
+    return true;
   }, []);
 
   const acceptAll = useCallback(
@@ -94,7 +126,11 @@ export function useConsent() {
     record,
     ready,
     analyticsAllowed: record?.analytics === true,
-    /** Send this with any analytics request so the server can authorise it. */
+    /**
+     * Kept for callers that want to describe the current choice. The server no
+     * longer reads this from tracking requests - it authorises from the signed
+     * receipt - so it is informational only.
+     */
     consentSignal,
     acceptAll,
     rejectAll,

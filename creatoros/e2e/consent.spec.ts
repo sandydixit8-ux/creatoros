@@ -49,18 +49,20 @@ test.describe("cookie consent", () => {
     expect(tracks).toHaveLength(0);
   });
 
-  test("sends the consent signal with tracking once analytics is allowed", async ({ page }) => {
-    await page.addInitScript(() => {
-      window.localStorage.setItem(
-        "creatoros_consent_v1",
-        JSON.stringify({
-          essential: true,
-          analytics: true,
-          decidedAt: new Date().toISOString(),
-          source: "banner",
-        })
-      );
-    });
+  test("sends tracking once analytics is allowed through the real consent flow", async ({
+    page,
+  }) => {
+    // Grant consent the way a visitor does, so the server actually mints the
+    // signed receipt cookie. Faking localStorage alone would not be enough:
+    // /api/track authorises from the receipt, not from storage.
+    await page.goto("/");
+    await page.getByTestId("consent-accept").click();
+    await expect(page.getByTestId("consent-banner")).toBeHidden();
+
+    const cookies = await page.context().cookies();
+    const receipt = cookies.find((c) => c.name === "creatoros_consent");
+    expect(receipt).toBeTruthy();
+    expect(receipt?.httpOnly).toBe(true);
 
     const bodies: string[] = [];
     page.on("request", (req) => {
@@ -72,7 +74,28 @@ test.describe("cookie consent", () => {
     await page.goto("/u/democreator");
     await page.waitForTimeout(900);
     expect(bodies.length).toBeGreaterThan(0);
-    expect(JSON.parse(bodies[0]).consent).toEqual({ analytics: true });
+    // The request body carries no consent flag at all any more.
+    expect(JSON.parse(bodies[0]).consent).toBeUndefined();
+  });
+
+  test("stopped sending tracking once consent is withdrawn", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTestId("consent-accept").click();
+    await expect(page.getByTestId("consent-banner")).toBeHidden();
+
+    const bodies: string[] = [];
+    page.on("request", (req) => {
+      if (req.url().includes("/api/track") && req.method() === "POST") bodies.push("hit");
+    });
+
+    await page.goto("/cookie-policy");
+    await page.getByTestId("policy-withdraw").click();
+    await expect(page.getByTestId("consent-summary")).toContainText("not allowed");
+
+    bodies.length = 0;
+    await page.goto("/u/democreator");
+    await page.waitForTimeout(900);
+    expect(bodies).toHaveLength(0);
   });
 
   test("the cookie policy page lets a visitor withdraw consent", async ({ page }) => {
