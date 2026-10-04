@@ -606,12 +606,37 @@ mode: at the time of writing the `-wal` file was **1.5 MB against a 512 KB main 
 Rehearsing a migration against such a copy showed migrations 1–9 while production was
 actually at 1–12 — the copy was missing recent commits, schema changes included. The three
 `predeploy` / `pre-d5` / `pre-receipt` backups on the box are all affected and **must not be
-relied on for restore**.
+relied on for restore**. This is now demonstrated rather than theoretical: a copy-based
+backup taken at 14:54 lacks the consent-provenance migrations applied later that day, so
+restoring it would silently roll the D-1 remediation back out.
 
 Backups are now taken with `VACUUM INTO`, which writes a transactionally consistent snapshot
 while the app keeps serving, and the snapshot is verified by reading back its migration list
 and consent columns before the deploy is allowed to continue. A verified snapshot was taken
-at `/home/ubuntu/data/creatoros.db.snapshot-2026-10-04T16-49-40` before the D-10 deploy.
+at `/home/ubuntu/data/creatoros.db.snapshot-2026-10-04T17-12-53` before the D-10 deploy.
+
+**A verification cleanup deleted 22 rows of real analytics data, and was recovered.**
+
+After confirming on production that the server-side view path honours the consent receipt —
+unconsented, consented, withdrawn and forged all behaved correctly — the cleanup step was
+meant to delete the single synthetic row that the consented case had created. It deleted by
+`device='server' AND visitor_id != ''`, which is not specific to the test row: it matched
+every server-side view ever recorded. **22 rows of genuine visitor data were deleted**,
+including rows from real traffic, and the live count went to 0.
+
+Recovered in full from the verified snapshot taken at deploy time, after stopping the service,
+replacing the file, and removing the stale `-wal`/`-shm` — those belong to the replaced file
+and SQLite would otherwise replay old frames onto the restored pages. `PRAGMA integrity_check`
+returns `ok`; `analytics_events` is back to 43 with 22 server-side page views; contacts,
+orders, migrations 1–13 and the `refunds` table are unchanged; service active,
+`NRestarts=0`, all routes 200. Nothing was permanently lost, and the incident is a direct
+argument for the snapshot discipline above: the recovery only worked because the backup was
+taken properly and verified beforehand.
+
+The lesson recorded for future verification work: a cleanup predicate written to describe the
+row under test has to identify that row by something unique — a marker written by the test, or
+a captured primary key — not by a column shared with every row of its kind. "Delete the test's
+rows" is only safe when the test's rows are distinguishable from the data.
 
 ### HIGH
 
