@@ -589,16 +589,24 @@ Two defects in how this project was being deployed and checked, both found while
 D-10 on production.
 
 **The health check never touches the database.** `getDb()` opens SQLite lazily on first use,
-and `migrate()` runs inside it. The deploy script's post-restart check hit a route that
-answers without any database access, so it returned `{"ok":true}` while **migration 13 had
-not run**. `/`, `/pricing` and even `POST /api/track` do not open the database either — an
-unauthorised track returns `tracked:false` without a lookup. Migrations were silently
-deferred to whichever real user action happened to touch the database first.
+and `migrate()` runs inside it. `/api/health` answered `{ok:true}` unconditionally, so the
+deploy script reported success while **migration 13 had not run**. `/`, `/pricing` and even
+`POST /api/track` do not open the database either — an unauthorised track returns
+`tracked:false` without a lookup. Migrations were silently deferred to whichever real user
+action happened to touch the database first.
 
 This is the same class of error as the stale-archive deploy: a check that reports success
-without exercising the thing it claims to verify. Deploy now forces a database-backed
-request (`/auth/login`) before declaring success, so a broken migration fails the deploy
-instead of the first customer's login.
+without exercising the thing it claims to verify. It then recurred once more during D-11,
+which is why the fix is in the health endpoint rather than in the deploy script.
+
+**The first fix was also wrong, twice over.** Hitting a "database-backed route" after restart
+was meant to force the connection. `/auth/login` is served statically and `/api/auth/me`
+short-circuits on a missing cookie before any lookup, so neither opens SQLite — D-11's
+migration 14 was reported applied while still unapplied, the same false pass as before. The
+check now lives where it cannot be fooled: `/api/health` opens the database and answers
+`{"ok":true,"db":"ok"}`, or 503 if it cannot. Deploy treats a missing `db:"ok"` as a failure.
+Probing for a suitable endpoint by trial and error on the live box is what produced two
+wrong answers; an endpoint that *is* the database check removes the question.
 
 **Backups taken with `cp` were silently incomplete.** The production database runs in WAL
 mode: at the time of writing the `-wal` file was **1.5 MB against a 512 KB main file**. A
