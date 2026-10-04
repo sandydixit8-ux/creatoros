@@ -15,7 +15,7 @@ The product is **materially more capable than a 5.5/10 assessment suggests**, an
 
 **Status update (4 October 2026):** all four Critical items in §14 are now **fixed and covered by regression tests** — see the remediation log in §14.1. Verified with `npm run typecheck`, `npm run lint`, 170/170 unit tests and 24/24 E2E tests. The score in §16 is deliberately **not** raised yet: it should only move once the fixes are deployed to production and re-verified there.
 
-The next launch blockers are no longer the four Criticals. They are **D-5** (the cookie policy promises consent management that does not exist) and the HIGH payment-lifecycle items **D-10** to **D-13**.
+The next launch blockers are no longer the four Criticals. **D-5** is now fixed as well — see §14.2. The remaining launch blockers are the HIGH payment-lifecycle items **D-10** to **D-13**.
 
 ---
 
@@ -364,11 +364,68 @@ All four CRITICAL defects are closed and covered by regression tests. Verified w
   neutralises unsafe URLs already stored before this allowlist shipped.
 - Tests: `src/lib/url-safety.test.ts` (10).
 
+### 14.2 Remediation log - D-5 cookie consent (2026-10-04)
+
+**D-5 — the Cookie Policy promised consent management that did not exist**
+
+- New `src/lib/consent.ts`: explicit category model (`essential` always on,
+  `analytics` default **off**), a versioned `creatoros_consent_v1` record, and a
+  strict parser that ignores unknown shapes instead of trusting them.
+- New `src/lib/use-consent.ts`: persists the decision, keeps two open tabs in sync
+  via the `storage` event plus a same-tab custom event, and exposes
+  accept / reject / granular-set / withdraw.
+- New `src/components/consent/consent-banner.tsx`, mounted in `src/app/layout.tsx`:
+  - **Reject is presented as a first-class action with equal prominence to
+    Accept.** A prompt whose only reachable button grants consent is not a choice
+    under PECR.
+  - Optional granular toggle instead of an accept-only wall.
+  - Rendered in normal document flow, **not** as a `position: fixed` overlay. The
+    fixed bottom bar was built first and regressed three checkout/enrolment E2E
+    tests by intercepting clicks on controls at the bottom of the viewport; in
+    production that is a real "Buy now" button being unclickable. In-flow it
+    cannot cover page content.
+  - Client-only and gated on `ready`, so it never appears in SSR output and does
+    not flash at visitors who have already decided.
+- New `src/components/consent/consent-preferences.tsx`, embedded in
+  `src/app/(legal)/cookie-policy/page.tsx`, so the policy's withdrawal promise is
+  honoured on the same page that makes it, and is reachable **after** the first
+  visit rather than only via a first-visit banner.
+- Server gate: `src/app/api/track/route.ts` now requires
+  `consent: { analytics: true }` in the body and returns
+  `{ tracked: false, consent: false }` **without writing a row** otherwise. The
+  consent field is absent by default, so the previous behaviour (tracking
+  unconditionally) is no longer reachable by omitting it.
+- `src/components/bio/public-view.tsx` suppresses its `page_view` / `link_click`
+  requests entirely until analytics consent resolves to granted.
+- Policy text in `cookie-policy/page.tsx` reconciled with actual behaviour:
+  names the categories, states no third-party advertising cookies are used, and
+  says where the choice is stored and how to withdraw it.
+- Tests: `src/lib/consent.test.ts` (20) for the record model and parser;
+  `src/lib/consent-gate.test.ts` (11) calls the route the way an attacker or
+  `curl` would and asserts **no `analytics_events` row** is written without
+  consent, that unconsented calls do not consume the views quota, and that
+  malformed or smuggled-in consent is refused rather than coerced;
+  `e2e/consent.spec.ts` (6) covers first-visit display, reject/accept, granular
+  save, persistence, withdrawal from the policy page, and that **no tracking
+  request is issued before consent**.
+- Verified with `npm run typecheck`, `npm run lint` (0 problems), **201/201** unit
+  tests, **30/30** E2E tests, and a production standalone build.
+
+**Known limitation, stated rather than hidden:** the gate is default-deny and
+refuses malformed input, but the consent signal is still supplied by the client,
+so it is not a tamper-evident server-side consent receipt. A caller who ignores
+their own stored preference can still send `analytics: true`. For anonymous page
+measurement this is not an unauthorised action — the caller is asserting consent
+in their own request — but it does mean there is no central, auditable consent
+record. Adding a signed HttpOnly consent receipt would close that gap and is the
+recommended follow-up before treating D-5 as fully closed from an evidential
+standpoint.
+
 ### HIGH
 
 | ID | Issue | Evidence | Impact | Fix |
 |---|---|---|---|---|
-| **D-5** | Cookie policy promises consent; code has none | `cookie-policy/page.tsx:60-63` vs `public-view.tsx:13-27`, `track/route.ts:11-19` | PECR / UK GDPR / EU eConsent exposure; published policy is inaccurate | Consent banner + preference store; gate non-essential tracking on it |
+| ~~**D-5**~~ **FIXED** | Cookie policy promised consent; code had none | closed 2026-10-04, see §14.2 | PECR / UK GDPR / EU eConsent exposure; published policy was inaccurate | Consent banner + preference store; tracking gated on it and withdrawal honoured |
 | **D-6** | Sessions never expire server-side; reset does not invalidate | Payload has no `iat`/`exp` (`src/lib/auth/session.ts:33-40`); `get-session.ts:24-50` checks no age; reset deletes an unused table (`reset-password/route.ts:38-39`) | Stolen cookie valid indefinitely, even after a password reset | Add `iat`/`exp` + server-side session records; make reset revoke |
 | **D-7** | AI credit quota checked *after* the paid LLM call | `src/app/api/coach/analyze/route.ts:74-83` | Unlimited AI over quota; revenue leak on the metered dimension | Check and consume **before** calling; make it POST |
 | **D-8** | Contact quota bypassable | bookings and free enrolment create contacts with no `bumpUsage` | Free-tier abuse of the metered dimension | Centralise contact creation through one metered path |
@@ -444,9 +501,10 @@ Scored on commercial leverage × implementation cost. "Revenue" = direct or comp
 | 8 | Verify email before granting admin | D-15 | 3h |
 | 9 | Stripe live keys + webhook verification tests | — | 2h |
 | 10 | Subscription lifecycle: upgrade, downgrade, cancel, dunning, grace | D-13 | 1–2d |
-| 11 | Cookie consent + preference store | D-5 | 1d |
+| 11 | ~~Cookie consent + preference store~~ **done** | D-5 | 1d |
 | 12 | Resolve entity placeholders; counsel review | D-14 | external |
-| 13 | Cookie policy reconciled with actual behaviour | D-5 | 2h |
+| 13 | ~~Cookie policy reconciled with actual behaviour~~ **done** | D-5 | 2h |
+| 14 | Signed server-side consent receipt (closes the evidential gap in §14.2) | D-5 follow-up | 3h |
 
 ### P1 — Revenue engine
 

@@ -7,6 +7,7 @@ import { SITE_URL } from "@/lib/constants";
 import { formatPrice } from "@/lib/money";
 import { openCashfreeCheckout } from "@/lib/payments/cashfree-checkout";
 import { sanitizeUrl } from "@/lib/url-safety";
+import { useConsent } from "@/lib/use-consent";
 
 /**
  * Render-time backstop for href sinks. Writes are already scheme-checked at the
@@ -21,9 +22,13 @@ export function PublicBioPageView({ bio }: { bio: PublicBioPage }) {
   const theme = bio.page.theme;
   const accent = theme.accent || "#4f46e5";
   const [visitorId] = useState(() => (typeof globalThis !== "undefined" && globalThis.crypto ? globalThis.crypto.randomUUID() : `v${Date.now()}`));
+  // D-5: analytics are opt-in. Without consent the page still renders fully -
+  // we simply do not report the visit, and `/api/track` refuses it anyway.
+  const { analyticsAllowed, consentSignal } = useConsent();
 
   // fire-and-forget view tracking on mount (first-party)
   useEffect(() => {
+    if (!analyticsAllowed) return;
     fetch(`${SITE_URL}/api/track`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -32,15 +37,24 @@ export function PublicBioPageView({ bio }: { bio: PublicBioPage }) {
         pageSlug: bio.page.slug,
         eventType: "page_view",
         visitorId,
+        consent: consentSignal,
       }),
     }).catch(() => {});
-  }, [bio.profile.username, bio.page.slug, visitorId]);
+  }, [bio.profile.username, bio.page.slug, visitorId, analyticsAllowed, consentSignal]);
 
   function trackLink(url: string) {
+    if (!analyticsAllowed) return;
     fetch(`${SITE_URL}/api/track`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: bio.profile.username, pageSlug: bio.page.slug, eventType: "link_click", ref: url, visitorId }),
+      body: JSON.stringify({
+        username: bio.profile.username,
+        pageSlug: bio.page.slug,
+        eventType: "link_click",
+        ref: url,
+        visitorId,
+        consent: consentSignal,
+      }),
     }).catch(() => {});
   }
 

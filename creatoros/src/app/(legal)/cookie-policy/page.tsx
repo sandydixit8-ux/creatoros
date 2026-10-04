@@ -1,5 +1,6 @@
 import { LegalList, LegalPage, LegalSection, legalMetadata } from "@/components/legal/legal-page";
 import { LEGAL_INFO } from "@/components/legal/legal-info";
+import { ConsentPreferences } from "@/components/consent/consent-preferences";
 
 export const metadata = legalMetadata(
   "Cookie Policy",
@@ -26,17 +27,15 @@ export default function CookiePolicyPage() {
         <LegalList
           items={[
             <>
-              <strong>Strictly necessary:</strong> session and authentication cookies required to log you
-              in and keep the service secure. These cannot be switched off through our site.
+              <strong>Strictly necessary:</strong> a single session cookie required to log you in
+              and keep the service secure. It cannot be switched off through our site. We also
+              store your consent choice in your browser&apos;s local storage, which is strictly
+              necessary because it is how we remember to stop asking.
             </>,
             <>
-              <strong>Functional:</strong> cookies that remember your preferences (for example, theme or
-              language).
-            </>,
-            <>
-              <strong>Analytics:</strong> first-party tracking of page views and link clicks, stored in
-              our own database, used to show you analytics for your pages. We do not use third-party
-              advertising cookies.
+              <strong>Analytics:</strong> first-party tracking of page views and link clicks on
+              public bio pages, stored in our own database and shown to the page owner as
+              analytics. We do not use third-party advertising cookies.
             </>,
           ]}
         />
@@ -53,15 +52,22 @@ export default function CookiePolicyPage() {
       <LegalSection heading="Managing cookies">
         <p>
           You can block, delete or manage cookies in your browser settings. If you disable strictly
-          necessary cookies, parts of the service (such as staying logged in) may stop working.
+          necessary cookies, parts of the service (such as staying logged in) may stop working. You can
+          also change your analytics choice at any time using the controls below.
         </p>
       </LegalSection>
 
       <LegalSection heading="Consent">
         <p>
-          Where required by law (for example in the UK/EU), we ask for your consent before setting
-          non-essential cookies, and you can withdraw that consent at any time.
+          Where required by law (for example in the UK/EU), we ask for your consent before recording
+          any non-essential measurement, and you can withdraw that consent at any time. If you do not
+          choose, we record nothing beyond what is strictly necessary. Analytics are only collected
+          after you opt in, and declining does not reduce any feature of the service.
         </p>
+      </LegalSection>
+
+      <LegalSection heading="Your choices">
+        <ConsentPreferences />
       </LegalSection>
 
       <LegalSection heading="Contact">

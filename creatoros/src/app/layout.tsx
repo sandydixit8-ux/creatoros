@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { SITE_URL } from "@/lib/constants";
+import { ConsentBanner } from "@/components/consent/consent-banner";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
@@ -114,6 +115,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
+        {/* Above the page content, and in normal flow, so the consent prompt is
+            immediately visible without ever covering an interactive control. */}
+        <ConsentBanner />
         {children}
       </body>
     </html>

@@ -16,16 +16,29 @@ const trackSchema = z.object({
   utm_source: z.string().max(100).default(""),
   utm_campaign: z.string().max(100).default(""),
   visitorId: z.string().default(""),
+  /**
+   * Consent signal (D-5). The Cookie Policy promises consent before any
+   * non-essential storage, so this endpoint refuses to record anything without
+   * it. Gating in the browser alone would be theatre - this endpoint is
+   * directly callable, so the check has to live here.
+   */
+  consent: z.object({ analytics: z.boolean() }).default({ analytics: false }),
 });
 
 export async function POST(req: NextRequest) {
-  const ip = getClientIp(req);
-  const rl = rateLimit(rateKey("track", ip), 120);
-  if (!rl.allowed) return err.rateLimited();
-
   const body = await readJson(req);
   const parsed = trackSchema.safeParse(body);
   if (!parsed.success) return err.validation(parsed.error.flatten().fieldErrors);
+
+  // No analytics consent, no analytics. Nothing below this line may read the
+  // caller's IP, device or country into storage.
+  if (!parsed.data.consent.analytics) {
+    return ok({ tracked: false, consent: false });
+  }
+
+  const ip = getClientIp(req);
+  const rl = rateLimit(rateKey("track", ip), 120);
+  if (!rl.allowed) return err.rateLimited();
 
   const bio = getPublicBioPage(parsed.data.username, parsed.data.pageSlug);
   if (!bio) return err.notFound();
