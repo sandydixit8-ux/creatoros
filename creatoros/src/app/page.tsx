@@ -11,11 +11,11 @@ const FEATURES = [
 ];
 
 const PLANS = [
-  { name: "Free", price: 0, tag: "Start free", features: ["1 bio page", "5 links", "10 contacts", "1 booking service", "1k views/mo"] },
+  { name: "Free", price: 0, tag: "Start free", features: ["1 bio page", "5 links", "10 contacts", "1 booking service", "1k views/mo", "10 AI credits"] },
   { name: "Starter", price: 9, tag: "For new creators", features: ["25 links", "500 contacts", "3 services", "10k views/mo", "50 AI credits"] },
-  { name: "Creator", price: 19, tag: "Most popular", features: ["3 bio pages", "100 links", "2k contacts", "10 services", "200 AI credits", "Custom domain"] },
-  { name: "Pro", price: 49, tag: "For serious pros", features: ["10 bio pages", "10k contacts", "800 AI credits", "Email automation", "Unlimited services"] },
-  { name: "Business", price: 99, tag: "For teams & agencies", features: ["Unlimited everything", "Team seats", "White-label", "Priority support", "API access"] },
+  { name: "Creator", price: 19, tag: "Most popular", features: ["3 bio pages", "100 links", "2k contacts", "10 services", "Email automation", "200 AI credits"] },
+  { name: "Pro", price: 49, tag: "For serious pros", features: ["10 bio pages", "Unlimited links & products", "10k contacts", "Unlimited services", "800 AI credits", "Email automation"] },
+  { name: "Business", price: 99, tag: "For growing teams", features: ["Unlimited everything", "Unlimited courses & emails", "All Pro features", "Priority support"] },
 ];
 
 export default function HomePage() {

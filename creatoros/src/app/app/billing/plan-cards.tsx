@@ -191,11 +191,7 @@ export default function PlanCards({
                 <li className="flex items-start gap-2">
                   <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-500" /> {f(l.services)} booking services
                 </li>
-                {l.customDomain && (
-                  <li className="flex items-start gap-2">
-                    <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-500" /> Custom domain
-                  </li>
-                )}
+                
                 {l.emailAutomation && (
                   <li className="flex items-start gap-2">
                     <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-500" /> Email automation
