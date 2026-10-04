@@ -20,7 +20,7 @@ export function SiteFooter() {
           ))}
         </nav>
         <p>© {new Date().getFullYear()} CreatorOS. All rights reserved.</p>
-        <p className="text-xs text-navy-400">Technology partner: Ridhyansh Tech Infra Private Limited</p>
+        <p className="text-xs text-navy-400">Technology Partner: Ridhyansh Tech Infra Private Limited</p>
       </div>
     </footer>
   );

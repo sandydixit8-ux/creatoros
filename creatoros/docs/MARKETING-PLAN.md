@@ -6,7 +6,7 @@ courses, bookings, email marketing + automation, communities, analytics, AI cred
 **Pricing (USD/mo):** Free $0 · Starter $9 · Creator $19 (hero plan) · Pro $49 · Business $99.
 Billing currency USD; one-time payments live via Cashfree, subscriptions open after KYC.
 **Status:** pre-launch. Legal copy + subscription billing are the remaining blockers.
-**Technology partner:** Ridhyansh Tech Infra Private Limited.
+**Technology Partner:** Ridhyansh Tech Infra Private Limited.
 
 ## 1. Positioning
 
