@@ -101,6 +101,45 @@ const MIGRATIONS: Array<{ id: number; up: (db: DatabaseSync) => void }> = [
       );
     },
   },
+{
+    // Remediation for D-10: refund intents.
+    //
+    // A refund moves money at the gateway first and updates our ledger second.
+    // If the process died in between, `refunded_cents` would still read as
+    // unpaid-out while the customer had actually been made whole - and because
+    // the route only refuses amounts above `amount_cents - refunded_cents`, the
+    // order would look refundable again and a second admin click would refund
+    // them twice.
+    //
+    // Recording the intent before calling the provider makes that state
+    // visible: a row in `pending` means "we asked the gateway, we do not yet
+    // know the answer", and it blocks a concurrent second refund instead of
+    // racing it. `succeeded` rows are the durable audit trail of what was
+    // actually returned to the customer.
+    id: 13,
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS refunds (
+          id            TEXT PRIMARY KEY,
+          tenant_id     TEXT NOT NULL,
+          order_id      TEXT NOT NULL,
+          amount_cents  INTEGER NOT NULL,
+          currency      TEXT NOT NULL DEFAULT 'usd',
+          provider      TEXT NOT NULL DEFAULT 'mock',
+          provider_refund_id TEXT NOT NULL DEFAULT '',
+          status        TEXT NOT NULL DEFAULT 'pending',  -- pending | succeeded | failed
+          reason        TEXT NOT NULL DEFAULT '',
+          admin_email   TEXT NOT NULL DEFAULT '',
+          created_at    TEXT NOT NULL,
+          updated_at    TEXT NOT NULL
+        )
+      `);
+      db.exec("CREATE INDEX IF NOT EXISTS idx_refunds_order ON refunds(order_id)");
+      // At most one in-flight refund per order. Enforced in the database so a
+      // race between two admin requests cannot both get an intent written.
+      db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_refunds_one_pending ON refunds(order_id) WHERE status = 'pending'");
+    },
+  },
 ];
 
 function addColumn(db: DatabaseSync, table: string, column: string, ddl: string) {
@@ -159,17 +198,57 @@ export function run(sql: string, ...params: SQLParam[]): { changes: number; last
   return { changes: Number(info.changes), lastInsertRowid: Number(info.lastInsertRowid) };
 }
 
+/**
+ * Run `fn` inside a transaction.
+ *
+ * Two things this has to get right, because money writes depend on it:
+ *
+ * 1. `BEGIN IMMEDIATE`, not a plain `BEGIN`. A deferred transaction only takes
+ *    the write lock at its first write, so two callers can both read, then both
+ *    try to upgrade, and one gets SQLITE_BUSY. Taking the lock up front means the
+ *    loser waits and then sees the committed state, which is what a read-then-
+ *    write on a money row needs.
+ *
+ * 2. Nesting. Without this, an inner `tx()` would issue BEGIN inside BEGIN and
+ *    SQLite would refuse. Inner calls simply join the outer transaction - the
+ *    outermost `tx` owns commit and rollback, so an inner failure still aborts
+ *    everything, which is the behaviour a caller wrapping several helpers
+ *    expects.
+ */
+let txDepth = 0;
+
 export function tx<T>(fn: () => T): T {
+  if (txDepth > 0) {
+    txDepth++;
+    try {
+      return fn();
+    } finally {
+      txDepth--;
+    }
+  }
+
   const db = getDb();
-  db.exec("BEGIN");
+  db.exec("BEGIN IMMEDIATE");
+  txDepth = 1;
   try {
     const out = fn();
     db.exec("COMMIT");
     return out;
   } catch (e) {
-    db.exec("ROLLBACK");
+    try {
+      db.exec("ROLLBACK");
+    } catch {
+      // Already rolled back by SQLite (e.g. a fatal error); keep the original.
+    }
     throw e;
+  } finally {
+    txDepth = 0;
   }
+}
+
+/** True when a transaction is currently open. Used by tests and guards. */
+export function inTransaction(): boolean {
+  return txDepth > 0;
 }
 
 export function newId(prefix: string): string {

@@ -484,6 +484,62 @@ probe requests (no consent / refusal / smuggled flag / malformed / genuine
 consent) produced `tracked:false` for the first four and exactly one stored row
 for the last, with the row count reconciling exactly against the baseline.
 
+### 14.4 Remediation log - D-10 transactions around money writes (2026-10-04)
+
+**D-10 — multi-write money paths with no transaction**
+
+`tx()` already existed in `src/lib/db/db.ts` but was **never called anywhere in the codebase**; every
+payment path wrote rows one at a time with no atomicity.
+
+**`tx()` itself was not safe enough to use as-is:**
+- It issued a plain `BEGIN`, which only takes the write lock at the first write. Two callers could
+  both read, then both try to upgrade, and one would get `SQLITE_BUSY` — exactly the read-then-write
+  pattern a money row needs to avoid. Now `BEGIN IMMEDIATE`, so the lock is taken up front and the
+  loser waits and then sees committed state.
+- It had no nesting guard, so an inner `tx()` would issue `BEGIN` inside `BEGIN` and SQLite would
+  refuse. Inner calls now join the outer transaction, and the outermost call owns commit/rollback,
+  so an inner failure still aborts everything a caller wrapping several helpers expects.
+
+**`fulfillOrder` — the paid-but-unfulfilled dead end.** The order was flipped to `paid`, the payment
+row updated, the enrolment created, usage bumped and an audit row written as five independent writes.
+If the enrolment insert failed, the customer had paid, was marked fulfilled, and could not open the
+course — and because the idempotency guard returns `already_paid` on every subsequent attempt, **no
+retry could ever repair it**. Terminal and silent, discovered by the customer. All five writes now
+run in one transaction: a failure anywhere rolls back, the order stays `pending`, and a later webhook
+or return-visit retry can still fulfil it.
+
+**Refund — intent recorded before the gateway call.** A refund moves money at the provider first and
+updates the ledger second. If the process died in between, `refunded_cents` still read as un-refunded
+while the customer had been made whole, and since the route only refuses amounts above
+`amount_cents - refunded_cents`, the order looked refundable again — a second admin click would refund
+them twice. The `already_paid`-style guard does not exist here at all.
+
+- Migration 13 + `refunds` table: `pending | succeeded | failed` intents with the provider refund id,
+  amount, reason and admin. The claim is written **before** the provider is called, so an in-flight
+  or crashed refund is visible rather than lost.
+- A **partial unique index** on `(order_id) WHERE status = 'pending'` enforces at most one in-flight
+  refund per order in the database, so two concurrent admin requests cannot both compute the same
+  "remaining" figure and race.
+- The ledger is re-read inside the same transaction as the claim, so the amount is computed under the
+  lock rather than from a stale earlier read.
+- Three phases: claim (transaction) → gateway call (no lock held; holding a write lock across a
+  provider network call would serialise all admin actions behind gateway latency) → commit
+  (transaction). On provider failure the intent is released to `failed` so an admin can retry; if the
+  commit phase fails after the money moved, the intent is deliberately left `pending`, because a
+  stuck claim blocks retries and that is the safe direction to fail in.
+- Also fixed: the refund path never updated the `payments` row, so an order could read `refunded`
+  while its payment still read `succeeded`. A full refund now marks the payment refunded; a partial
+  one correctly leaves both alone.
+- Tests: `src/lib/orders-transactional.test.ts` (17) covers `tx()` commit/rollback/nesting/state
+  cleanup, fulfilment atomicity — including a forced enrolment failure proving the order stays
+  `pending` and a retry succeeds — and every refund-intent path including the commit-phase failure
+  that leaves the ledger untouched with the claim still blocking.
+- New `scripts/check-migrations.ts` to apply pending migrations to a **copy** of a database and report
+  what changed, so a migration can be rehearsed before it touches production. Verified migration 13
+  applies cleanly on a copy that was still at migration 7.
+- Verified with `npm run typecheck`, `npm run lint` (0 problems, 0 warnings), **239/239** unit tests,
+  **31/31** E2E tests.
+
 ### HIGH
 
 | ID | Issue | Evidence | Impact | Fix |
@@ -493,7 +549,7 @@ for the last, with the row count reconciling exactly against the baseline.
 | **D-7** | AI credit quota checked *after* the paid LLM call | `src/app/api/coach/analyze/route.ts:74-83` | Unlimited AI over quota; revenue leak on the metered dimension | Check and consume **before** calling; make it POST |
 | **D-8** | Contact quota bypassable | bookings and free enrolment create contacts with no `bumpUsage` | Free-tier abuse of the metered dimension | Centralise contact creation through one metered path |
 | **D-9** | Views meter displays 0 forever | writes `"views"` (`track/route.ts:41,45`), reads `usage.viewsPerMonth` (`billing/page.tsx:46`) | Billing screen contradicts enforcement; upgrade prompts misfire | Unify the metric name |
-| **D-10** | No transactions around money writes | `orders.ts:166-177` (2 writes), `185-205` (5+), refund route (provider call then UPDATE) | Partial failure leaves paid-but-unfulfilled, and the `already_paid` guard makes it unrecoverable | Wrap fulfilment and refund in `tx()`; record refund intent before calling the provider |
+| ~~**D-10**~~ **FIXED** | No transactions around money writes | closed 2026-10-04, see §14.4 | Partial failure left paid-but-unfulfilled, and the `already_paid` guard made it unrecoverable; refund could double-refund after a crash | `tx()` hardened and used; refund intent recorded before the provider call |
 | **D-11** | Webhook events marked processed before work succeeds, never retried | row inserted first, exception returns 200 with row intact (`webhooks/stripe/route.ts:45-52,144-155`) | Paid order can stay `pending` permanently; gateway never retries | Mark processed only after success; return 5xx on failure |
 | **D-12** | Subscription webhook can silently downgrade a tenant to `free` | falls back to `metadata.plan \|\| "free"` (`webhooks/stripe/route.ts:97,118`) | Paying customer loses paid features | Do not downgrade on absent metadata; require explicit signal |
 | **D-13** | No dunning, grace period or recovery on failed renewal | only flips to `past_due` (`cashfree-provider.ts:396-399`); `past_due` grants no plan | Silent revenue loss + creator locked out with no warning | Retry schedule + grace period + recovery email |
@@ -560,7 +616,7 @@ Scored on commercial leverage × implementation cost. "Revenue" = direct or comp
 | 4 | Allowlist URL schemes; sanitise bio block URLs | D-4 | 3h |
 | 5 | Add session `iat`/`exp`; make password reset revoke | D-6 | 4h |
 | 6 | Webhook: process-then-mark; 5xx on failure | D-11 | 2h |
-| 7 | Wrap `fulfillOrder` + refund in transactions | D-10 | 4h |
+| 7 | ~~Wrap `fulfillOrder` + refund in transactions~~ **done** (§14.4) | D-10 | 4h |
 | 8 | Verify email before granting admin | D-15 | 3h |
 | 9 | Stripe live keys + webhook verification tests | — | 2h |
 | 10 | Subscription lifecycle: upgrade, downgrade, cancel, dunning, grace | D-13 | 1–2d |

@@ -1,4 +1,4 @@
-import { all, row, run, newId, nowIso, nanoid } from "@/lib/db/db";
+import { all, row, run, tx, newId, nowIso, nanoid } from "@/lib/db/db";
 import { trackEvent, hashVisitorId } from "@/lib/analytics/engine";
 import { bumpUsage } from "@/lib/usage";
 import { audit } from "@/lib/audit";
@@ -182,28 +182,48 @@ export type FulfillResult = "paid" | "already_paid" | "not_found" | "not_payable
 
 /**
  * Idempotent order fulfillment: safe to call from success route and webhook.
- * Only a pending order transitions to paid (atomic conditional UPDATE).
+ *
+ * Everything that constitutes "the customer got what they paid for" happens in
+ * one transaction: the order flip, the payment row, the enrolment, the sales
+ * usage counter and the audit entry.
+ *
+ * This matters because of what used to happen. The order was flipped to `paid`
+ * first and the enrolment was created afterwards as a separate write. If
+ * enrolment then failed, the customer had paid and been marked fulfilled but
+ * could not access the course - and because the `already_paid` guard returns
+ * early on every later attempt, no retry could ever repair it. The failure was
+ * terminal and silent.
+ *
+ * Now a failure anywhere rolls the whole thing back. The order stays `pending`,
+ * so a later webhook or return-visit retry can still fulfil it, and the caller
+ * gets a real error instead of a cheerful `already_paid`.
  */
 export function fulfillOrder(orderId: string): FulfillResult {
-  const order = row<OrderRow>("SELECT * FROM orders WHERE id = ?", orderId);
-  if (!order) return "not_found";
-  if (order.status === "paid") return "already_paid";
-  if (order.status !== "pending") return "not_payable";
+  return tx(() => {
+    const order = row<OrderRow>("SELECT * FROM orders WHERE id = ?", orderId);
+    if (!order) return "not_found";
+    if (order.status === "paid") return "already_paid";
+    if (order.status !== "pending") return "not_payable";
 
-  const res = run("UPDATE orders SET status = 'paid', updated_at = ? WHERE id = ? AND status = 'pending'", nowIso(), orderId);
-  if (res.changes === 0) return "already_paid";
+    const res = run(
+      "UPDATE orders SET status = 'paid', updated_at = ? WHERE id = ? AND status = 'pending'",
+      nowIso(),
+      orderId
+    );
+    if (res.changes === 0) return "already_paid";
 
-  run("UPDATE payments SET status = 'succeeded' WHERE order_id = ? AND status = 'pending'", orderId);
-  if (order.course_id) {
-    ensureEnrollment(order.tenant_id, order.course_id, order.email, "purchase", {
-      orderId,
-      contactId: order.contact_id,
-    });
-  }
-  trackEvent({ tenantId: order.tenant_id, eventType: "purchase", ref: order.course_id ? "course" : "store" });
-  bumpUsage(order.tenant_id, "sales");
-  audit({ tenantId: order.tenant_id, action: "store.order_paid", resource: orderId });
-  return "paid";
+    run("UPDATE payments SET status = 'succeeded' WHERE order_id = ? AND status = 'pending'", orderId);
+    if (order.course_id) {
+      ensureEnrollment(order.tenant_id, order.course_id, order.email, "purchase", {
+        orderId,
+        contactId: order.contact_id,
+      });
+    }
+    trackEvent({ tenantId: order.tenant_id, eventType: "purchase", ref: order.course_id ? "course" : "store" });
+    bumpUsage(order.tenant_id, "sales");
+    audit({ tenantId: order.tenant_id, action: "store.order_paid", resource: orderId });
+    return "paid";
+  });
 }
 
 /** Find an order by its provider checkout session id. */

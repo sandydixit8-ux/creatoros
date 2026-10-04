@@ -419,6 +419,28 @@ CREATE TABLE IF NOT EXISTS order_items (
   unit_price_cents INTEGER NOT NULL DEFAULT 0
 );
 
+-- Refund intents (D-10). A row is written *before* the gateway is called, so an
+-- in-flight or crashed refund is visible rather than silently lost, and a
+-- concurrent second refund is refused instead of double-refunding.
+CREATE TABLE IF NOT EXISTS refunds (
+  id            TEXT PRIMARY KEY,
+  tenant_id     TEXT NOT NULL,
+  order_id      TEXT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  amount_cents  INTEGER NOT NULL,
+  currency      TEXT NOT NULL DEFAULT 'usd',
+  provider      TEXT NOT NULL DEFAULT 'mock',
+  provider_refund_id TEXT NOT NULL DEFAULT '',
+  status        TEXT NOT NULL DEFAULT 'pending',  -- pending | succeeded | failed
+  reason        TEXT NOT NULL DEFAULT '',
+  admin_email   TEXT NOT NULL DEFAULT '',
+  created_at    TEXT NOT NULL,
+  updated_at    TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_refunds_order ON refunds(order_id);
+-- At most one in-flight refund per order.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_refunds_one_pending ON refunds(order_id) WHERE status = 'pending';
+
 -- Payment provider webhook events (idempotency ledger)
 CREATE TABLE IF NOT EXISTS webhook_events (
   id           TEXT PRIMARY KEY,  -- provider event id
