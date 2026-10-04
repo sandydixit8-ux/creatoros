@@ -38,7 +38,7 @@ export default async function PublicBioSlugPage({ params }: Props) {
   const bio = getPublicBioPage(username, slug);
   if (!bio || bio.page.published !== 1) notFound();
 
-  trackPublicView(bio);
+  await trackPublicView(bio);
 
   return <PublicBioPageView bio={bio} />;
 }

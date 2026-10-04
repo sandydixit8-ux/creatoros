@@ -540,6 +540,79 @@ them twice. The `already_paid`-style guard does not exist here at all.
 - Verified with `npm run typecheck`, `npm run lint` (0 problems, 0 warnings), **239/239** unit tests,
   **31/31** E2E tests.
 
+### 14.5 Remediation log - consent gate bypass on the server render path (2026-10-04)
+
+**Found during D-10 production verification, not by the tests.**
+
+Deploying D-10 and then diffing `analytics_events` before and after my own verification
+requests showed **three new rows that I had not consented to**. All three were
+`event_type='page_view', device='server'`, timestamped exactly when I curled the public
+bio pages. The D-5 remediation was incomplete.
+
+**What D-5 had actually closed.** The consent gate was applied to `POST /api/track`, the
+client beacon. But `src/app/u/[username]/page.tsx` and `.../[slug]/page.tsx` call
+`trackPublicView(bio)` while rendering, and `src/lib/bio/track.ts` wrote straight to
+`analytics_events` with a fresh visitor id and **no consent check at all**. So every render
+of every public bio page recorded a view — before any script ran, independent of the banner,
+and even after a withdrawal. A visitor who declined, or who withdrew and then kept browsing,
+was still being measured. The Cookie Policy promises measurement happens only after
+agreement, so the product did not match its own published wording.
+
+`trackPublicView` is now gated on the same signed receipt via `analyticsGranted`, and is
+`async` because `cookies()` is.
+
+- One subtlety worth recording: `analyticsGranted` takes a **cookie header**, not a cookie
+  value, because it re-parses the `name=value` form. Passing `jar.get(name).value` returns
+  `null` and reads as "no consent". That silently denied every view on the first attempt —
+  the kind of failure that looks like correct default-deny behaviour while actually never
+  recording anything, which is why the tests assert the **affirmative** case too.
+- `trackLinkClick` has no callers, so there is no second unguarded path in use; it is left
+  alone rather than half-migrated.
+- Tests: three new E2E cases in `e2e/consent.spec.ts` assert the row count for
+  `device='server'` page views does **not** move without consent, moves by exactly one with
+  consent, and stops moving after withdrawal. They read the E2E database directly, because
+  these writes never appear in a network trace — which is exactly why the original gap
+  survived a suite that otherwise covered consent thoroughly.
+
+**Also fixed: a flaky security test that could have hidden a real break.**
+`consent-receipt.test.ts` proved signature tampering was refused by rewriting the **last**
+character of the base64url signature. In base64url that character can encode padding bits
+alone, so on some random signatures the rewrite decoded to identical bytes and the
+tampered token verified successfully — the test failed while the product was fine, and on
+other signatures it passed for the wrong reason. It now tampers the first character and
+additionally asserts the decoded bytes actually differ, so the test cannot pass without the
+tamper being real. Confirmed over six consecutive runs.
+
+### 14.6 Deployment verification was weaker than it looked (2026-10-04)
+
+Two defects in how this project was being deployed and checked, both found while verifying
+D-10 on production.
+
+**The health check never touches the database.** `getDb()` opens SQLite lazily on first use,
+and `migrate()` runs inside it. The deploy script's post-restart check hit a route that
+answers without any database access, so it returned `{"ok":true}` while **migration 13 had
+not run**. `/`, `/pricing` and even `POST /api/track` do not open the database either — an
+unauthorised track returns `tracked:false` without a lookup. Migrations were silently
+deferred to whichever real user action happened to touch the database first.
+
+This is the same class of error as the stale-archive deploy: a check that reports success
+without exercising the thing it claims to verify. Deploy now forces a database-backed
+request (`/auth/login`) before declaring success, so a broken migration fails the deploy
+instead of the first customer's login.
+
+**Backups taken with `cp` were silently incomplete.** The production database runs in WAL
+mode: at the time of writing the `-wal` file was **1.5 MB against a 512 KB main file**. A
+`cp` of `creatoros.db` copies neither, so it captures only what was already checkpointed.
+Rehearsing a migration against such a copy showed migrations 1–9 while production was
+actually at 1–12 — the copy was missing recent commits, schema changes included. The three
+`predeploy` / `pre-d5` / `pre-receipt` backups on the box are all affected and **must not be
+relied on for restore**.
+
+Backups are now taken with `VACUUM INTO`, which writes a transactionally consistent snapshot
+while the app keeps serving, and the snapshot is verified by reading back its migration list
+and consent columns before the deploy is allowed to continue. A verified snapshot was taken
+at `/home/ubuntu/data/creatoros.db.snapshot-2026-10-04T16-49-40` before the D-10 deploy.
+
 ### HIGH
 
 | ID | Issue | Evidence | Impact | Fix |
@@ -550,6 +623,7 @@ them twice. The `already_paid`-style guard does not exist here at all.
 | **D-8** | Contact quota bypassable | bookings and free enrolment create contacts with no `bumpUsage` | Free-tier abuse of the metered dimension | Centralise contact creation through one metered path |
 | **D-9** | Views meter displays 0 forever | writes `"views"` (`track/route.ts:41,45`), reads `usage.viewsPerMonth` (`billing/page.tsx:46`) | Billing screen contradicts enforcement; upgrade prompts misfire | Unify the metric name |
 | ~~**D-10**~~ **FIXED** | No transactions around money writes | closed 2026-10-04, see §14.4 | Partial failure left paid-but-unfulfilled, and the `already_paid` guard made it unrecoverable; refund could double-refund after a crash | `tx()` hardened and used; refund intent recorded before the provider call |
+| ~~**D-5 follow-up**~~ **FIXED** | Consent gate bypassed on the server render path | closed 2026-10-04, see §14.5 | Public bio pages recorded a `page_view` for every visitor with no consent check, defeating the banner and surviving withdrawal | Server render path gated on the same signed receipt |
 | **D-11** | Webhook events marked processed before work succeeds, never retried | row inserted first, exception returns 200 with row intact (`webhooks/stripe/route.ts:45-52,144-155`) | Paid order can stay `pending` permanently; gateway never retries | Mark processed only after success; return 5xx on failure |
 | **D-12** | Subscription webhook can silently downgrade a tenant to `free` | falls back to `metadata.plan \|\| "free"` (`webhooks/stripe/route.ts:97,118`) | Paying customer loses paid features | Do not downgrade on absent metadata; require explicit signal |
 | **D-13** | No dunning, grace period or recovery on failed renewal | only flips to `past_due` (`cashfree-provider.ts:396-399`); `past_due` grants no plan | Silent revenue loss + creator locked out with no warning | Retry schedule + grace period + recovery email |

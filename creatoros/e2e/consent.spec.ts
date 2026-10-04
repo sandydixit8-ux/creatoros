@@ -1,10 +1,26 @@
 import { test, expect } from "@playwright/test";
+import { DatabaseSync } from "node:sqlite";
+import { join } from "node:path";
 
 /**
  * D-5: the Cookie Policy promises consent is asked for before any non-essential
  * measurement, and that it can be withdrawn at any time. These tests hold the
  * product to that wording.
  */
+
+/**
+ * Counts page views recorded by the server while rendering a public bio page.
+ * These carry device='server' and never pass through /api/track, so they are
+ * invisible to any assertion based on network requests.
+ */
+function serverSidePageViews(): number {
+  const db = new DatabaseSync(join(process.cwd(), "data", "e2e.db"), { readOnly: true });
+  const row = db
+    .prepare("SELECT COUNT(*) AS n FROM analytics_events WHERE event_type = 'page_view' AND device = 'server'")
+    .get() as { n: number };
+  db.close();
+  return row.n;
+}
 
 test.describe("cookie consent", () => {
   test("shows the banner on a first visit and stores the choice", async ({ page }) => {
@@ -96,6 +112,46 @@ test.describe("cookie consent", () => {
     await page.goto("/u/democreator");
     await page.waitForTimeout(900);
     expect(bodies).toHaveLength(0);
+  });
+
+  test("records no server-side page view while consent is undecided", async ({ page }) => {
+    // The bio page logs a page view while it renders, before any script runs.
+    // Gating the beacon alone left that path collecting without consent.
+    const before = serverSidePageViews();
+
+    await page.goto("/u/democreator");
+    await expect(page.getByTestId("consent-banner")).toBeVisible();
+    await page.waitForTimeout(700);
+
+    expect(serverSidePageViews()).toBe(before);
+  });
+
+  test("records a server-side page view once analytics is allowed", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTestId("consent-accept").click();
+    await expect(page.getByTestId("consent-banner")).toBeHidden();
+
+    const before = serverSidePageViews();
+    await page.goto("/u/democreator");
+    await page.waitForTimeout(900);
+
+    expect(serverSidePageViews()).toBe(before + 1);
+  });
+
+  test("stops recording server-side page views after withdrawal", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTestId("consent-accept").click();
+    await expect(page.getByTestId("consent-banner")).toBeHidden();
+
+    await page.goto("/cookie-policy");
+    await page.getByTestId("policy-withdraw").click();
+    await expect(page.getByTestId("consent-summary")).toContainText("not allowed");
+
+    const before = serverSidePageViews();
+    await page.goto("/u/democreator");
+    await page.waitForTimeout(900);
+
+    expect(serverSidePageViews()).toBe(before);
   });
 
   test("the cookie policy page lets a visitor withdraw consent", async ({ page }) => {

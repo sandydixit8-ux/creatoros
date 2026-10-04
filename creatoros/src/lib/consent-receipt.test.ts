@@ -64,7 +64,16 @@ describe("consent receipt: forgery is refused", () => {
   it("refuses a payload whose signature does not match", () => {
     const token = buildConsentToken(true, "banner");
     const [body, sig] = token.split(".");
-    const tamperedSig = sig.slice(0, -1) + (sig.endsWith("A") ? "B" : "A");
+
+    // Flip the FIRST signature character, not the last. In base64url the final
+    // character can encode padding bits alone, so rewriting it may decode to the
+    // very same bytes - which left this test passing or failing depending on the
+    // random signature it happened to be handed.
+    const tamperedSig = (sig[0] === "A" ? "B" : "A") + sig.slice(1);
+    expect(tamperedSig).not.toBe(sig);
+
+    // Guard the guard: confirm the tamper really does change the signature bytes.
+    expect(Buffer.from(tamperedSig, "base64url").equals(Buffer.from(sig, "base64url"))).toBe(false);
 
     expect(readConsentReceipt(cookieHeader(`${body}.${tamperedSig}`))).toBeNull();
     expect(analyticsGranted(cookieHeader(`${body}.${tamperedSig}`))).toBe(false);
