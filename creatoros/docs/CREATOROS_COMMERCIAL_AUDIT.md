@@ -154,8 +154,8 @@ Ranked by business impact:
 3. **No free tools.** The highest-leverage creator acquisition asset (calculators/generators) is entirely absent.
 4. **No marketplace or discovery.** Creators cannot find each other; buyers cannot find creators. Whop grew 255% YoY on exactly this.
 5. **No product-led loop.** Public creator pages exist and work, but nothing on them recruits other creators.
-6. **The funnel is unmeasurable.** Only `page_view`, `lead`, `booking`, `link_click` are tracked (`schema.sql:208`). Signup, activation, checkout, paid and renewal are **NOT TRACKED**. You cannot compute conversion at any stage, so you cannot optimise it.
-7. **No onboarding.** No role/goal capture, no dynamic dashboard, no activation milestone. Public pages are auto-published on signup, so "activation" is never a deliberate event.
+6. ~~**The funnel is unmeasurable.**~~ **RESOLVED 2026-10-05.** Was: only `page_view`, `lead`, `booking`, `link_click` were tracked (`schema.sql:208`), so signup, activation, checkout, paid and renewal were invisible and no conversion could be computed. Now instrumented on a platform-side `funnel_events` table — see §14.9.
+7. **No onboarding.** No role/goal capture, no dynamic dashboard, no guided first win. The activation *event* now exists (first block added to a bio page), but nothing in the product yet drives a user toward it.
 
 ---
 
@@ -203,6 +203,10 @@ The email engine can send campaigns; nothing sends them automatically at a momen
 **Measurable today:** page views (time, source, device, country, page), leads, bookings, traffic sources, MRR, active subscriptions, last charge, 6-month revenue series.
 
 **Not measurable:** signup, activation, checkout started, payment attempted, purchase, upgrade, cancel, renewal, ARR, ARPU, churn, LTV, cohort retention, CAC, payback.
+
+*(Updated 2026-10-05: signup, activation, checkout started, purchase and cancel are now
+tracked on `funnel_events` — §14.9. Still missing: payment *attempted* separately from
+checkout started, renewal, upgrades/downgrades, ARR/ARPU, cohorts, CAC and payback.)*
 
 **Integrity defects:**
 - View counts are **approximately 2× inflated** — the server-side tracker inserts a `page_view` with a fresh random visitor on every render (`src/lib/bio/track.ts:9-21`, called at `src/app/u/[username]/page.tsx:41`) *and* the client posts another (`src/components/bio/public-view.tsx:17-27`). Every server render is also counted as a unique visitor.
@@ -827,6 +831,67 @@ The plan-preservation logic itself cannot be driven on the live box, because pro
 Cashfree's HMAC and forging one against a live payment system is not something to do; the test
 suite is where that path is proven.
 
+### 14.9 The funnel was not measurable at all (2026-10-05)
+
+Not a code defect — a measurement defect, and the reason nothing in the GTM score could be
+improved because nothing could be read. Analytics tracked `page_view`, `lead`, `booking` and
+`link_click`: a creator's *audience* behaviour, on the creator's own dashboard. Nothing recorded a
+stranger becoming an account. Signup, activation, checkout, paid and cancel were all invisible, so
+it was genuinely impossible to tell whether the 4 workspaces and single ₹1 order meant "converting
+badly" or "nobody arrived" — and retrofitting measurement after acquiring users would lose the
+history retroactively.
+
+Adds a platform-side `funnel_events` table and five steps: `signup_completed`,
+`activation_reached`, `checkout_started`, `purchase_completed`, `subscription_canceled`.
+Read-only panel on `/app/admin` plus `/api/admin/funnel`. This also completes the outstanding
+pre-launch item in `docs/MARKETING-PLAN.md` §5 ("Analytics events verified (signup, publish,
+product add, checkout)").
+
+**Why a new table rather than `analytics_events`.** Three reasons, each load-bearing:
+
+- `analytics_events` is shown to the creator on their own dashboard. Internal funnel steps must
+  never appear in a customer's analytics.
+- Its `tenant_id` cascades on org delete. The org disappearing *is* the churn signal, so the
+  history of that churn must not be deleted with it. `funnel_events.tenant_id` is a plain string
+  with no foreign key, and a test asserts history survives `DELETE FROM organizations`.
+- No consent gate applies here. Consent covers behavioural tracking of page visitors; this records
+  what an account holder did about their own account. Applying the visitor consent gate to it
+  would silently drop signup rows, which is the one number that must never be missing.
+
+**Activation is "first block added to a bio page", not "page published".** The signup flow creates
+the default bio page with `published = 1`, so a publish-based milestone would mark **every signup
+activated** before the user had done anything — reporting ~100% activation and measuring nothing.
+This also means the north-star metric in `MARKETING-PLAN.md` §3 ("activated free workspaces (bio
+published + ≥1 product/service)") is unsound as written, since its first clause is always true.
+
+**Three properties the reporting depends on:**
+
+- `recordFunnelEvent` never throws. Instrumentation that can fail the thing it measures is worse
+  than none — a signup or a payment webhook must not 500 because a reporting row failed.
+  Signup recording is also placed *after* commit so it cannot roll back the account it describes.
+- Counts are `DISTINCT tenant_id`, not raw events, so re-saving a page cannot inflate activation.
+  Verified live: two block-save requests produced exactly one `activation_reached` row.
+- Conversion rates are `null` when the denominator is zero, never `NaN` and never a fake `0%`.
+
+`purchase_completed` is recorded for one-time sales **inside** the fulfilment transaction, so the
+funnel cannot claim a sale the `orders` table does not show.
+
+**Verification.** Upgrade path checked rather than assumed — a database at migrations 1–14 with
+`funnel_events` dropped had migration 15 apply cleanly and restore the table and both indexes. That
+is the D-11 failure mode (a table or index declared only where an upgrade would miss it), so it was
+rehearsed instead of trusted. Typecheck and lint clean; **271/271** unit (+10), **34/34** E2E.
+
+Deployed BUILD_ID `b5CxIdgqV35R9ycwmsLAc`, snapshot
+`/home/ubuntu/data/creatoros.db.snapshot-2026-10-05T05-48-59`, migrations 1–15, integrity `ok`.
+Live end-to-end on production: a real registration recorded `signup_completed` with its `utm_source`
+and `utm_medium`; two subsequent block saves produced exactly one `activation_reached`;
+`/api/admin/funnel` returns **403** for a signed-in non-admin and **401** anonymously. Note that
+production now contains one synthetic probe account (`funnel-probe-0510@example.com`), so the
+first funnel number is a probe, not a customer.
+
+**Still missing** for a complete picture: payment *attempted* distinguished from checkout started,
+renewal, upgrade/downgrade, ARR/ARPU, cohorts, CAC and payback.
+
 ### HIGH
 
 | ID | Issue | Evidence | Impact | Fix |
@@ -950,10 +1015,10 @@ Scores reflect **verified current state**, not roadmap intent.
 | Technical | 7 | Strong fundamentals (typed, 159 tests, parameterised SQL, complete headers, sound IDOR) offset by no transactions on money paths, no error boundaries, no CI, broken standalone build |
 | Monetization | 5 | Pricing structure sound and limits mostly enforced; three limits bypassable, one displays wrong, no annual plans, no upgrade/downgrade, no usage pricing |
 | Payments | 5 | Real live INR payments, clean provider abstraction, idempotent fulfilment, HMAC verify; but no transactions, no dunning, no portal, no proration, no entitlement revocation, no tax, Stripe webhooks untested |
-| GTM | 2 | No referral, affiliate, partner, content, tools, marketplace or product-led loop; 4-URL sitemap; funnel unmeasurable |
+| GTM | 2 | No referral, affiliate, partner, content, tools, marketplace or product-led loop; 4-URL sitemap; acquisition funnel now instrumented (§14.9) but no traffic behind it |
 | Legal / Trust | 2 | Docs correctly `noindex` with no false claims (good), but three entity placeholders, consent defect, policy contradicts code, no consent UI, no trust centre |
 | Retention | 2 | Notifications only; no lifecycle email, no cancellation feedback, no cohorts, no churn detection |
-| Unit Economics | 2 | MRR visible; ARR/ARPU/churn/LTV/CAC absent; funnel unmeasurable; hardcoded FX rate |
+| Unit Economics | 2 | MRR visible; ARR/ARPU/churn/LTV/CAC absent; signup→paid now measurable (§14.9) but nothing has converted yet; hardcoded FX rate |
 | **Overall** | **5.1** | Weighted |
 
 **What would legitimately move this to 8+:** closing P0 raises Legal/Trust to ~7 and Payments to ~7. Instrumenting the revenue funnel plus referral, affiliate and free tools raises GTM to ~6–7. Annual plans, dunning, recovery and usage pricing raise Monetization to ~7. Retention work adds ~1 point overall. Landing near **8** is plausible in two focused quarters; **8.5+** additionally requires the marketplace, which is a different-scale programme.
