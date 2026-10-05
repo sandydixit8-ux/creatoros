@@ -120,6 +120,7 @@ export async function POST(req: NextRequest) {
     provider: "mock",
     providerId: null,
     status: "active",
+    currency,
   });
   audit({ tenantId: s.org.id, userId: s.user.id, action: "billing.plan_change", resource: plan, ip });
   // The dev/mock path grants the plan immediately, so it is a real purchase for

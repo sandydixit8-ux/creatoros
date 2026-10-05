@@ -9,6 +9,7 @@ import { SummaryCards } from "@/components/analytics/summary-cards";
 import { ViewsChart, DonutChart } from "@/components/analytics/charts";
 import { SourcesExplorer } from "@/components/analytics/sources-explorer";
 import { RevenueChart, RevenueBreakdown } from "@/components/analytics/revenue-chart";
+import { formatMoneyBreakdown, formatMoneyCents } from "@/lib/money-format";
 
 export const dynamic = "force-dynamic";
 
@@ -125,7 +126,9 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
           <div className="flex items-center gap-6">
             <div>
               <div className="text-xs text-navy-400">MRR</div>
-              <div className="text-xl font-bold text-navy-950">${Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(revenue.mrrCents / 100)} · ₹{Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format((revenue.mrrCents / 100) * 84)}</div>
+              <div className="text-xl font-bold text-navy-950">
+                {revenue.mrr.length ? formatMoneyBreakdown(revenue.mrr) : formatMoneyCents(0)}
+              </div>
             </div>
             <div>
               <div className="text-sm font-semibold text-navy-900">{revenue.subscriptionsActive} active subscription{revenue.subscriptionsActive === 1 ? "" : "s"}</div>

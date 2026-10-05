@@ -985,6 +985,60 @@ against the current production environment and source.
 - `invoice.payment_failed` is unhandled, so it falls through to `ignored` and D-13 dunning has no
   hook to attach to.
 
+### 14.12 Revenue analytics invented currency (2026-10-05)
+
+The last bullet of §14.11 was a reporting defect that shipped before any payment did, and it is now
+closed. It is recorded here because the failure mode is worth naming: every number the founder would
+have used to judge the launch was wrong, while looking entirely plausible.
+
+**What was wrong**
+
+- `money-format.ts` multiplied every amount by a hardcoded `const RATE = 84` to print a rupee
+  equivalent beside the dollar figure. There was no rate source, no timestamp and no rounding policy,
+  so `$1,234.56` was reported as `$1,234.56 · ₹1,03,703` — a confident fiction.
+- `analytics/page.tsx:128` carried a second, independent copy of `84`. Two constants that must agree
+  had no shared definition.
+- `revenueSnapshot()` summed `payments.amount_cents` and `orders.amount_cents` into single
+  `periodCents` / `lifeTimeCents` figures. Both tables carry a `currency` column; neither was grouped
+  by it, so one ₹1 order was arithmetically added to dollars.
+- `revenueMonthlySeries()` did the same per month, so the chart mixed currencies in every bar.
+- MRR was worse, because the underlying fact was not recorded: `mrrCents()` read
+  `PLAN_PRICES[sub.plan]?.usd` for every active subscription, and **`subscriptions` had no `currency`
+  column at all**. `payments`, `orders`, `services` and `products` all had one. An INR mandate had no
+  recorded currency, so it could only be reported in dollars.
+
+**What changed**
+
+- Migration `16` adds `subscriptions.currency` with default `''`, not `'usd'`. The empty default is
+  deliberate: existing rows have no known currency, and defaulting them to USD would assert something
+  there is no evidence for. Readers treat `''` as the deployment's `BILLING_CURRENCY`.
+- `applySubscription()` accepts a currency, and once a subscription's currency is known it is
+  **retained** — a follow-up gateway event that omits the field can no longer relabel a known INR
+  mandate as USD. The Stripe webhook passes `event.data.currency` / `sub.currency`, which is where
+  Stripe actually puts it.
+- `mrrByCurrency()` values each subscription in its own currency and **skips** a plan that has no
+  list price in that currency, rather than borrowing the other currency's price.
+- All revenue aggregates are now `MoneyAmount[]` — `{ currency, cents }[]` — grouped by currency in
+  SQL: `mrr`, `lifeTime`, `period`, each `sources[]` row, and each monthly series point. The blended
+  `mrrCents` / `lifeTimeCents` / `periodCents` fields were **removed rather than deprecated**, because
+  a single blended figure is precisely the thing that cannot be represented correctly.
+- `formatMoneyBreakdown()` renders multi-currency totals as separate figures (`$1,234.56 · ₹5,000`).
+  There is no conversion. `formatMoneyCents()` now takes the currency and falls back to USD for an
+  unknown code instead of throwing. INR keeps paise, since rounding ₹749.50 to `₹750` in a revenue
+  total misstates it.
+- The monthly series carries a `scale` field that sums across currencies, used **only** for bar
+  height, and is documented as never formattable. It is a relative bar, not an amount.
+
+**Verification**: `money.test.ts` covers per-currency MRR, an INR subscription valued at INR, USD and
+INR payments in one month staying in separate buckets, tenant isolation, and the absence of the old
+`₹1,03,703` conversion. `subscriptions.test.ts` covers currency retention across a re-delivery and
+the `BILLING_CURRENCY` fallback. Two defects were caught by these tests rather than by review: a
+missing `SubscriptionRow.currency` type, and a `GROUP BY` clause whose appended date filter SQLite
+had silently reinterpreted as an extra predicate on the grouping column.
+
+**Still not fixed here**: the phone inputs (§14.11), `invoice.payment_failed`, and the missing tax,
+address and invoice-receipt support all remain open. The reporting no longer hides them.
+
 ### HIGH
 
 | ID | Issue | Evidence | Impact | Fix |
@@ -1107,11 +1161,11 @@ Scores reflect **verified current state**, not roadmap intent.
 | Product | 7 | Nine working modules is genuinely broad breadth; but no onboarding, activation untracked, four monetization meters broken |
 | Technical | 7 | Strong fundamentals (typed, 159 tests, parameterised SQL, complete headers, sound IDOR) offset by no transactions on money paths, no error boundaries, no CI, broken standalone build |
 | Monetization | 5 | Pricing structure sound and limits mostly enforced; three limits bypassable, one displays wrong, no annual plans, no upgrade/downgrade, no usage pricing |
-| Payments | 5 | Real live INR payments, clean provider abstraction, idempotent fulfilment, HMAC verify; but no transactions, no dunning, no portal, no proration, no entitlement revocation, no tax, Stripe webhooks untested |
+| Payments | 5 | Real live INR payments, clean provider abstraction, idempotent fulfilment, HMAC verify; but no transactions, no dunning, no portal, no proration, no entitlement revocation, no tax. Stripe webhook signature/replay/key-rotation now covered by 10 tests, though no live signed Stripe event has been received |
 | GTM | 2 | No referral, affiliate, partner, content, tools, marketplace or product-led loop; 4-URL sitemap; acquisition funnel now instrumented (§14.9) but no traffic behind it |
 | Legal / Trust | 2 | Docs correctly `noindex` with no false claims (good), but three entity placeholders, consent defect, policy contradicts code, no consent UI, no trust centre |
 | Retention | 2 | Notifications only; no lifecycle email, no cancellation feedback, no cohorts, no churn detection |
-| Unit Economics | 2 | MRR visible; ARR/ARPU/churn/LTV/CAC absent; signup→paid now measurable (§14.9) but nothing has converted yet; hardcoded FX rate |
+| Unit Economics | 2 | MRR visible and per-currency honest (§14.12); ARR/ARPU/churn/LTV/CAC absent; signup→paid measurable (§14.9) but nothing has converted yet |
 | **Overall** | **5.1** | Weighted |
 
 **What would legitimately move this to 8+:** closing P0 raises Legal/Trust to ~7 and Payments to ~7. Instrumenting the revenue funnel plus referral, affiliate and free tools raises GTM to ~6–7. Annual plans, dunning, recovery and usage pricing raise Monetization to ~7. Retention work adds ~1 point overall. Landing near **8** is plausible in two focused quarters; **8.5+** additionally requires the marketplace, which is a different-scale programme.

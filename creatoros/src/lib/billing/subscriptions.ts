@@ -11,6 +11,8 @@ export interface SubscriptionRow {
   status: string;
   plan: string;
   current_period_end: string | null;
+  /** Currency the mandate was created in. '' on rows predating migration 16. */
+  currency: string;
   created_at: string;
   updated_at: string;
 }
@@ -37,6 +39,8 @@ export function applySubscription(input: {
   customerId?: string | null;
   status: string;
   currentPeriodEnd?: string | null;
+  /** Currency the mandate was actually created in. Recorded so MRR is not guessed. */
+  currency?: string | null;
 }): SubscriptionRow | null {
   // A gateway can deliver events for tenants that were deleted while a mandate
   // was still active. Returning null keeps the webhook a 200 so the provider
@@ -59,12 +63,20 @@ export function applySubscription(input: {
   const orgPlan = String(row<{ plan: string }>("SELECT plan FROM organizations WHERE id = ?", input.tenantId)?.plan ?? "");
   const resolvedPlan = input.plan || existing?.plan || orgPlan || "free";
 
+  // Keep a known currency rather than re-guessing on every gateway ping: a
+  // subscription created in INR must not be relabelled USD just because a later
+  // event omitted the currency. Only fall back to the deployment's billing
+  // currency when we have genuinely never seen one.
+  const knownCurrency = String(
+    input.currency || existing?.currency || (process.env.BILLING_CURRENCY || "usd")
+  ).toLowerCase() === "inr" ? "inr" : "usd";
+
   let sub: SubscriptionRow | undefined = existing;
   if (existing) {
     run(
       `UPDATE subscriptions SET
          provider = ?, provider_id = ?, customer_id = ?,
-         status = ?, plan = ?, current_period_end = ?, updated_at = ?
+         status = ?, plan = ?, current_period_end = ?, currency = ?, updated_at = ?
        WHERE id = ?`,
       input.provider,
       input.providerId ?? null,
@@ -72,6 +84,7 @@ export function applySubscription(input: {
       input.status,
       resolvedPlan,
       input.currentPeriodEnd ?? existing.current_period_end,
+      knownCurrency,
       nowIso(),
       existing.id
     );
@@ -79,8 +92,8 @@ export function applySubscription(input: {
   } else {
     const id = newId("sub");
     run(
-      `INSERT INTO subscriptions (id, tenant_id, provider, provider_id, customer_id, status, plan, current_period_end, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO subscriptions (id, tenant_id, provider, provider_id, customer_id, status, plan, current_period_end, currency, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       input.tenantId,
       input.provider,
@@ -89,6 +102,7 @@ export function applySubscription(input: {
       input.status,
       resolvedPlan,
       input.currentPeriodEnd ?? null,
+      knownCurrency,
       nowIso(),
       nowIso()
     );

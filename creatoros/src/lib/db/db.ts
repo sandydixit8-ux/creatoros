@@ -209,6 +209,22 @@ const MIGRATIONS: Array<{ id: number; up: (db: DatabaseSync) => void }> = [
       db.exec("CREATE INDEX IF NOT EXISTS idx_funnel_tenant ON funnel_events(tenant_id, created_at)");
     },
   },
+  {
+    // MRR was computed from PLAN_PRICES[plan].usd for every active
+    // subscription, because the subscriptions table never recorded which
+    // currency a mandate was created in. `payments` and `orders` both carry
+    // `currency`; `subscriptions` was the odd one out, so an INR subscription
+    // contributed rupee-backed cents to a figure labelled in dollars.
+    //
+    // The default is '' rather than 'usd' on purpose: an existing row has no
+    // known currency, and defaulting it to 'usd' would assert a currency we do
+    // not have evidence for. Readers treat '' as the deployment's
+    // BILLING_CURRENCY, and applySubscription writes the real value from now on.
+    id: 16,
+    up: (db) => {
+      addColumn(db, "subscriptions", "currency", "TEXT NOT NULL DEFAULT ''");
+    },
+  },
 ];
 
 function addColumn(db: DatabaseSync, table: string, column: string, ddl: string) {

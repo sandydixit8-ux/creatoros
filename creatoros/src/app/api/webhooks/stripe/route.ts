@@ -77,6 +77,7 @@ export async function POST(req: NextRequest) {
               customerId: str(event.data.customer),
               status: "active",
               currentPeriodEnd: str(event.data.currentPeriodEnd) || null,
+              currency: str(metadata.currency) || undefined,
             });
             if (applied) {
               audit({ tenantId, action: "billing.webhook_subscription", resource: plan, meta: { event: event.id } });
@@ -116,6 +117,9 @@ export async function POST(req: NextRequest) {
             customerId: str(sub.customer),
             status: status || "active",
             currentPeriodEnd: str(sub.current_period_end) || str(sub.currentPeriodEnd) || null,
+            // Stripe sends the subscription's own currency at the top level, not
+            // in metadata. Recorded so MRR is not computed at a guessed rate.
+            currency: str(sub.currency) || undefined,
           });
           result = applied ? "subscription_applied" : "tenant_not_found";
         }

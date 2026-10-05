@@ -65,6 +65,40 @@ describe("billing subscriptions", () => {
     expect(subscriptionsFor(TENANT)).toHaveLength(1);
   });
 
+  it("records the mandate currency and does not let a later event relabel it", () => {
+    applySubscription({
+      tenantId: TENANT,
+      plan: "starter",
+      provider: "stripe",
+      providerId: "sub_ccy_1",
+      status: "active",
+      currency: "inr",
+    });
+    expect(activeSubscription(TENANT)?.currency).toBe("inr");
+
+    // A follow-up event with no currency must keep the known value rather than
+    // resetting the INR mandate to the deployment's default currency.
+    applySubscription({
+      tenantId: TENANT,
+      plan: "starter",
+      provider: "stripe",
+      providerId: "sub_ccy_1",
+      status: "active",
+    });
+    expect(activeSubscription(TENANT)?.currency).toBe("inr");
+  });
+
+  it("falls back to the deployment billing currency when none is known", () => {
+    applySubscription({
+      tenantId: TENANT,
+      plan: "starter",
+      provider: "stripe",
+      providerId: "sub_ccy_2",
+      status: "active",
+    });
+    expect(activeSubscription(TENANT)?.currency).toBe("usd");
+  });
+
   it("downgrades the org to free when a subscription is canceled via webhook", () => {
     applySubscription({
       tenantId: TENANT,
