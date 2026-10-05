@@ -128,12 +128,15 @@ export default async function BillingPage() {
         mode={sdkMode}
         needsPhone={needsPhone}
         showPriceInr={showPriceInr}
+        upgradesAvailable={paymentsWired || process.env.NODE_ENV !== "production"}
       />
 
       <p className="text-center text-xs text-navy-400">
         {paymentsWired
           ? `Plan upgrades are billed in ${showPriceInr ? "INR" : "USD"} through the payment provider and applied via webhook.`
-          : "Billing activates once payment provider keys are set. Upgrades are simulated for development until then."}
+          : process.env.NODE_ENV === "production"
+            ? `Plan upgrades in ${showPriceInr ? "INR" : "USD"} are not available yet. Contact support if you need a paid plan.`
+            : "Billing activates once payment provider keys are set. Upgrades are simulated for development until then."}
       </p>
     </div>
   );

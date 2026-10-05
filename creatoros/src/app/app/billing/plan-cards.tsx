@@ -43,11 +43,14 @@ export default function PlanCards({
   mode,
   needsPhone,
   showPriceInr,
+  upgradesAvailable = true,
 }: {
   plans: PlanCardData[];
   mode: "sandbox" | "production";
   needsPhone: boolean;
   showPriceInr: boolean;
+  /** False when no configured gateway can settle this currency. */
+  upgradesAvailable?: boolean;
 }) {
   const [phone, setPhone] = useState("");
   const [phoneError, setPhoneError] = useState("");
@@ -202,10 +205,16 @@ export default function PlanCards({
                 <button
                   type="button"
                   onClick={() => start(p.key)}
-                  disabled={busyPlan !== null}
+                  disabled={busyPlan !== null || !upgradesAvailable}
                   className="btn-secondary mt-5 w-full disabled:opacity-60"
                 >
-                  {busyPlan === p.key ? "Starting checkout…" : busyPlan ? "Please wait…" : "Upgrade"}
+                  {busyPlan === p.key
+                    ? "Starting checkout…"
+                    : busyPlan
+                      ? "Please wait…"
+                      : upgradesAvailable
+                        ? "Upgrade"
+                        : "Unavailable"}
                 </button>
               )}
             </div>
