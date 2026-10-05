@@ -41,8 +41,15 @@ export function paymentConfigured(): boolean {
  * The preferred provider (PAYMENT_PROVIDER) wins whenever it supports the
  * currency. Otherwise any other configured provider that supports it is used —
  * a live INR-only Cashfree account cannot settle USD, so USD orders go to
- * Stripe and INR orders stay on Cashfree. Falls back to the preferred provider
- * so the caller produces the usual "not configured" error rather than throwing.
+ * Stripe and INR orders stay on Cashfree.
+ *
+ * If nothing supports the currency this returns the `unconfigured` stub, NOT
+ * the preferred provider. Handing back a provider that is known not to support
+ * the currency is worse than admitting there is none: the caller would build a
+ * real session in the wrong currency, and on the plan path it also forces the
+ * customer through a 10-digit Indian mobile field that the gateway then either
+ * rejects or settles in the wrong currency. Refusing here makes every caller
+ * emit its existing, correct "not available yet" response instead.
  */
 export function getPaymentProviderForCurrency(currency: string): PaymentProvider {
   const preferred = getPaymentProvider();
@@ -51,7 +58,12 @@ export function getPaymentProviderForCurrency(currency: string): PaymentProvider
   for (const candidate of [cashfreeProvider, stripeProvider]) {
     if (candidate.isConfigured() && candidate.supportsCurrency(currency)) return candidate;
   }
-  return preferred;
+  return unconfiguredProvider;
+}
+
+/** True when some configured provider can actually settle this currency. */
+export function paymentConfiguredForCurrency(currency: string): boolean {
+  return getPaymentProviderForCurrency(currency).isConfigured();
 }
 
 /** Provider recorded on an order/subscription, so refunds and status checks hit the right gateway. */

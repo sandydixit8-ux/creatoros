@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createHmac } from "node:crypto";
 import { mockProvider } from "./mock";
-import { getPaymentProvider, getPaymentProviderForCurrency, providerByName, webhookProviders, cashfreeSdkMode, billingCurrency } from "./index";
+import { getPaymentProvider, getPaymentProviderForCurrency, paymentConfiguredForCurrency, providerByName, webhookProviders, cashfreeSdkMode, billingCurrency } from "./index";
 import { cashfreeProvider } from "./cashfree-provider";
 import { planIdFor, subscriptionIdFor, createSubscription, normalisePhone as cfPhone } from "./cashfree-subscriptions";
 
@@ -97,7 +97,16 @@ describe("currency-based provider routing", () => {
     // An INR-only Cashfree account rejects USD with
     // "order Currency not enabled for this merchant account".
     expect(cashfreeProvider.supportsCurrency("usd")).toBe(false);
-    expect(getPaymentProviderForCurrency("usd").name).toBe("cashfree"); // falls back, so the route can report it
+
+    // With no Stripe key there is genuinely no USD gateway, so this must refuse
+    // rather than hand back Cashfree. Returning Cashfree here once looked like a
+    // safe fallback "so the route can report it", but it defeated that: the
+    // billing route only checks that the returned provider is configured, so it
+    // built a real Cashfree session for a USD amount and demanded a 10-digit
+    // Indian mobile from the customer before the charge failed. Refusing makes
+    // the route report its real, fixable problem instead.
+    expect(getPaymentProviderForCurrency("usd").isConfigured()).toBe(false);
+    expect(getPaymentProviderForCurrency("usd").name).toBe("unconfigured");
 
     process.env.STRIPE_SECRET_KEY = "sk_test_123";
     expect(getPaymentProviderForCurrency("usd").name).toBe("stripe");
@@ -468,6 +477,97 @@ describe("billing currency", () => {
       expect(billingCurrency()).toBe("usd");
     } finally {
       restoreEnv("BILLING_CURRENCY", prev);
+    }
+  });
+});
+
+describe("currency routing guard", () => {
+  /**
+   * The exact production state during UK/USA launch prep: BILLING_CURRENCY=usd
+   * with PAYMENT_PROVIDER=cashfree, Stripe unconfigured, and Cashfree left at
+   * its default INR-only currency list. This used to resolve to Cashfree, which
+   * put a 10-digit Indian mobile field in front of a US customer and then
+   * failed the charge. It must refuse instead.
+   */
+  it("refuses to route USD to an INR-only Cashfree when Stripe is absent", () => {
+    const prev = {
+      provider: process.env.PAYMENT_PROVIDER,
+      cfId: process.env.CASHFREE_CLIENT_ID,
+      cfSecret: process.env.CASHFREE_SECRET_KEY,
+      cfCurrencies: process.env.CASHFREE_CURRENCIES,
+      stripeKey: process.env.STRIPE_SECRET_KEY,
+    };
+    process.env.PAYMENT_PROVIDER = "cashfree";
+    process.env.CASHFREE_CLIENT_ID = "test_id";
+    process.env.CASHFREE_SECRET_KEY = "test_secret";
+    delete process.env.CASHFREE_CURRENCIES;
+    delete process.env.STRIPE_SECRET_KEY;
+    try {
+      const provider = getPaymentProviderForCurrency("usd");
+      expect(provider.isConfigured()).toBe(false);
+      expect(provider.supportsCurrency("usd")).toBe(false);
+      expect(provider.requiresCustomerPhone).toBe(false);
+      expect(paymentConfiguredForCurrency("usd")).toBe(false);
+    } finally {
+      restoreEnv("PAYMENT_PROVIDER", prev.provider);
+      restoreEnv("CASHFREE_CLIENT_ID", prev.cfId);
+      restoreEnv("CASHFREE_SECRET_KEY", prev.cfSecret);
+      restoreEnv("CASHFREE_CURRENCIES", prev.cfCurrencies);
+      restoreEnv("STRIPE_SECRET_KEY", prev.stripeKey);
+    }
+  });
+
+  it("never returns a provider that cannot settle the requested currency", () => {
+    const prev = {
+      provider: process.env.PAYMENT_PROVIDER,
+      cfId: process.env.CASHFREE_CLIENT_ID,
+      cfSecret: process.env.CASHFREE_SECRET_KEY,
+      cfCurrencies: process.env.CASHFREE_CURRENCIES,
+      stripeKey: process.env.STRIPE_SECRET_KEY,
+    };
+    process.env.PAYMENT_PROVIDER = "cashfree";
+    process.env.CASHFREE_CLIENT_ID = "test_id";
+    process.env.CASHFREE_SECRET_KEY = "test_secret";
+    process.env.CASHFREE_CURRENCIES = "inr";
+    delete process.env.STRIPE_SECRET_KEY;
+    try {
+      for (const currency of ["usd", "gbp", "eur"]) {
+        expect(getPaymentProviderForCurrency(currency).supportsCurrency(currency)).toBe(false);
+      }
+      // INR is genuinely supported, so it must still route to Cashfree.
+      expect(getPaymentProviderForCurrency("inr").name).toBe("cashfree");
+    } finally {
+      restoreEnv("PAYMENT_PROVIDER", prev.provider);
+      restoreEnv("CASHFREE_CLIENT_ID", prev.cfId);
+      restoreEnv("CASHFREE_SECRET_KEY", prev.cfSecret);
+      restoreEnv("CASHFREE_CURRENCIES", prev.cfCurrencies);
+      restoreEnv("STRIPE_SECRET_KEY", prev.stripeKey);
+    }
+  });
+
+  it("routes USD to Stripe when Stripe is configured and Cashfree is INR-only", () => {
+    const prev = {
+      provider: process.env.PAYMENT_PROVIDER,
+      cfId: process.env.CASHFREE_CLIENT_ID,
+      cfSecret: process.env.CASHFREE_SECRET_KEY,
+      cfCurrencies: process.env.CASHFREE_CURRENCIES,
+      stripeKey: process.env.STRIPE_SECRET_KEY,
+    };
+    process.env.PAYMENT_PROVIDER = "cashfree";
+    process.env.CASHFREE_CLIENT_ID = "test_id";
+    process.env.CASHFREE_SECRET_KEY = "test_secret";
+    process.env.CASHFREE_CURRENCIES = "inr";
+    process.env.STRIPE_SECRET_KEY = "sk_test_x";
+    try {
+      expect(getPaymentProviderForCurrency("usd").name).toBe("stripe");
+      expect(getPaymentProviderForCurrency("inr").name).toBe("cashfree");
+      expect(paymentConfiguredForCurrency("usd")).toBe(true);
+    } finally {
+      restoreEnv("PAYMENT_PROVIDER", prev.provider);
+      restoreEnv("CASHFREE_CLIENT_ID", prev.cfId);
+      restoreEnv("CASHFREE_SECRET_KEY", prev.cfSecret);
+      restoreEnv("CASHFREE_CURRENCIES", prev.cfCurrencies);
+      restoreEnv("STRIPE_SECRET_KEY", prev.stripeKey);
     }
   });
 });

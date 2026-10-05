@@ -892,6 +892,99 @@ first funnel number is a probe, not a customer.
 **Still missing** for a complete picture: payment *attempted* distinguished from checkout started,
 renewal, upgrade/downgrade, ARR/ARPU, cohorts, CAC and payback.
 
+### 14.10 A USD customer was routed to an INR-only gateway (2026-10-05)
+
+Found while preparing the UK/USA launch decision. The production environment was
+`BILLING_CURRENCY=usd` with `PAYMENT_PROVIDER=cashfree`, `CASHFREE_ENV=live`, **zero `STRIPE_*`
+variables**, and `CASHFREE_CURRENCIES` undeclared — so Cashfree sat at its default INR-only currency
+list while being the *selected* provider for dollar billing.
+
+`getPaymentProviderForCurrency` did try to respect currency support, but its final line returned the
+preferred provider regardless. So a USD request resolved to Cashfree, and the billing route, which
+only asks "is the returned provider configured?", took the happy path: it demanded a **10-digit
+Indian mobile number** (`billing/checkout/route.ts:62`) and built a Cashfree subscription for a
+dollar amount against recurring plan ids that are not configured. A UK or US customer pressing
+Upgrade got an Indian phone prompt followed by a 500. It also left no trace, because
+`checkout_started` is recorded only after the provider call succeeds — a whole class of failed
+attempts was invisible to the new funnel.
+
+The existing test *asserted* this behaviour, with the comment "falls back, so the route can report
+it". The intent was right and the effect was the opposite of it: returning Cashfree is precisely
+what stopped the route from reporting anything. The resolver now returns the `unconfigured` stub when
+no configured provider supports the currency, so every caller emits its existing, correct
+"not available yet" response. Three tests pin the guard, including the exact production
+configuration above, and a new `paymentConfiguredForCurrency` helper lets the UI ask the same question
+the server asks.
+
+The billing page was making the same mistake independently: it derived `paymentsWired` from
+`paymentConfigured()` (not currency-aware) and `needsPhone` from `PAYMENT_PROVIDER` (not
+resolver-aware), so it rendered a live Indian phone field and enabled Upgrade buttons for a currency
+nothing could charge. Both now come from the resolved provider, so the page and the server agree by
+construction instead of by coincidence.
+
+**Stripe's webhook path had no coverage whatsoever.** Every webhook test in the repo ran through
+`mockProvider`; the Stripe module was imported by no test at all, so "signature verification works"
+was an assumption inherited from the SDK rather than a checked fact. Added
+`src/lib/payments/stripe-webhook.test.ts`, which builds real HMAC-SHA256 signatures and asserts a
+valid event is accepted, a wrong secret is rejected, a body that was not the one signed is rejected,
+a replay beyond the 300 s tolerance is rejected, a signature with one matching `v1` among several is
+accepted (key rotation), and a missing signing secret or API key returns null rather than accepting
+anything. Confirmed from the code as sound: the SDK version pin matches the installed SDK's own
+constant, verification is constant-time (`timingSafeEqual`), the raw body is preserved via
+`req.text()`, and the endpoint is exempted from the CSRF block.
+
+This fix makes the failure honest; it does not make USD billing work. Stripe remains entirely
+unconfigured in production, so plan upgrades now correctly refuse with "Billing in USD is not
+available yet" instead of failing obscurely. What is still required is in §14.11.
+
+### 14.11 What "Stripe USD first" still requires (2026-10-05)
+
+Not code defects, but the gap between the launch decision and a working dollar checkout. Verified
+against the current production environment and source.
+
+**Configuration — nothing here is optional.** Production has no `STRIPE_*` variable at all.
+
+- `STRIPE_SECRET_KEY` — required; `client()` returns null without an `sk_` prefix, so checkout 409s.
+- `STRIPE_WEBHOOK_SECRET` — required, and the most dangerous to omit. `verifyWebhook` returns null,
+  every webhook returns `400 invalid_signature`, Stripe retries then **disables the endpoint**, and
+  paid customers silently never receive their plan. Nothing surfaces this except the Stripe
+  dashboard. Register `POST /api/webhooks/stripe` for `checkout.session.completed`,
+  `customer.subscription.updated` and `customer.subscription.deleted`.
+- `PAYMENT_PROVIDER=stripe` — or leave unset; the resolver will pick Stripe for USD on its own.
+  Leaving `cashfree` while `BILLING_CURRENCY=usd` is the broken state §14.10 was about.
+- Cashfree can stay configured for a later India launch. It is the *selection* that matters.
+- `STRIPE_PUBLISHABLE_KEY` is documented in `.env.example` and referenced nowhere in `src/`;
+  checkout is hosted-redirect only, so it is dead config, not a requirement.
+
+**Compliance gaps for UK/USA that no amount of Stripe configuration fixes:**
+
+- **No tax of any kind.** No `automatic_tax`, no `tax_behavior`, no VAT, no sales tax, no tax ID,
+  on any of the three checkout routes. For a UK/US merchant this is a live obligation, not polish.
+- **No address or country collection anywhere.** Checkout schemas take `email`, optional `name`,
+  optional `phone` — no address, country or postal code; Stripe sessions set no
+  `billing_address_collection`; `createCustomer` sends only `{email, name}`. Turning on Stripe Tax
+  later requires code changes to all three routes plus the provider, not just dashboard config.
+- **No invoices.** No invoice page, no numbering, no PDF. Receipts show status, line items, total
+  and order id, with no tax line and no seller address or tax ID.
+- **Legal pages name Cashfree as the processor** — `terms/page.tsx:41`, `privacy/page.tsx:37`,
+  `refund-policy/page.tsx:41`, `cookie-policy/page.tsx:53`. Stripe appears nowhere. Shipping UK/USA
+  on that copy is a false statement about who handles customer card data.
+
+**Code defects found during this audit, still open:**
+
+- `checkout.session.completed` fulfils on the event alone without checking `payment_status`, and
+  `fulfillOrder` never compares Stripe's collected total against `order.amount_cents`. An `unpaid`
+  or async session, or a discounted session, grants full entitlements.
+- `event.data.currentPeriodEnd` does not exist on a Checkout Session, so it is always `null` there.
+- Store and course purchases carry an **unconditionally `required`** 10-digit phone input
+  (`bio/public-view.tsx:233`, `courses/enrollment-form.tsx:77`) that is provider-agnostic — a UK/US
+  buyer is forced to type one and Stripe discards it.
+- `money-format.ts:3` hardcodes `const RATE = 84` with no source or timestamp, and
+  `analytics/page.tsx:128` duplicates it. MRR sums `payments.amount_cents` and `orders.amount_cents`
+  with no currency normalisation, so a single INR order corrupts every USD revenue figure.
+- `invoice.payment_failed` is unhandled, so it falls through to `ignored` and D-13 dunning has no
+  hook to attach to.
+
 ### HIGH
 
 | ID | Issue | Evidence | Impact | Fix |

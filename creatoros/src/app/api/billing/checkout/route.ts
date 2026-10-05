@@ -5,7 +5,7 @@ import { run, row, nowIso } from "@/lib/db/db";
 import { getSession } from "@/lib/auth/get-session";
 import { can } from "@/lib/auth/rbac";
 import { PLANS, PLAN_PRICES } from "@/lib/plans";
-import { getPaymentProviderForCurrency, billingCurrency } from "@/lib/payments";
+import { getPaymentProviderForCurrency, getPaymentProvider, billingCurrency } from "@/lib/payments";
 import { normalisePhone } from "@/lib/payments/cashfree-subscriptions";
 import { applySubscription } from "@/lib/billing/subscriptions";
 import { recordFunnelEvent } from "@/lib/funnel";
@@ -103,7 +103,14 @@ export async function POST(req: NextRequest) {
 
   // No provider keys: simulate in development, refuse in production.
   if (process.env.NODE_ENV === "production") {
-    return err.conflict("Billing is not configured. Contact support.");
+    // Distinguish "no gateway at all" from "a gateway exists but not for this
+    // currency", because the second is the state this deploy was actually in
+    // during the UK/USA launch prep and the fix is a Stripe key, not support.
+    return err.conflict(
+      getPaymentProvider().isConfigured()
+        ? `Billing in ${currency.toUpperCase()} is not available yet. Contact support.`
+        : "Billing is not configured. Contact support.",
+    );
   }
 
   run("UPDATE organizations SET plan = ?, updated_at = ? WHERE id = ?", plan, nowIso(), s.org.id);

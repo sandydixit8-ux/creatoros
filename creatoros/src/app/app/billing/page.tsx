@@ -5,7 +5,7 @@ import { row } from "@/lib/db/db";
 import { getLimits, PLAN_PRICES } from "@/lib/plans";
 import { allUsage } from "@/lib/usage";
 import { activeSubscription } from "@/lib/billing/subscriptions";
-import { paymentConfigured, cashfreeSdkMode, billingCurrency } from "@/lib/payments";
+import { getPaymentProviderForCurrency, cashfreeSdkMode, billingCurrency } from "@/lib/payments";
 import PlanCards, { type PlanCardData } from "./plan-cards";
 
 export const dynamic = "force-dynamic";
@@ -21,12 +21,18 @@ export default async function BillingPage() {
   const usage = allUsage(s.org.id);
   const limits = getLimits(currentPlan);
   const sub = activeSubscription(s.org.id);
-  const paymentsWired = paymentConfigured();
+  const currency = billingCurrency();
+  // Derive both from the provider that will actually settle this currency rather
+  // than from PAYMENT_PROVIDER. The env-based check disagreed with the server
+  // whenever the preferred provider could not handle BILLING_CURRENCY: the page
+  // rendered an Indian 10-digit phone field and live Upgrade buttons for a
+  // currency no configured gateway could charge.
+  const billingProvider = getPaymentProviderForCurrency(currency);
+  const paymentsWired = billingProvider.isConfigured();
   const isMock = sub?.provider === "mock";
   // Cashfree mandates require an Indian phone, so ask for it at checkout.
   const sdkMode = cashfreeSdkMode();
-  const needsPhone = process.env.PAYMENT_PROVIDER?.toLowerCase() === "cashfree" && Boolean(process.env.CASHFREE_CLIENT_ID);
-  const currency = billingCurrency();
+  const needsPhone = paymentsWired && billingProvider.requiresCustomerPhone;
   const showPriceInr = currency === "inr" && PLAN_PRICES.starter.inr > 0;
 
   const contactCount = (row("SELECT COUNT(*) AS c FROM contacts WHERE tenant_id = ?", s.org.id) as { c: number })?.c ?? 0;
