@@ -8,6 +8,7 @@ import { PLANS, PLAN_PRICES } from "@/lib/plans";
 import { getPaymentProviderForCurrency, billingCurrency } from "@/lib/payments";
 import { normalisePhone } from "@/lib/payments/cashfree-subscriptions";
 import { applySubscription } from "@/lib/billing/subscriptions";
+import { recordFunnelEvent } from "@/lib/funnel";
 import { SITE_URL } from "@/lib/constants";
 import { audit } from "@/lib/audit";
 import { rateLimit, rateKey } from "@/lib/security/rate-limit";
@@ -84,6 +85,15 @@ export async function POST(req: NextRequest) {
         ip,
         meta: { provider: provider.name, subscriptionId: session.subscriptionId },
       });
+      recordFunnelEvent({
+        step: "checkout_started",
+        tenantId: s.org.id,
+        userId: s.user.id,
+        plan,
+        currency,
+        amountCents,
+        source: provider.name,
+      });
       return ok({ provider: provider.name, sessionId: session.sessionId, url: session.url ?? null });
     } catch (e) {
       console.error("[billing.checkout] provider error:", e);
@@ -105,5 +115,9 @@ export async function POST(req: NextRequest) {
     status: "active",
   });
   audit({ tenantId: s.org.id, userId: s.user.id, action: "billing.plan_change", resource: plan, ip });
+  // The dev/mock path grants the plan immediately, so it is a real purchase for
+  // funnel purposes as well as checkout_started.
+  recordFunnelEvent({ step: "checkout_started", tenantId: s.org.id, userId: s.user.id, plan, currency, source: "mock" });
+  recordFunnelEvent({ step: "purchase_completed", tenantId: s.org.id, userId: s.user.id, plan, currency, source: "mock" });
   return ok({ provider: "mock", sessionId: null, url: `/app/billing?upgraded=${plan}` });
 }

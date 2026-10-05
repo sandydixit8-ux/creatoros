@@ -43,5 +43,12 @@ if (applied.length > 0) {
     .prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_refunds_one_pending'")
     .get();
   console.log("one-pending index: " + (idx ? "present" : "MISSING"));
+
+  const funnel = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='funnel_events'").get();
+  console.log("funnel_events table: " + (funnel ? "present" : "MISSING"));
+  for (const name of ["idx_funnel_step_time", "idx_funnel_tenant"]) {
+    const i = db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name=?").get(name);
+    console.log(name + ": " + (i ? "present" : "MISSING"));
+  }
 }
 db.close();

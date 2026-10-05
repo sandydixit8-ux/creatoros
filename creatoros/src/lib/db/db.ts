@@ -183,6 +183,32 @@ const MIGRATIONS: Array<{ id: number; up: (db: DatabaseSync) => void }> = [
       db.exec("CREATE INDEX IF NOT EXISTS idx_webhook_events_status ON webhook_events(status, updated_at)");
     },
   },
+  {
+    // Platform-side acquisition funnel. schema.sql already creates this for a new
+    // database, but migrate() runs the schema *before* this list, so a database
+    // that existed before this change picks the table up there too. Kept here as
+    // well so the table and its indexes are guaranteed by the migration itself
+    // rather than depending on schema.sql having been re-run.
+    id: 15,
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS funnel_events (
+          id           TEXT PRIMARY KEY,
+          step         TEXT NOT NULL,
+          tenant_id    TEXT NOT NULL DEFAULT '',
+          user_id      TEXT NOT NULL DEFAULT '',
+          plan         TEXT NOT NULL DEFAULT '',
+          currency     TEXT NOT NULL DEFAULT '',
+          amount_cents INTEGER NOT NULL DEFAULT 0,
+          source       TEXT NOT NULL DEFAULT '',
+          meta         TEXT NOT NULL DEFAULT '{}',
+          created_at   TEXT NOT NULL
+        )
+      `);
+      db.exec("CREATE INDEX IF NOT EXISTS idx_funnel_step_time ON funnel_events(step, created_at)");
+      db.exec("CREATE INDEX IF NOT EXISTS idx_funnel_tenant ON funnel_events(tenant_id, created_at)");
+    },
+  },
 ];
 
 function addColumn(db: DatabaseSync, table: string, column: string, ddl: string) {

@@ -209,6 +209,28 @@ CREATE TABLE IF NOT EXISTS analytics_events (
   created_at  TEXT NOT NULL
 );
 
+-- Platform-side acquisition funnel: signup -> activation -> checkout -> paid.
+--
+-- Deliberately NOT analytics_events. That table is consent-gated behavioural
+-- tracking of *page visitors*, shown to the creator on their own dashboard, and
+-- its tenant_id cascades on org delete. Internal funnel steps must never appear
+-- in a customer's analytics, and must survive the org deletion that *is* the
+-- churn signal. tenant_id is therefore a plain string with no foreign key, and
+-- no consent gate applies: this records what an account holder did, not how a
+-- visitor browsed.
+CREATE TABLE IF NOT EXISTS funnel_events (
+  id           TEXT PRIMARY KEY,
+  step         TEXT NOT NULL,                 -- signup_completed | activation_reached | checkout_started | purchase_completed | subscription_canceled
+  tenant_id    TEXT NOT NULL DEFAULT '',      -- no FK on purpose: keep history after org delete
+  user_id      TEXT NOT NULL DEFAULT '',
+  plan         TEXT NOT NULL DEFAULT '',
+  currency     TEXT NOT NULL DEFAULT '',
+  amount_cents INTEGER NOT NULL DEFAULT 0,
+  source       TEXT NOT NULL DEFAULT '',      -- utm_source / referrer at signup
+  meta         TEXT NOT NULL DEFAULT '{}',
+  created_at   TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS email_lists (
   id         TEXT PRIMARY KEY,
   tenant_id  TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
@@ -390,6 +412,8 @@ CREATE INDEX IF NOT EXISTS idx_events_page ON analytics_events(page_id, event_ty
 CREATE INDEX IF NOT EXISTS idx_bookings_tenant ON bookings(tenant_id, starts_at);
 CREATE INDEX IF NOT EXISTS idx_contacts_tenant ON contacts(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_audit_tenant ON audit_logs(tenant_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_funnel_step_time ON funnel_events(step, created_at);
+CREATE INDEX IF NOT EXISTS idx_funnel_tenant ON funnel_events(tenant_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_avail_service ON availability_windows(service_id);
 -- ============ Store: orders (payments for products/courses) ============
 CREATE TABLE IF NOT EXISTS orders (

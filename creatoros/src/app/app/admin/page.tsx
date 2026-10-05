@@ -6,6 +6,8 @@ import { listOrgs, planCursor, listFlags, listOpenTickets, VALID_TICKET_STATUSES
 import { OrgsTable } from "@/components/admin/orgs-table";
 import { FlagsPanel } from "@/components/admin/flags-panel";
 import { TicketsPanel } from "@/components/admin/tickets-panel";
+import { FunnelPanel } from "@/components/admin/funnel-panel";
+import { funnelSummary } from "@/lib/funnel";
 
 export const dynamic = "force-dynamic";
 
@@ -27,13 +29,19 @@ export default async function AdminPage() {
   const plans = planCursor();
   const flags = listFlags();
   const tickets = listOpenTickets().map((t) => ({ id: t.id, subject: t.subject, body: t.body, status: t.status, created_at: t.created_at, email: t.email }));
+  const funnel = funnelSummary(30);
 
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-navy-950">Platform admin</h1>
-        <p className="mt-1 text-sm text-navy-500">Workspaces, feature flags and support tickets.</p>
+        <p className="mt-1 text-sm text-navy-500">Acquisition funnel, workspaces, feature flags and support tickets.</p>
       </div>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-navy-400">Acquisition funnel (30d)</h2>
+        <FunnelPanel summary={funnel} />
+      </section>
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-navy-400">Organizations</h2>

@@ -4,6 +4,7 @@ import { webhookProviders, type PaymentProvider, type ProviderWebhookEvent } fro
 import { claimWebhookEvent, markWebhookProcessed, markWebhookFailed } from "@/lib/payments/webhook-events";
 import { fulfillOrderBySession, markOrderFailed, type FulfillResult } from "@/lib/store/orders";
 import { applySubscription } from "@/lib/billing/subscriptions";
+import { recordFunnelEvent } from "@/lib/funnel";
 import { ok, fail } from "@/lib/http";
 import { audit } from "@/lib/audit";
 
@@ -79,6 +80,13 @@ export async function POST(req: NextRequest) {
             });
             if (applied) {
               audit({ tenantId, action: "billing.webhook_subscription", resource: plan, meta: { event: event.id } });
+              recordFunnelEvent({
+                step: "purchase_completed",
+                tenantId,
+                plan,
+                source: provider.name,
+                meta: { event: event.id, kind: "subscription" },
+              });
               result = "subscription_applied";
             } else {
               result = "tenant_not_found";
@@ -132,6 +140,13 @@ export async function POST(req: NextRequest) {
           result = applied ? "subscription_applied" : "tenant_not_found";
           if (applied) {
             audit({ tenantId, action: "billing.webhook_subscription_deleted", resource: str(sub.id) });
+            recordFunnelEvent({
+              step: "subscription_canceled",
+              tenantId,
+              plan: str(metadata.plan),
+              source: provider.name,
+              meta: { event: event.id },
+            });
           }
         }
         break;

@@ -6,6 +6,7 @@ import { ok, fail, readJson, getClientIp } from "@/lib/http";
 import { rateLimit, rateKey } from "@/lib/security/rate-limit";
 import { run, row, newId, nowIso, tx } from "@/lib/db/db";
 import { audit } from "@/lib/audit";
+import { recordFunnelEvent } from "@/lib/funnel";
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -101,6 +102,21 @@ export async function POST(req: NextRequest) {
     });
 
     const cookie = setSessionCookie(user.uid, user.orgId);
+
+    // Acquisition source, read off the query string so the landing page can carry
+    // utm tags through to signup. Recorded after commit so a funnel write can
+    // never roll back the account it is describing.
+    recordFunnelEvent({
+      step: "signup_completed",
+      tenantId: user.orgId,
+      userId: user.uid,
+      source: req.nextUrl.searchParams.get("utm_source") || "direct",
+      meta: {
+        utm_medium: req.nextUrl.searchParams.get("utm_medium") || "",
+        utm_campaign: req.nextUrl.searchParams.get("utm_campaign") || "",
+      },
+    });
+
     return ok({ userId: user.uid, orgId: user.orgId }, { headers: { "Set-Cookie": cookie } });
   } catch (e) {
     console.error("[auth/register]", e);

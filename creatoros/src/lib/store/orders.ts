@@ -3,6 +3,7 @@ import { trackEvent, hashVisitorId } from "@/lib/analytics/engine";
 import { bumpUsage } from "@/lib/usage";
 import { audit } from "@/lib/audit";
 import { ensureEnrollment } from "@/lib/courses/engine";
+import { recordFunnelEvent } from "@/lib/funnel";
 
 export interface ProductRow {
   id: string;
@@ -222,6 +223,18 @@ export function fulfillOrder(orderId: string): FulfillResult {
     trackEvent({ tenantId: order.tenant_id, eventType: "purchase", ref: order.course_id ? "course" : "store" });
     bumpUsage(order.tenant_id, "sales");
     audit({ tenantId: order.tenant_id, action: "store.order_paid", resource: orderId });
+    // Platform funnel: a one-time sale is a paying customer even though it is not
+    // a subscription. Recorded inside the same transaction so the funnel cannot
+    // claim a sale the order table does not show.
+    recordFunnelEvent({
+      step: "purchase_completed",
+      tenantId: order.tenant_id,
+      plan: order.course_id ? "course" : "product",
+      currency: order.currency,
+      amountCents: order.amount_cents,
+      source: order.provider,
+      meta: { orderId, course: Boolean(order.course_id) },
+    });
     return "paid";
   });
 }

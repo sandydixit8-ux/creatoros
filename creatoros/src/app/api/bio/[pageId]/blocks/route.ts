@@ -8,6 +8,7 @@ import { getUsage, bumpUsage } from "@/lib/usage";
 import { audit } from "@/lib/audit";
 import { can } from "@/lib/auth/rbac";
 import { payloadHasDangerousScheme } from "@/lib/url-safety";
+import { recordFunnelEvent, isFirstFunnelEvent } from "@/lib/funnel";
 
 const BLOCK_TYPES = ["profile", "bio", "link", "product", "booking", "email_capture", "cta", "social"] as const;
 
@@ -53,6 +54,7 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ pageId: str
   );
 
   let changed = 0;
+  let added = 0;
   for (const b of parsed.data.blocks) {
     if (!validIds.has(b.id)) {
       const type = b.type ?? "link";
@@ -74,6 +76,7 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ pageId: str
         nowIso()
       );
       if (type === "link") bumpUsage(s.org.id, "links");
+      added++;
       changed++;
       continue;
     }
@@ -89,5 +92,14 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ pageId: str
   }
 
   audit({ tenantId: s.org.id, userId: s.user.id, action: "bio.blocks_update", resource: pageId, meta: { changed }, ip: req.headers.get("x-forwarded-for") || undefined });
+
+  // Activation milestone: the first block this account adds is the first time a
+  // visitor could do anything on their page. Not "published" - the signup flow
+  // already creates the page with published = 1, so that would be satisfied before
+  // the user had done anything at all.
+  if (added > 0 && isFirstFunnelEvent(s.org.id, "activation_reached")) {
+    recordFunnelEvent({ step: "activation_reached", tenantId: s.org.id, userId: s.user.id, meta: { pageId, blocks: added } });
+  }
+
   return ok({ changed });
 }
