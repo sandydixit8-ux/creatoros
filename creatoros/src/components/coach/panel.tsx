@@ -44,7 +44,10 @@ export function CoachPanel() {
         setMessage(j.error?.message || "You have used all AI Coach credits this month.");
         return;
       }
-      if (code === "ai_unavailable" || res.status === 503) {
+      // `ai_disabled` is the admin kill switch. It arrives as 503 like
+      // `ai_unavailable`, and is shown as a temporary outage on purpose: an
+      // admin flipping a feature off is not something to narrate to a customer.
+      if (code === "ai_unavailable" || code === "ai_disabled" || res.status === 503) {
         setUnavailable(true);
         setInsights(null);
         setMessage("");

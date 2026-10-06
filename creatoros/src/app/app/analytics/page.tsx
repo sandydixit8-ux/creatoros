@@ -65,7 +65,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
         </div>
       </div>
 
-      <SummaryCards initial={summ} />
+      <SummaryCards initial={summ} revenue={revenue.period} />
 
       {pageCount === 0 && (
         <div className="card border-brand-200 bg-brand-50 p-6">

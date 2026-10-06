@@ -122,7 +122,7 @@ Pricing **structure** is sound and matches the Framekit crossover logic ($39 ÷ 
 | `products` | Yes | `src/app/api/store/products/route.ts:48-51` |
 | `courses` | Yes | `src/app/api/courses/route.ts:46` |
 | `viewsPerMonth` | **Enforced but displayed wrong** | writes `"views"` (`src/app/api/track/route.ts:41,45`), UI reads `usage.viewsPerMonth` (`src/app/app/billing/page.tsx:46`) → user always sees 0 |
-| `aiCredits` | **Fixed** — quota checked and consumed *before* the paid LLM call | `src/app/api/coach/analyze/route.ts`, D-7 closed (§14.13) |
+| `aiCredits` | **Fixed** — reserved *before* the paid call, atomically, refunded on failure | `src/lib/usage.ts:reserveUsage()`, `src/app/api/coach/analyze/route.ts` — D-7 closed (§14.13, §14.14) |
 | `emailsPerMonth` | Yes, per-recipient | `src/lib/email/engine.ts:63-65` |
 | `customDomain` | No feature exists | column `schema.sql:104`, never read |
 | `emailAutomation` | Gates broadcast send | `src/lib/email/engine.ts:73-74` |
@@ -1174,7 +1174,78 @@ Scored on commercial leverage × implementation cost. "Revenue" = direct or comp
 
 ### P1 — Revenue engine
 
-Annual plans · abandoned-checkout recovery · usage-based AI pricing · AI feature flag (documented but unwired, §14.13) · upgrade/downgrade/proration · billing portal · referral program · CreatorOS affiliate · free tools (3–5) · fix quota metering (D-8, D-9, D-30) · tax/invoice/address support.
+Annual plans · abandoned-checkout recovery · usage-based AI pricing · upgrade/downgrade/proration · billing portal · referral program · CreatorOS affiliate · free tools (3–5) · fix quota metering (D-8, D-9, D-30) · tax/invoice/address support.
+
+Note on AI metering: at the shipped `gpt-4o-mini` rates a coach analysis costs roughly
+**$0.0004**. The free tier's 10 credits therefore cap a tenant at **$0.004/month**, and even an
+unlimited `business` tenant would need ~250,000 calls a month to cost $100 - the plan price. AI
+metering is an abuse control, not a margin lever, so the usage-based pricing item above should be
+dropped rather than built. Bundle the credits into the plan price.
+
+### 14.14 The §14.12 fix was incomplete, and the AI Coach was still inventing currency (2026-10-06)
+
+**Correction to §14.12.** That entry claimed revenue reporting no longer invented a currency. It
+was true of the MRR, lifetime and monthly-series figures, and false of the summary card.
+`analytics/engine.ts:summary()` still returned a `revenueCents` field built by adding confirmed
+bookings to paid orders with no currency grouping at all, and `components/analytics/summary-cards.tsx`
+printed it as `` `$${(data.revenueCents / 100).toFixed(2)}` ``. An INR tenant's revenue was
+therefore still rendered with a dollar sign on both `/app` and `/app/analytics`. The commit message
+("report revenue per currency instead of inventing an FX rate") overstated what shipped.
+
+The failure was structural rather than a typo. `RATE = 84` was one number in one file; `revenueCents`
+was a *type-level* invitation - a field named "revenue" that every caller was free to prefix with
+whatever symbol it liked. Fixing it properly meant removing the field. `summary()` no longer returns
+any revenue figure, so the card takes per-currency amounts from `revenueSnapshot()` and renders them
+with `formatMoneyBreakdown()`. Where there is no revenue the card shows a dash rather than `$0.00`,
+which would assert a currency for a tenant who has never earned anything. A test asserts the exact
+key set of `summary()`, so a number cannot quietly return.
+
+**The AI Coach was the worse instance, because it is prose.** The coach prompt carried
+`summary.revenueCents` into a language model instructed to "reference actual numbers". So the
+fabricated blend did not sit inert on a dashboard - the model would write "you made $X" and add it
+to wins and recommendations. Customers believe a sentence far more readily than they interrogate a
+chart. The prompt now receives `revenue.period` (per-currency), and the system prompt states the
+rules explicitly: minor units grouped by currency, never add or convert across currencies, never
+invent a rate, report each currency separately. Without that instruction the model sums them anyway.
+
+**Three further defects found while preparing this feature for spend.**
+
+*Customer email addresses were being sent to a third party.* The context included the five most
+recent contacts' `email` values. The coach has no use for an address - it reasons about momentum, so
+all it needs is when leads arrived - but the addresses are customer PII, and sending them put tenant
+customer data in the provider's request logs for no analytical gain. The query now selects
+`created_at` only. The row still reads from `contacts`, so the test asserts both the SQL and the
+serialized prompt, and the DB mock was changed to project only the columns a query selects. That mock
+had been returning whole rows regardless of the projection, which meant an `email` appeared in the
+captured prompt no matter what the route asked for - a test that would have passed over the exact
+defect it was written to catch. Re-adding `email` to the SELECT was confirmed to fail the suite.
+
+*The quota check was still not atomic (D-7, second attempt).* §14.13 moved the check before the paid
+call, which stopped the single-threaded leak but left a race: `bumpUsage` reads then writes, so two
+concurrent requests against used=9 with limit=10 both read 9, both pass, both call the provider, and
+both write 10. Two paid calls metered as one credit - D-7 in a different costume, introduced one commit
+earlier. `reserveUsage()` now does the read, the limit test and the increment inside one
+`BEGIN IMMEDIATE` transaction, so the second caller waits, reads the committed 10 and is refused. It
+also consumes *up front*, which is what makes `refundUsage()` possible: a provider outage returns the
+credit instead of quietly spending a metered unit the tenant never received value for. `creditsRemaining`
+now comes from the reservation's own return value rather than a stale pre-call read plus one.
+
+*The documented kill switch did not exist.* `components/admin/flags-panel.tsx` has listed an `ai_coach`
+toggle since it was written, `admin/engine.ts:checkFlag()` has been tested, and the admin page reads
+the flag table - but no product code ever called `checkFlag()`, so the toggle changed a row that
+nothing observed. Turning off a paid provider required a redeploy. The route now consults
+`checkFlag("ai_coach")` *before* the key check, so disabling works whether or not a key is present, and
+the panel treats `ai_disabled` as the same temporary-outage state a customer already sees for a missing
+key - an admin flipping a switch is not something to narrate to a customer.
+
+**Residual risk, accepted deliberately**: `checkFlag` returns `true` when no row exists, so the switch
+fails open. That is acceptable because the panel's toggle creates the row on first use, and no UI
+deletes one. A hard monthly spend cap in the provider's own dashboard is the backstop that survives a
+bug in this code.
+
+**Verification**: 25 new tests (14 route, 10 usage, 1 analytics). Full suite **327/327**, E2E 34/34,
+typecheck, lint and build clean. No AI key is configured, so production still returns 503; this change
+is what makes turning one on safe.
 
 ### P2 — Growth engine
 

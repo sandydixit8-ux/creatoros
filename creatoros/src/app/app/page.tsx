@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowRight, CalendarCheck, Link2, Sparkles, Users } from "lucide-react";
 import { getSession } from "@/lib/auth/get-session";
 import { summary, timeSeries, breakdownBy } from "@/lib/analytics/engine";
+import { revenueSnapshot } from "@/lib/analytics/money";
 import { all, row } from "@/lib/db/db";
 import { SummaryCards } from "@/components/analytics/summary-cards";
 import { ViewsChart, DonutChart } from "@/components/analytics/charts";
@@ -20,6 +21,8 @@ export default async function DashboardPage() {
     breakdown(s.org.id, "ref"),
     getProfileForUser(s.org.id, s.user.id),
   ];
+
+  const revenue = revenueSnapshot(s.org.id, 30);
 
   const serviceCount = (row("SELECT COUNT(*) AS c FROM services WHERE tenant_id = ? AND active = 1", s.org.id) as { c: number })?.c ?? 0;
   const recentLeads = all<{ id: string; email: string; name: string; created_at: string }>(
@@ -50,7 +53,7 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      <SummaryCards initial={summ} />
+      <SummaryCards initial={summ} revenue={revenue.period} />
 
       {!profile?.username && (
         <div className="card border-brand-200 bg-brand-50 p-6">

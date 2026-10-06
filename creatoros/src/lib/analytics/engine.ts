@@ -59,9 +59,20 @@ export interface AnalyticsSummary {
   bookings: number;
   conversions: number;
   conversionRate: number;
-  revenueCents: number;
   linkClicks: number;
 }
+
+/**
+ * There is deliberately no `revenueCents` here.
+ *
+ * This function used to return bookings plus orders as one number, and two call
+ * sites printed it behind a hardcoded `$`. That added rupee amounts to dollar
+ * amounts and labelled the result "dollars" - the same fabrication as the
+ * `RATE = 84` bug, one layer over. Removing the field is the point: a blended
+ * total is not a value that can be rendered correctly, so it should not be
+ * available to render. Callers that need revenue use `revenueSnapshot()`, which
+ * returns per-currency amounts.
+ */
 
 export function summary(tenantId: string, days = 30): AnalyticsSummary {
   const since = new Date(Date.now() - days * 86400000).toISOString();
@@ -72,9 +83,6 @@ export function summary(tenantId: string, days = 30): AnalyticsSummary {
   const leads = Number(q("SELECT COUNT(*) AS c FROM analytics_events WHERE tenant_id = ? AND created_at >= ? AND event_type = 'lead'", tenantId, since));
   const bookingsCount = Number(q("SELECT COUNT(*) AS c FROM analytics_events WHERE tenant_id = ? AND created_at >= ? AND event_type = 'booking'", tenantId, since));
   const linkClicks = Number(q("SELECT COUNT(*) AS c FROM analytics_events WHERE tenant_id = ? AND created_at >= ? AND event_type = 'link_click'", tenantId, since));
-  const revenueCents =
-    Number(q("SELECT COALESCE(SUM(s.price_cents), 0) AS c FROM bookings b JOIN services s ON s.id = b.service_id WHERE b.tenant_id = ? AND b.created_at >= ? AND b.status = 'confirmed'", tenantId, since)) +
-    Number(q("SELECT COALESCE(SUM(amount_cents), 0) AS c FROM orders WHERE tenant_id = ? AND created_at >= ? AND status = 'paid'", tenantId, since));
 
   return {
     visitors,
@@ -83,7 +91,6 @@ export function summary(tenantId: string, days = 30): AnalyticsSummary {
     bookings: bookingsCount,
     conversions: leads + bookingsCount,
     conversionRate: pageViews > 0 ? Math.round(((leads + bookingsCount) / pageViews) * 1000) / 10 : 0,
-    revenueCents: Number(revenueCents),
     linkClicks,
   };
 }

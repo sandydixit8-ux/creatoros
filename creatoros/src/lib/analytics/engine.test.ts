@@ -58,4 +58,17 @@ describe("analytics breakdowns", () => {
     expect(s.visitors).toBe(5);
     expect(s.linkClicks).toBe(1);
   });
+
+  it("returns no blended revenue figure at all", () => {
+    // Regression guard. `summary()` once returned `revenueCents` (bookings plus
+    // orders, currencies added) and two components printed it behind a hardcoded
+    // "$", so a rupee amount was presented as dollars. The field was removed
+    // rather than corrected because a blended total cannot be rendered honestly;
+    // this test fails if anyone puts a number back.
+    const s = summary(TENANT) as unknown as Record<string, unknown>;
+    expect(s).not.toHaveProperty("revenueCents");
+    expect(Object.keys(s).sort()).toEqual(
+      ["bookings", "conversionRate", "conversions", "leads", "linkClicks", "pageViews", "visitors"].sort()
+    );
+  });
 });

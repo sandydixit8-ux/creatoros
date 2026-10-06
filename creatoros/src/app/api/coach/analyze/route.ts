@@ -3,11 +3,12 @@ import { getSession } from "@/lib/auth/get-session";
 import { ok, err, fail } from "@/lib/http";
 import { can } from "@/lib/auth/rbac";
 import { summary, timeSeries, breakdownBy } from "@/lib/analytics/engine";
+import { revenueSnapshot } from "@/lib/analytics/money";
 import { all, row } from "@/lib/db/db";
 import { aiConfigured, complete, extractJson } from "@/lib/ai/client";
-import { getUsage, hasQuota } from "@/lib/usage";
 import { getLimits } from "@/lib/plans";
-import { bumpUsage } from "@/lib/usage";
+import { refundUsage, reserveUsage } from "@/lib/usage";
+import { checkFlag } from "@/lib/admin/engine";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,14 @@ export async function POST(req: NextRequest) {
   if (!s) return err.auth();
   if (!can(s.role as never, "analytics:read")) return err.forbidden();
 
+  // The kill switch. The admin panel already exposes an `ai_coach` toggle
+  // (components/admin/flags-panel.tsx), but nothing read it, so flipping it did
+  // nothing: turning a paid provider off meant a full redeploy. Checked before
+  // the key so that disabling the feature works even while a key is configured.
+  if (!checkFlag("ai_coach")) {
+    return fail("AI Coach is not available right now. Please try again later.", 503, "ai_disabled");
+  }
+
   if (!aiConfigured()) {
     // 503, not 200. Returning success with `configured: false` meant monitoring
     // could not tell a working feature from a dead one, and a health check that
@@ -32,13 +41,13 @@ export async function POST(req: NextRequest) {
 
   const orgPlan = (row<{ plan?: string }>("SELECT plan FROM organizations WHERE id = ?", s.org.id))?.plan ?? "free";
   const limits = getLimits(orgPlan);
-  const used = getUsage(s.org.id, "aiCredits");
 
-  // Quota is checked and consumed BEFORE the provider call (D-7). The previous
-  // order checked after, so an over-quota tenant still received a full paid
-  // analysis and only the counter stopped incrementing - the meter recorded
-  // nothing while the spend continued.
-  if (!hasQuota(used, limits.aiCredits)) {
+  // Reserve the credit before the paid call, atomically, and refund it if the
+  // call fails. See reserveUsage() for why the read-then-bump sequence was not
+  // enough (D-7: two concurrent requests could both pass the check and both be
+  // served while only one credit was recorded).
+  const usedAfter = reserveUsage(s.org.id, "aiCredits", limits.aiCredits);
+  if (usedAfter === null) {
     return fail(
       "You have used all AI Coach credits for this month. Upgrade for more, or wait for your next billing period.",
       402,
@@ -47,6 +56,7 @@ export async function POST(req: NextRequest) {
   }
 
   const days = clamp(parseInt(req.nextUrl.searchParams.get("days") || "30", 10));
+  const revenue = revenueSnapshot(s.org.id, days);
   const summ = summary(s.org.id, days);
   const series = timeSeries(s.org.id, days).slice(-days);
   const refs = breakdownBy(s.org.id, "ref", days);
@@ -62,19 +72,30 @@ export async function POST(req: NextRequest) {
     s.org.id
   );
 
-  const recentLeads = all<{ email: string; captured_at: string }>(
-    "SELECT email, created_at AS captured_at FROM contacts WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 5",
+  // Lead *timing*, never lead *identity*.
+  //
+  // This used to send the five most recent contacts' email addresses to a
+  // third-party model. The coach has no use for an address - it reasons about
+  // momentum, so all it needs is when leads arrived - but the addresses are
+  // customer PII, and sending them put tenant customer data in the provider's
+  // request logs for nothing. Dropping the email also means no personal data
+  // crosses the boundary at all, which keeps the privacy disclosure simple.
+  const leadRecency = all<{ captured_at: string }>(
+    "SELECT created_at AS captured_at FROM contacts WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 5",
     s.org.id
   );
 
   const context = {
-    summary: summ,
+    // `summ` no longer carries a blended revenue figure; revenue arrives
+    // separately and split by currency.
+    traffic: summ,
+    revenue: revenue.period,
     days,
     recentViews: series.slice(-7).map((p) => ({ day: p.date, views: p.views, leads: p.leads })),
     topRefs: refs.slice(0, 5),
     topSources: sources.slice(0, 5),
     serviceStats,
-    recentLeads,
+    leadRecency,
   };
 
   const system = `You are the AI growth coach inside CreatorOS, a creator monetization operating system.
@@ -87,7 +108,12 @@ Analyze the creator's real data below and return STRICT JSON with exactly this s
   "quickWins": ["2-3 low-effort actions they can do today"],
   "nextTarget": "one headline metric to focus on next 30 days"
 }
-Be concrete and reference actual numbers. No markdown, pure JSON.`;
+Be concrete and reference actual numbers. No markdown, pure JSON.
+
+Money rules, and follow them exactly:
+- Amounts are integer minor units grouped by currency, e.g. {"currency":"usd","cents":12500} means $125.00 and {"currency":"inr","cents":74900} means Rs 749.00.
+- NEVER add, convert or compare amounts in different currencies. Do not invent an exchange rate. Do not describe a total as a single figure if more than one currency is present - report each currency separately.
+- If revenue is an empty list, the creator has earned nothing in this period. Say so plainly rather than estimating.`;
 
   try {
     const res = await complete(
@@ -100,16 +126,20 @@ Be concrete and reference actual numbers. No markdown, pure JSON.`;
 
     const parsed = extractJson(res.text) as unknown;
 
-    // Consume the credit only once a usable answer exists, so a provider outage
-    // does not silently spend a metered credit the tenant never received value
-    // from. Combined with the pre-check above this keeps both halves honest.
-    bumpUsage(s.org.id, "aiCredits");
-
-    return ok({ insights: parsed, creditsRemaining: remaining(orgPlan, used + 1) });
+    return ok({
+      insights: parsed,
+      // From the reservation itself, not from a stale pre-call read. `used + 1`
+      // reported the wrong number whenever anything else consumed a credit
+      // between the two statements.
+      creditsRemaining: remaining(orgPlan, usedAfter),
+    });
   } catch (e) {
     // Never forward a provider error verbatim: the prompt carries the tenant's
-    // recent leads and their email addresses.
+    // own business data.
     console.error("[coach] analysis failed", (e as Error).message);
+    // The credit was taken before the call, so give it back. A provider outage
+    // must not quietly spend a metered unit the tenant never got value from.
+    refundUsage(s.org.id, "aiCredits");
     return fail("We couldn't complete your analysis just now. Please try again.", 502, "ai_failed");
   }
 }
