@@ -100,9 +100,15 @@ export function cashfreeSdkMode(): "sandbox" | "production" {
 }
 
 /**
- * Currency for plan upgrades. Cashfree supports both USD and INR mandates, so
- * this is a merchant choice rather than a provider limitation: set
- * BILLING_CURRENCY=inr to bill in rupees, anything else (default) bills in USD.
+ * Currency for plan upgrades.
+ *
+ * Cashfree's default currency list is INR, and a live plan create in USD is
+ * rejected outright (400 "The request is invalid"), so the two are not
+ * interchangeable for this merchant: only INR settles. Any other value falls
+ * back to USD, which routes to `unconfiguredProvider` unless a USD-capable
+ * gateway (Stripe, or a MoR such as Paddle) is configured — the billing page
+ * then shows its "not available yet" state instead of a checkout nobody can
+ * complete.
  */
 export function billingCurrency(): "usd" | "inr" {
   return (process.env.BILLING_CURRENCY || "usd").toLowerCase() === "inr" ? "inr" : "usd";

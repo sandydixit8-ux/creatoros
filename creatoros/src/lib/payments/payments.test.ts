@@ -483,11 +483,15 @@ describe("billing currency", () => {
 
 describe("currency routing guard", () => {
   /**
-   * The exact production state during UK/USA launch prep: BILLING_CURRENCY=usd
-   * with PAYMENT_PROVIDER=cashfree, Stripe unconfigured, and Cashfree left at
-   * its default INR-only currency list. This used to resolve to Cashfree, which
-   * put a 10-digit Indian mobile field in front of a US customer and then
-   * failed the charge. It must refuse instead.
+   * USD billed with no USD-capable gateway: BILLING_CURRENCY=usd,
+   * PAYMENT_PROVIDER=cashfree, Stripe unconfigured, Cashfree at its default
+   * INR-only currency list. This used to resolve to Cashfree, which put a
+   * 10-digit Indian mobile field in front of a US customer and then failed the
+   * charge. It must refuse instead.
+   *
+   * Production went the other way (BILLING_CURRENCY set to inr) because this
+   * account rejects USD plans; the refusal path still has to hold for the day a
+   * second currency is turned on without a gateway behind it.
    */
   it("refuses to route USD to an INR-only Cashfree when Stripe is absent", () => {
     const prev = {
