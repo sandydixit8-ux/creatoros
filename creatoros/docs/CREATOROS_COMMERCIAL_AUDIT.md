@@ -36,7 +36,7 @@ Nine working product modules, all server-rendered against a single SQLite file:
 | AI growth coach | `/app/coach` | LIVE — LLM-backed, quota-metered |
 | Platform admin | `/app/admin` | LIVE — orgs, plans, feature flags, tickets, cross-tenant refunds |
 
-**Correction to prior assessment:** the AI coach, email automation and plan-limit enforcement all **exist and work**. An earlier review wrongly claimed AI credits were unimplemented. They are enforced at `src/app/api/coach/analyze/route.ts:79-83` (though see defect D-7).
+**Correction to prior assessment:** the AI coach, email automation and plan-limit enforcement all **exist and work**. An earlier review wrongly claimed AI credits were unimplemented. They are enforced at `src/app/api/coach/analyze/route.ts`. The *quota check was* misplaced (D-7); that is now fixed — see §14.13.
 
 **Weakness:** there is no onboarding layer. Registration lands directly on the dashboard (`src/app/api/auth/register/route.ts` → `/app`). No role or goal capture, no progressive profile setup, no activation milestone.
 
@@ -122,7 +122,7 @@ Pricing **structure** is sound and matches the Framekit crossover logic ($39 ÷ 
 | `products` | Yes | `src/app/api/store/products/route.ts:48-51` |
 | `courses` | Yes | `src/app/api/courses/route.ts:46` |
 | `viewsPerMonth` | **Enforced but displayed wrong** | writes `"views"` (`src/app/api/track/route.ts:41,45`), UI reads `usage.viewsPerMonth` (`src/app/app/billing/page.tsx:46`) → user always sees 0 |
-| `aiCredits` | **Broken** — checked *after* the paid LLM call | `src/app/api/coach/analyze/route.ts:74-83` |
+| `aiCredits` | **Fixed** — quota checked and consumed *before* the paid LLM call | `src/app/api/coach/analyze/route.ts`, D-7 closed (§14.13) |
 | `emailsPerMonth` | Yes, per-recipient | `src/lib/email/engine.ts:63-65` |
 | `customDomain` | No feature exists | column `schema.sql:104`, never read |
 | `emailAutomation` | Gates broadcast send | `src/lib/email/engine.ts:73-74` |
@@ -1039,13 +1039,60 @@ had silently reinterpreted as an extra predicate on the grouping column.
 **Still not fixed here**: the phone inputs (§14.11), `invoice.payment_failed`, and the missing tax,
 address and invoice-receipt support all remain open. The reporting no longer hides them.
 
+### 14.13 The AI Coach told customers how to configure the server (2026-10-05)
+
+Found while looking at a screenshot from the live dashboard: the AI Coach screen read **"AI Coach not
+configured — Add `AI_API_KEY` to your `.env` ... Set `OPENAI_API_KEY` for the default provider."**
+
+Three separate defects were stacked in that one string. The visible message was the least important.
+
+**1. An operator runbook was rendered to end users.** The banner told customers which env var to set
+on our server. No key is configured in production, so this was not hypothetical - it was on the
+public site. Replaced with a product-level message that says the feature is temporarily unavailable
+and points at support. The `AI_API_KEY` / `OPENAI_API_KEY` / `.env` wording is now asserted *absent*
+from both the UI and the API response, so it cannot quietly return.
+
+**2. Provider errors were forwarded verbatim to the client (the more serious leak).** The route's
+catch block returned `(e as Error).message` to the browser, and the client library built that message
+as `AI request failed ${res.status}: ${body.slice(0, 300)}` from the **raw upstream body**. Prompt
+bodies for this feature include the tenant's recent leads with their email addresses
+(`recentLeads`). Any provider-side error - a bad key, a quota rejection, a prompt filter - could
+therefore return tenant customer data into the dashboard. Upstream bodies are now logged server-side
+and a generic message is returned. Network failures are reported separately from HTTP failures, since
+the former never carry a provider body to leak.
+
+**3. D-7, the metered-revenue leak, was still open.** Quota was checked *after* the paid LLM call, so
+an over-quota tenant received a full analysis and only the counter stopped incrementing. Combined
+with the route being a **GET**, the spend was both unmetered and reachable by any prefetcher, crawler
+or page reload. Now: `402 ai_quota_exhausted` is returned before any provider call, the credit is
+consumed only once a usable answer parses (so a provider outage does not silently spend a metered
+credit), and the route is POST-only.
+
+**Two smaller defects fixed alongside:**
+
+- The route did a bare `JSON.parse` on the model's output, though the codebase already had
+  `extractJson` for exactly this. Models routinely wrap JSON in ```json fences despite being told not
+  to, and that surfaced as a generic error to a user who had spent a credit. The route uses it now.
+- Env was read into module-level `const`s, so `aiConfigured()` returned a value frozen at import time
+  - untestable, and any config change needed a process restart to become visible. It is read per call
+  now, which is what lets the "re-reads env instead of caching" test exist.
+
+**Verification**: 21 new tests across `src/lib/ai/client.test.ts` and
+`src/app/api/coach/analyze/route.test.ts` covering the no-env-var-leak guarantee, credential and
+prompt non-echoing on provider failure, the 503/402/502 status contract, credit-before-call ordering,
+and the absence of a GET handler. Full suite 311/311, E2E 34/34, typecheck, lint and build clean.
+
+**Still open**: the `ai_coach` flag in `feature_flags` and `FEATURE_AI` in `.env.example` are both
+documented but **nothing reads either**, so the feature cannot actually be switched off without a
+redeploy. Worth doing before AI spend is switched on, not after.
+
 ### HIGH
 
 | ID | Issue | Evidence | Impact | Fix |
 |---|---|---|---|---|
 | ~~**D-5**~~ **FIXED** | Cookie policy promised consent; code had none | closed 2026-10-04, see §14.2 | PECR / UK GDPR / EU eConsent exposure; published policy was inaccurate | Consent banner + preference store; tracking gated on it and withdrawal honoured |
 | **D-6** | Sessions never expire server-side; reset does not invalidate | Payload has no `iat`/`exp` (`src/lib/auth/session.ts:33-40`); `get-session.ts:24-50` checks no age; reset deletes an unused table (`reset-password/route.ts:38-39`) | Stolen cookie valid indefinitely, even after a password reset | Add `iat`/`exp` + server-side session records; make reset revoke |
-| **D-7** | AI credit quota checked *after* the paid LLM call | `src/app/api/coach/analyze/route.ts:74-83` | Unlimited AI over quota; revenue leak on the metered dimension | Check and consume **before** calling; make it POST |
+| ~~**D-7**~~ **FIXED** | AI credit quota checked *after* the paid LLM call | closed 2026-10-05, see §14.13 | Unlimited AI over quota; revenue leak on the metered dimension | Quota now refused before the call (402), credit consumed on success, route is POST |
 | **D-8** | Contact quota bypassable | bookings and free enrolment create contacts with no `bumpUsage` | Free-tier abuse of the metered dimension | Centralise contact creation through one metered path |
 | **D-9** | Views meter displays 0 forever | writes `"views"` (`track/route.ts:41,45`), reads `usage.viewsPerMonth` (`billing/page.tsx:46`) | Billing screen contradicts enforcement; upgrade prompts misfire | Unify the metric name |
 | ~~**D-10**~~ **FIXED** | No transactions around money writes | closed 2026-10-04, see §14.4 | Partial failure left paid-but-unfulfilled, and the `already_paid` guard made it unrecoverable; refund could double-refund after a crash | `tx()` hardened and used; refund intent recorded before the provider call |
@@ -1089,7 +1136,7 @@ Scored on commercial leverage × implementation cost. "Revenue" = direct or comp
 | Entity + counsel review | Unblocks payment-provider underwriting | Low + external dependency | No | Start the clock now; longest lead time |
 | Annual plans | ARPA uplift, cash-flow benefit | Low | No | High value / low cost |
 | Abandoned-checkout recovery | Direct revenue from existing demand | Low | No | Classic 10–20% recovery |
-| Usage-based AI metering | Direct, aligns cost to price | Medium | No | Fix D-7 first, then price it |
+| Usage-based AI metering | Direct, aligns cost to price | Medium | No | Metering is now sound (D-7 closed); price it before switching the feature on |
 | Free tools (rate card, media kit, sponsorship calculator) | **Compounding** organic acquisition | Medium | **Yes** | Best GTM ROI available |
 | SEO landing pages per use case | Compounding | Medium | **Yes** | Best GTM ROI available |
 | Referral program | Compounding, viral | Medium | **Yes** | Strongest single GTM unlock |
@@ -1127,7 +1174,7 @@ Scored on commercial leverage × implementation cost. "Revenue" = direct or comp
 
 ### P1 — Revenue engine
 
-Annual plans · abandoned-checkout recovery · usage-based AI pricing · upgrade/downgrade/proration · billing portal · referral program · CreatorOS affiliate · free tools (3–5) · fix quota metering (D-7, D-8, D-9, D-30) · revenue funnel instrumentation.
+Annual plans · abandoned-checkout recovery · usage-based AI pricing · AI feature flag (documented but unwired, §14.13) · upgrade/downgrade/proration · billing portal · referral program · CreatorOS affiliate · free tools (3–5) · fix quota metering (D-8, D-9, D-30) · tax/invoice/address support.
 
 ### P2 — Growth engine
 
@@ -1143,7 +1190,7 @@ Lifecycle email sequences · creator health score · cancellation feedback + dow
 
 Recorded for accuracy, because both would otherwise have caused wrong prioritisation:
 
-1. **"AI credits are not implemented."** Wrong. The coach is live at `/app/coach`, backed by `/api/coach/analyze`, metered, RBAC-guarded and feature-flagged. The *quota check is misplaced* (D-7), which is a different and smaller problem.
+1. **"AI credits are not implemented."** Wrong. The coach is live at `/app/coach`, backed by `/api/coach/analyze`, metered and RBAC-guarded. It was also *misfired* (D-7): the quota check ran after the paid call, on a GET route. Both are fixed (§14.13). The feature-flag wiring described below is still absent.
 2. **"Pricing needs restructuring to $19/$49."** Wrong — pricing is already $9/$19/$49/$99 and the structure is sound.
 3. **"Legal pages are indexable / missing `noindex`."** Wrong. `legalMetadata` sets `robots: { index: false, follow: true }` at `src/components/legal/legal-page.tsx:13`, and a visible draft banner is rendered.
 

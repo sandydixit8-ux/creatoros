@@ -1,31 +1,54 @@
 import { NextRequest } from "next/server";
 import { getSession } from "@/lib/auth/get-session";
-import { ok, err } from "@/lib/http";
+import { ok, err, fail } from "@/lib/http";
 import { can } from "@/lib/auth/rbac";
 import { summary, timeSeries, breakdownBy } from "@/lib/analytics/engine";
 import { all, row } from "@/lib/db/db";
-import { aiConfigured, complete } from "@/lib/ai/client";
-import { bumpUsage, getUsage } from "@/lib/usage";
+import { aiConfigured, complete, extractJson } from "@/lib/ai/client";
+import { getUsage, hasQuota } from "@/lib/usage";
 import { getLimits } from "@/lib/plans";
+import { bumpUsage } from "@/lib/usage";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(req: NextRequest) {
+/**
+ * POST, not GET.
+ *
+ * This route spends money: one metered AI credit plus a paid provider call. A
+ * GET is defined as safe and idempotent, so prefetchers, crawlers and browser
+ * reloads could each trigger a billed call. The panel was the only caller.
+ */
+export async function POST(req: NextRequest) {
   const s = await getSession();
   if (!s) return err.auth();
   if (!can(s.role as never, "analytics:read")) return err.forbidden();
 
   if (!aiConfigured()) {
-    return ok({
-      configured: false,
-      message: "AI Coach is not configured. Add AI_API_KEY to your environment to get personalized insights.",
-      insights: null,
-    });
+    // 503, not 200. Returning success with `configured: false` meant monitoring
+    // could not tell a working feature from a dead one, and a health check that
+    // only looked for 200 would pass while the feature never worked.
+    return fail("AI Coach is not available right now. Please try again later.", 503, "ai_unavailable");
+  }
+
+  const orgPlan = (row<{ plan?: string }>("SELECT plan FROM organizations WHERE id = ?", s.org.id))?.plan ?? "free";
+  const limits = getLimits(orgPlan);
+  const used = getUsage(s.org.id, "aiCredits");
+
+  // Quota is checked and consumed BEFORE the provider call (D-7). The previous
+  // order checked after, so an over-quota tenant still received a full paid
+  // analysis and only the counter stopped incrementing - the meter recorded
+  // nothing while the spend continued.
+  if (!hasQuota(used, limits.aiCredits)) {
+    return fail(
+      "You have used all AI Coach credits for this month. Upgrade for more, or wait for your next billing period.",
+      402,
+      "ai_quota_exhausted"
+    );
   }
 
   const days = clamp(parseInt(req.nextUrl.searchParams.get("days") || "30", 10));
   const summ = summary(s.org.id, days);
-  const series = timeSeries(s.org.id, canaryDays(days)).slice(-days);
+  const series = timeSeries(s.org.id, days).slice(-days);
   const refs = breakdownBy(s.org.id, "ref", days);
   const sources = breakdownBy(s.org.id, "utm_source", days);
 
@@ -74,28 +97,29 @@ Be concrete and reference actual numbers. No markdown, pure JSON.`;
       ],
       { temperature: 0.4, maxTokens: 900 }
     );
-    const parsed = JSON.parse(res.text) as unknown;
 
-    const limits = getLimits((row("SELECT plan FROM organizations WHERE id = ?", s.org.id) as { plan?: string })?.plan ?? "free");
-    const used = getUsage(s.org.id, "aiCredits");
-    if (limits.aiCredits === -1 || used < limits.aiCredits) {
-      bumpUsage(s.org.id, "aiCredits");
-    }
+    const parsed = extractJson(res.text) as unknown;
 
-    return ok({ configured: true, insights: parsed });
+    // Consume the credit only once a usable answer exists, so a provider outage
+    // does not silently spend a metered credit the tenant never received value
+    // from. Combined with the pre-check above this keeps both halves honest.
+    bumpUsage(s.org.id, "aiCredits");
+
+    return ok({ insights: parsed, creditsRemaining: remaining(orgPlan, used + 1) });
   } catch (e) {
-    return ok({
-      configured: true,
-      insights: null,
-      error: (e as Error).message,
-    });
+    // Never forward a provider error verbatim: the prompt carries the tenant's
+    // recent leads and their email addresses.
+    console.error("[coach] analysis failed", (e as Error).message);
+    return fail("We couldn't complete your analysis just now. Please try again.", 502, "ai_failed");
   }
+}
+
+function remaining(plan: string, used: number): number | null {
+  const limit = getLimits(plan).aiCredits;
+  return limit === -1 ? null : Math.max(0, limit - used);
 }
 
 function clamp(n: number): number {
   if (Number.isNaN(n)) return 30;
   return Math.min(90, Math.max(7, n));
-}
-function canaryDays(n: number): number {
-  return n;
 }

@@ -16,28 +16,45 @@ export function CoachPanel() {
   const [insights, setInsights] = useState<Insights | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
-  const [configured, setConfigured] = useState<boolean | null>(null);
+  const [unavailable, setUnavailable] = useState(false);
+  const [creditsLeft, setCreditsLeft] = useState<number | null>(null);
 
   async function run() {
     setLoading(true);
     setMessage("");
     try {
-      const res = await fetch("/api/coach/analyze", { cache: "no-store" });
+      // POST, not GET: this spends a metered AI credit and a paid provider call.
+      const res = await fetch("/api/coach/analyze", { method: "POST", cache: "no-store" });
       const j = await res.json();
+
       if (j.ok) {
-        setConfigured(j.data.configured);
-        if (j.data.insights) {
-          setInsights(j.data.insights as Insights);
-          setMessage("");
-        } else {
-          setInsights(null);
-          setMessage(j.data.error || j.data.message || "No insights available.");
-        }
-      } else {
-        setMessage(j.error?.message || "Could not run analysis");
+        setUnavailable(false);
+        setInsights(j.data.insights as Insights);
+        setCreditsLeft(typeof j.data.creditsRemaining === "number" ? j.data.creditsRemaining : null);
+        setMessage("");
+        return;
       }
+
+      const code = j.error?.code;
+      // 402 is "you are out of credits", which is a billing state worth
+      // surfacing rather than hiding behind a generic failure.
+      if (code === "ai_quota_exhausted") {
+        setUnavailable(false);
+        setInsights(null);
+        setMessage(j.error?.message || "You have used all AI Coach credits this month.");
+        return;
+      }
+      if (code === "ai_unavailable" || res.status === 503) {
+        setUnavailable(true);
+        setInsights(null);
+        setMessage("");
+        return;
+      }
+      setInsights(null);
+      setMessage(j.error?.message || "Could not run analysis.");
     } catch {
-      setMessage("Network error");
+      setInsights(null);
+      setMessage("Network error. Please check your connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -45,15 +62,15 @@ export function CoachPanel() {
 
   return (
     <div className="space-y-6">
-      {configured === false && (
+      {unavailable && (
         <div className="card border-amber-200 bg-amber-50 p-5">
           <div className="flex items-start gap-3">
-            <AlertTriangle className="mt-0.5 h-5 w-5 text-amber-600" />
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
             <div>
-              <h2 className="font-semibold text-navy-900">AI Coach not configured</h2>
+              <h2 className="font-semibold text-navy-900">AI Coach is temporarily unavailable</h2>
               <p className="mt-1 text-sm text-amber-800">
-                Add <code className="rounded bg-white px-1">AI_API_KEY</code> to your <code className="rounded bg-white px-1">.env</code> to get
-                personalized, data-backed insights. Set <code className="rounded bg-white px-1">OPENAI_API_KEY</code> for the default provider.
+                We&apos;re working on it. Your data and settings are untouched — try again shortly, or
+                contact support if this keeps happening.
               </p>
             </div>
           </div>
@@ -67,8 +84,13 @@ export function CoachPanel() {
               <Wand2 className="h-5 w-5 text-brand-600" /> Your growth analysis
             </h2>
             <p className="mt-1 text-sm text-navy-500">Uses your last 30 days of traffic, leads, bookings and services.</p>
+            {creditsLeft !== null && (
+              <p className="mt-1 text-xs text-navy-400">
+                {creditsLeft} AI credit{creditsLeft === 1 ? "" : "s"} left this month
+              </p>
+            )}
           </div>
-          <button type="button" onClick={run} disabled={loading} className="btn-primary">
+          <button type="button" onClick={run} disabled={loading || unavailable} className="btn-primary">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
             {loading ? "Analyzing…" : insights ? "Re-analyze" : "Analyze my business"}
           </button>
