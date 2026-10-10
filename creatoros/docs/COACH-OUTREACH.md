@@ -131,3 +131,81 @@ see the pattern; the funnel is what turns it into a number.
   funnel at cost.
 - Do not send a "just shipped" announcement. Nothing has converted yet.
 - Do not promise a roadmap item (annual plans, dunning) as if it exists.
+
+---
+
+## Ready-to-send drafts (approved set, 10)
+
+Compliance quick-check applied to every draft: free plan described as genuinely
+free, no card, no trial timer; no USD price claimed; no custom domain on free;
+no email automation on free; no "replaces 3-4 subscriptions" cost claim (only
+asked as a question); the goal is a reply, not a demo.
+
+Fill the `{platform / contact}` column before sending (handles and emails live
+outside this repo). Channel decision is in the send log further down.
+
+| # | Prospect | Platform / contact (TO FILL) | Subject |
+|---|----------|------------------------------|---------|
+| 1 | Stephanie Kase | {Instagram/DM link} | quick question about your coaching setup |
+| 2 | Ally Msangi | {…} | keep the best of your coaching stack |
+| 3 | Mikayla Jai | {…} | what you'd keep if you cut two tools |
+| 4 | Jesse Lee | {…} | the tool you pay for but couldn't drop |
+| 5 | Jessica Viera | {…} | quick question about selling 1:1 calls |
+| 6 | Alice Björkstrand | {…} | what you'd *not* switch away from |
+| 7 | Gabrielle | {…} | 15 minutes on what's cluttering your stack |
+| 8 | Coach Benny | {…} | the part of your setup that annoys you |
+| 9 | Jay Clouse | {…} | a question a creator-tool builder should ask |
+| 10 | Creator Wizard / Justin Moore | {…} | what makes you keep a tool you dislike |
+
+### Template (each message = this shell, first line personalized)
+
+Subject: `{subject}`
+
+> Hi {Name},
+>
+> I noticed you work with {audience — coaches selling 1:1 calls / digital
+> products}. I'm building CreatorOS — a link page, small store and email list
+> in one login, aimed at exactly that.
+>
+> I'm not selling you anything. I'm trying to work out which part of this
+> people actually want, and you'd be one of about ten people I ask. 15
+> minutes, and I'll send you the summary either way.
+>
+> Two things I'd genuinely like your read on:
+>
+> 1. Right now, what's the tool you hate paying for but can't quite drop?
+> 2. If a single link page + store + email list cost one flat monthly fee
+>    instead of three separate subscriptions — what would make you *not*
+>    switch?
+>
+> Question 2 matters more to me than question 1, honestly. The "no" answers
+> are the useful part.
+>
+> {Scheduling link}
+>
+> — {Your name}, CreatorOS
+
+Personalized first lines (pick per prospect, then confirm the one observation):
+
+1. **Stephanie Kase** — "I noticed you've built a coaching audience that books 1:1 time."
+2. **Ally Msangi** — "I saw you sell 1:1 coaching and I'm guessing booking is most of your workflow."
+3. **Mikayla Jai** — "You post about turning an audience into paid coaching work — this is aimed exactly there."
+4. **Jesse Lee** — "Selling 1:1 calls, I assume the booking→pay→list loop is where the friction lives."
+5. **Jessica Viera** — "You help clients grow their coaching/gig business — curious how you keep their stack tidy."
+6. **Alice Björkstrand** — "You talk about selling your expertise for 1:1 time — I'm testing a simpler way to run that."
+7. **Gabrielle** — "You coach around {niche} — the 'what do I pay for monthly' question is exactly what I need."
+8. **Coach Benny** — "Coaching + a small digital offer is the exact shape this tool is built for."
+9. **Jay Clouse** — "You've built an audience out of analyzing creator tools — I'd love your blunt take on mine."
+10. **Creator Wizard / Justin Moore** — "You break down tools for creators — I want the honest objections."
+
+Every line above is a *question-opener*, not an assertion of their stack. Treat
+unknowable facts as placeholders: if we can't verify the niche, fall back to
+"coaches who sell 1:1 calls or a digital product."
+
+### Send log (to update with every send)
+
+- Date / prospect / channel / reply received / funnel action taken.
+
+Channel = manual DM (Instagram/LinkedIn/email) or Brevo transactional email
+(via the app's configured provider). Email requires the recipient list +
+explicit go per batch; DM requires the handles. No broadcast/promo list.
