@@ -1,11 +1,19 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
-const SECRET = process.env.AUTH_SECRET || "dev-only-insecure-secret-change-me";
 export const COOKIE_NAME = "creatoros_session";
 const TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
+function secret(): string {
+  const value = process.env.AUTH_SECRET;
+  if (value && value.length >= 32) return value;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("AUTH_SECRET must be set to a strong value (32+ chars) in production");
+  }
+  return value || "dev-only-insecure-secret-change-me";
+}
+
 function hmac(payload: string): Buffer {
-  return createHmac("sha256", SECRET).update(payload).digest();
+  return createHmac("sha256", secret()).update(payload).digest();
 }
 
 export function sign(payload: Record<string, string>): string {

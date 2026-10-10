@@ -25,9 +25,8 @@ export function getPaymentProvider(): PaymentProvider {
   if (preferred === "cashfree" && cashfreeProvider.isConfigured()) return cashfreeProvider;
   if (preferred === "stripe" && stripeProvider.isConfigured()) return stripeProvider;
 
-  const explicit = preferred === "mock";
   const dev = process.env.NODE_ENV !== "production";
-  if (explicit || dev) return mockProvider;
+  if (dev) return mockProvider;
   return unconfiguredProvider;
 }
 

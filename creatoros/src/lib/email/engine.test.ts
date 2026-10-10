@@ -59,6 +59,7 @@ const EMAIL_ENV_KEYS = [
   "EMAIL_PROVIDER",
   "RESEND_API_KEY",
   "ALLOW_EMAIL_FILE_FALLBACK",
+  "AUTH_SECRET",
 ] as const;
 
 function seedCampaign(subject: string): string {
@@ -83,6 +84,7 @@ describe("D-3: campaign delivery accounting", () => {
     run("DELETE FROM contacts WHERE tenant_id = ?", TENANT);
     for (const k of EMAIL_ENV_KEYS) delete process.env[k];
     vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("AUTH_SECRET", "test-secret-with-enough-entropy-1234");
     vi.stubEnv("EMAIL_PROVIDER", "resend");
     vi.stubEnv("RESEND_API_KEY", "re_test");
   });

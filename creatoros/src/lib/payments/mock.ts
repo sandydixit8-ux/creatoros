@@ -6,7 +6,7 @@ import type { CheckoutSessionResult, PaymentProvider, PaymentStatus, ProviderWeb
  * success redirect carries the session id; payment is confirmed server-side
  * by the success route (never by the frontend).
  *
- * Never active in production unless PAYMENT_PROVIDER=mock is set explicitly.
+ * Never active in production.
  */
 export const mockProvider: PaymentProvider = {
   name: "mock",
