@@ -72,10 +72,11 @@ function seedCourseOrder(): { orderId: string; sessionId: string } {
   return { orderId: order.id, sessionId };
 }
 
-function post(body: unknown): Promise<Response> {
+function post(body: unknown, headers: Record<string, string> = {}): Promise<Response> {
   return webhook(
     new NextRequest("http://localhost/api/webhooks/stripe", {
       method: "POST",
+      headers,
       body: JSON.stringify(body),
     })
   ) as Promise<Response>;
@@ -229,12 +230,26 @@ describe("webhook delivery handling", () => {
     expect(Number(eventRow("evt_dupe")?.attempts ?? 0)).toBe(before);
   });
 
-  it("refuses an event with no verifiable signature", async () => {
-    // The mock provider accepts any well-formed body, but an empty body is not
-    // an event at all.
+  it("acknowledges an unsigned POST (setup validation) without processing it", async () => {
+    // Cashfree's dashboard sends an unsigned POST when a webhook endpoint is
+    // added. Real events are always signed, so an unsigned body is never
+    // claimed or fulfilled; we answer 200 so the product setup can complete.
     const res = await post({ nope: true });
 
+    expect(res.status).toBe(200);
+    expect((await res.json()).data?.verified).toBe(false);
+  });
+
+  it("refuses a signed but invalid event", async () => {
+    // A signature that does not match secret+payload must stay 400 so the
+    // gateway keeps retrying; a 200 here would silently drop a real payment.
+    const res = await post({ nope: true }, {
+      "x-webhook-signature": "bm90LWEtc2lnbmF0dXJl",
+      "x-webhook-timestamp": "12345",
+    });
+
     expect(res.status).toBe(400);
+    expect(res.headers.get("x-mock-error")).toBeNull();
   });
 });
 

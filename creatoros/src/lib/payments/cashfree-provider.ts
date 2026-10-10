@@ -272,9 +272,14 @@ export const cashfreeProvider: PaymentProvider = {
       .update(timestamp + rawBody)
       .digest("base64");
 
-    const a = Buffer.from(expected);
-    const b = Buffer.from(signature);
-    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+    if (expected.length !== signature.length || !crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature))) {
+      // PII-free mismatch diagnostics: names a secret/scheme problem without
+      // echoing the payload. Base64 is fixed-length regardless of input.
+      console.log(
+        `[webhook.cashfree] sig mismatch ts="${timestamp}" sigLen=${signature.length} expLen=${expected.length} sigPre="${signature.slice(0, 12)}" expPre="${expected.slice(0, 12)}"`
+      );
+      return null;
+    }
 
     let parsed: Record<string, unknown>;
     try {

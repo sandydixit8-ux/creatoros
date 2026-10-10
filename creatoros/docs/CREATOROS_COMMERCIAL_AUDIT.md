@@ -1190,6 +1190,34 @@ enabling it means either USD enabled at Cashfree (question pending with their su
 as Paddle. The probe also left one `probe_*` subscription sitting in `INITIALIZED` in the Cashfree
 dashboard - it cannot charge anything, because nothing authorised it.
 
+### 14.16 First human e-mandate test exposed a missing subscription webhook (2026-10-07)
+
+The residual above was signed off for testing. A fresh tenant was registered through the real
+`POST /api/auth/register` (headless, `mandate-test@usecreatoros.co`), then the real
+`POST /api/billing/checkout` created `creatoros_starter_inr` sessions, then a human authorised a
+mandate through the Cashfront checkout in a browser.
+
+The test did not pass, and the failure is more interesting than a pass would have been.
+
+1. **No charge was taken.** None of the four subscriptions created (one headless probe, three browser
+   sessions) carries a ₹749 payment. The newest shows one `AUTH` payment of ₹1, status `PENDING`, and
+   `authorization_status INITIALIZED`. The ₹749 figure the operator saw on their UPI screen was the
+   mandate being authorised (₹749/mo), not a debit. Nothing settled.
+2. **No subscription webhook was delivered.** `webhook_events` has zero rows from 2026-10-07 despite
+   that authorisation attempt, and its last row dates to 2026-10-01. The Oct 1 rows prove the one-time
+   payment path delivers (per-order `notify_url`). The subscription path does not. Cashfree's own
+   webhook configuration is dashboard-only; the API exposes no read of it (three endpoint guesses all
+   404), so it cannot be verified or changed from here.
+3. **The plan was not applied** - `organizations.plan` for the test tenant is still `free`, and no
+   `subscriptions`, `orders`, or `payments` row exists. The webhook route (`/api/webhooks/stripe`) is
+   the only thing that can apply a mandate, and nothing reached it.
+
+This is the gap §14.15 said would only become visible at the first real authorisation. It was caught
+before any marketing traffic, which is the point of the test. The delivery fix is a dashboard action:
+enable Cashfree "Subscriptions" webhooks and point them at `https://usecreatoros.co/api/webhooks/stripe`.
+Webhook delivery can then be re-verified at no cost by cancelling the four `INITIALIZED` subscriptions
+via `POST /subscriptions/{id}/manage` and watching for `customer.subscription.deleted` events.
+
 ### HIGH
 
 | ID | Issue | Evidence | Impact | Fix |

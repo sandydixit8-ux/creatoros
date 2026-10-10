@@ -30,6 +30,15 @@ export async function POST(req: NextRequest) {
 
   const raw = await req.text();
 
+  // Delivery diagnostic (PII-free): proves whether a gateway postal arrived at
+  // all even when signature rejection drops it before an event row exists.
+  console.log(
+    `[webhook] inbound len=${raw.length} host=${req.headers.get("x-forwarded-host") || req.headers.get("host") || ""} sig=${Boolean(req.headers.get("x-webhook-signature"))} ts=${Boolean(req.headers.get("x-webhook-timestamp"))}`
+  );
+  if (!req.headers.get("x-webhook-signature") && !req.headers.get("stripe-signature")) {
+    console.log("[webhook] rejected: no signature header present");
+  }
+
   // The sender is whichever gateway's signature verifies: Cashfree signs with
   // x-webhook-signature + x-webhook-timestamp, Stripe with stripe-signature.
   let provider: PaymentProvider | null = null;
@@ -44,6 +53,15 @@ export async function POST(req: NextRequest) {
       event = verified;
       break;
     }
+  }
+
+  // No gateway signed this. A real event is always signed, so nothing was
+  // processed and nothing can be fulfilled from this body. This is the one
+  // path we answer 200 on purpose: Cashfree's dashboard sends an unsigned
+  // validation POST when you add a webhook endpoint, and 400-ing it blocks
+  // the Subscriptions product setup in the merchant dashboard.
+  if (!provider && !event && !req.headers.get("x-webhook-signature") && !req.headers.get("stripe-signature")) {
+    return ok({ received: true, verified: false });
   }
   if (!provider || !event) return fail("Invalid signature", 400, "invalid_signature");
 
