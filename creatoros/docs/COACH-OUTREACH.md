@@ -144,18 +144,25 @@ asked as a question); the goal is a reply, not a demo.
 Fill the `{platform / contact}` column before sending (handles and emails live
 outside this repo). Channel decision is in the send log further down.
 
-| # | Prospect | Platform / contact (TO FILL) | Subject |
-|---|----------|------------------------------|---------|
-| 1 | Stephanie Kase | {Instagram/DM link} | quick question about your coaching setup |
-| 2 | Ally Msangi | {…} | keep the best of your coaching stack |
-| 3 | Mikayla Jai | {…} | what you'd keep if you cut two tools |
-| 4 | Jesse Lee | {…} | the tool you pay for but couldn't drop |
-| 5 | Jessica Viera | {…} | quick question about selling 1:1 calls |
-| 6 | Alice Björkstrand | {…} | what you'd *not* switch away from |
-| 7 | Gabrielle | {…} | 15 minutes on what's cluttering your stack |
-| 8 | Coach Benny | {…} | the part of your setup that annoys you |
-| 9 | Jay Clouse | {…} | a question a creator-tool builder should ask |
-| 10 | Creator Wizard / Justin Moore | {…} | what makes you keep a tool you dislike |
+| # | Prospect | Market | Contact | Subject |
+|---|----------|--------|---------|---------|
+| 1 | Stephanie Kase | US | support@stephaniekase.com | quick question about your coaching setup |
+| 2 | Ally Msangi | TZ (off-target) | ally@allymsangi.com | keep the best of your coaching stack |
+| 3 | Mikayla Jai | US | hello@mikaylajai.com | what you'd keep if you cut two tools |
+| 4 | Jesse Lee | US? (ambiguous) | admin@jessele.io (typo?) | the tool you pay for but couldn't drop |
+| 5 | Jessica Viera | AU? (ambiguous) | NOT_PUBLIC | quick question about selling 1:1 calls |
+| 6 | Alice Björkstrand | UK | hey@alicebjorkstrand.com | what you'd *not* switch away from |
+| 7 | Gabrielle | ? (unidentified) | NOT_PUBLIC | 15 minutes on what's cluttering your stack |
+| 8 | Coach Benny | ? (unidentified) | NOT_PUBLIC | the part of your setup that annoys you |
+| 9 | Jay Clouse | US | jay@creatorscience.com | a question a creator-tool builder should ask |
+| 10 | Creator Wizard / Justin Moore | US | justin@creatorwizard.com | what makes you keep a tool you dislike |
+
+Emails above were gathered from public Contact/legal pages or public profile
+listings (no pattern-guessing). Send-ready set = the 5 confirmed US/UK rows:
+**Stephanie Kase, Mikayla Jai, Alice Björkstrand, Jay Clouse, Justin Moore**.
+Excluded pending your call: Ally Msangi (Tanzania, off US/UK target),
+Jesse Lee (name ambiguity + probable typo in address), Jessica Viera
+(ambiguous + no public email), Gabrielle and Coach Benny (identity unknown).
 
 ### Template (each message = this shell, first line personalized)
 
@@ -209,3 +216,12 @@ unknowable facts as placeholders: if we can't verify the niche, fall back to
 Channel = manual DM (Instagram/LinkedIn/email) or Brevo transactional email
 (via the app's configured provider). Email requires the recipient list +
 explicit go per batch; DM requires the handles. No broadcast/promo list.
+
+- 2026-10-10 — Brevo transactional sending is disabled on the account
+  (`Email not sent: Your sending platform is currently disabled`). Support
+  ticket **#5610237** opened to request activation. Planned sender for the
+  batch: `hello@usecreatoros.co`, reply-to `sandydixit8@gmail.com`.
+- 2026-10-10 — First batch attempt (5 confirmed US/UK prospects) was accepted
+  by the Brevo API but **not delivered** while the platform stays disabled.
+  Re-run the same batch once activation lands, then confirm in Brevo
+  Events that each recipient shows `requests`/`delivered`.
