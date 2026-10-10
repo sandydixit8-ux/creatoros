@@ -52,7 +52,7 @@ export function proxy(request: NextRequest) {
     if (rewritten) {
       const url = request.nextUrl.clone();
       url.pathname = rewritten;
-      return NextResponse.rewrite(url);
+      return NextResponse.redirect(url, 301);
     }
   }
 
