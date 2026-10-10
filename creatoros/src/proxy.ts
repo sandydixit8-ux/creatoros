@@ -49,7 +49,11 @@ export function proxy(request: NextRequest) {
     } else if (rest) {
       rewritten = `/u/${rest}`;
     }
-    if (rewritten) return NextResponse.rewrite(request.nextUrl.origin + rewritten);
+    if (rewritten) {
+      const url = request.nextUrl.clone();
+      url.pathname = rewritten;
+      return NextResponse.rewrite(url);
+    }
   }
 
   const response = NextResponse.next();
