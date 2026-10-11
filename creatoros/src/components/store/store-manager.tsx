@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { Loader2, Pencil, Plus } from "lucide-react";
+import { ConfirmAction } from "@/components/ui/confirm-action";
 
 export interface StoreProduct {
   id: string;
@@ -141,7 +142,6 @@ export function StoreManager(props: { canWrite: boolean }) {
   }
 
   async function remove(p: StoreProduct) {
-    if (!window.confirm(`Delete "${p.name}"? Past orders keep their receipt.`)) return;
     await fetch(`/api/store/products/${p.id}`, { method: "DELETE" });
     await load();
     router.refresh();
@@ -162,28 +162,28 @@ export function StoreManager(props: { canWrite: boolean }) {
         {showForm && (
           <form onSubmit={submit} className="mt-4 grid gap-3 rounded-xl border border-brand-200 bg-brand-50/50 p-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <label className="label">Name</label>
-              <input className="input" required maxLength={120} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Logo design package" />
+              <label className="label" htmlFor="product-name">Name</label>
+              <input id="product-name" className="input" required maxLength={120} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Logo design package" />
             </div>
             <div className="sm:col-span-2">
-              <label className="label">Description</label>
-              <textarea className="input" rows={2} maxLength={2000} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="What's included" />
+              <label className="label" htmlFor="product-description">Description</label>
+              <textarea id="product-description" className="input" rows={2} maxLength={2000} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="What's included" />
             </div>
             <div>
-              <label className="label">Price (USD)</label>
-              <input className="input" required inputMode="decimal" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} placeholder="19.00" />
+              <label className="label" htmlFor="product-price">Price (USD)</label>
+              <input id="product-price" className="input" required inputMode="decimal" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} placeholder="19.00" />
             </div>
             <div>
-              <label className="label">Type</label>
-              <select className="input" value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value })}>
+              <label className="label" htmlFor="product-type">Type</label>
+              <select id="product-type" className="input" value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value })}>
                 <option value="digital">Digital download</option>
                 <option value="service">Service</option>
                 <option value="physical">Physical</option>
               </select>
             </div>
             <div className="sm:col-span-2">
-              <label className="label">Media URL (optional)</label>
-              <input className="input" maxLength={500} value={form.media_url} onChange={(e) => setForm({ ...form, media_url: e.target.value })} placeholder="https://…" />
+              <label className="label" htmlFor="product-media">Media URL (optional)</label>
+              <input id="product-media" className="input" maxLength={500} value={form.media_url} onChange={(e) => setForm({ ...form, media_url: e.target.value })} placeholder="https://…" />
             </div>
             {error && <p className="text-xs text-red-600 sm:col-span-2">{error}</p>}
             <div className="flex gap-2 sm:col-span-2">
@@ -199,13 +199,14 @@ export function StoreManager(props: { canWrite: boolean }) {
 
         <div className="mt-4 overflow-x-auto">
           <table className="w-full text-left text-sm">
+            <caption className="sr-only">Store products</caption>
             <thead>
               <tr className="border-b border-navy-100 text-xs uppercase tracking-wide text-navy-400">
-                <th className="py-2 pr-4">Product</th>
-                <th className="py-2 pr-4">Price</th>
-                <th className="py-2 pr-4">Type</th>
-                <th className="py-2 pr-4">Status</th>
-                <th className="py-2 pr-4" />
+                <th scope="col" className="py-2 pr-4">Product</th>
+                <th scope="col" className="py-2 pr-4">Price</th>
+                <th scope="col" className="py-2 pr-4">Type</th>
+                <th scope="col" className="py-2 pr-4">Status</th>
+                <th scope="col" className="py-2 pr-4"><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
             <tbody>
@@ -238,9 +239,11 @@ export function StoreManager(props: { canWrite: boolean }) {
                         <button type="button" onClick={() => startEdit(p)} className="text-navy-400 hover:text-brand-600" aria-label="Edit">
                           <Pencil className="h-4 w-4" />
                         </button>
-                        <button type="button" onClick={() => remove(p)} className="text-navy-400 hover:text-red-600" aria-label="Delete">
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        <ConfirmAction
+                          message={`Delete "${p.name}"? Past orders keep their receipt.`}
+                          onConfirm={() => remove(p)}
+                          triggerClassName="text-navy-400 hover:text-red-600"
+                        />
                       </span>
                     )}
                   </td>
@@ -255,12 +258,13 @@ export function StoreManager(props: { canWrite: boolean }) {
         <h2 className="font-semibold text-navy-900">Recent orders</h2>
         <div className="mt-3 overflow-x-auto">
           <table className="w-full text-left text-sm">
+            <caption className="sr-only">Recent orders</caption>
             <thead>
               <tr className="border-b border-navy-100 text-xs uppercase tracking-wide text-navy-400">
-                <th className="py-2 pr-4">Buyer</th>
-                <th className="py-2 pr-4">Amount</th>
-                <th className="py-2 pr-4">Status</th>
-                <th className="py-2 pr-4">Date</th>
+                <th scope="col" className="py-2 pr-4">Buyer</th>
+                <th scope="col" className="py-2 pr-4">Amount</th>
+                <th scope="col" className="py-2 pr-4">Status</th>
+                <th scope="col" className="py-2 pr-4">Date</th>
               </tr>
             </thead>
             <tbody>

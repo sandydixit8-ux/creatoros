@@ -189,9 +189,10 @@ export function EmailCenter(props: {
                         <button
                           type="button"
                           onClick={() => deleteItem("campaign", c.id)}
+                          aria-label="Delete campaign"
                           className="btn-secondary !px-3 !py-1.5 text-xs text-red-600"
                         >
-                          <Trash2 className="h-3.5 w-3.5" />
+                          <Trash2 className="h-3.5 w-3.5" aria-hidden />
                         </button>
                       )}
                     </div>
@@ -254,9 +255,10 @@ export function EmailCenter(props: {
                     <button
                       type="button"
                       onClick={() => deleteItem("template", t.id)}
+                      aria-label="Delete template"
                       className="btn-secondary !px-3 !py-1.5 text-xs text-red-600"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden />
                     </button>
                   )}
                 </li>
@@ -342,8 +344,8 @@ function CampaignForm(props: { lists: ListRow[]; templates: TemplateRow[]; canWr
       <h3 className="mb-3 font-semibold text-navy-900">New campaign</h3>
       <div className="grid gap-3 sm:grid-cols-3">
         <div>
-          <label className="label">List</label>
-          <select className="input bg-white" value={form.listId} onChange={(e) => setForm((f) => ({ ...f, listId: e.target.value }))}>
+          <label className="label" htmlFor="campaign-list">List</label>
+          <select id="campaign-list" className="input bg-white" value={form.listId} onChange={(e) => setForm((f) => ({ ...f, listId: e.target.value }))}>
             <option value="">All subscribed contacts</option>
             {props.lists.map((l) => (
               <option key={l.id} value={l.id}>{l.name}</option>
@@ -351,8 +353,9 @@ function CampaignForm(props: { lists: ListRow[]; templates: TemplateRow[]; canWr
           </select>
         </div>
         <div>
-          <label className="label">Template (optional)</label>
+          <label className="label" htmlFor="campaign-template">Template (optional)</label>
           <select
+            id="campaign-template"
             className="input bg-white"
             value={form.templateId}
             onChange={(e) => {
@@ -367,16 +370,17 @@ function CampaignForm(props: { lists: ListRow[]; templates: TemplateRow[]; canWr
           </select>
         </div>
         <div>
-          <label className="label">From name</label>
-          <input className="input" value={form.fromName} onChange={(e) => setForm((f) => ({ ...f, fromName: e.target.value }))} placeholder="Demo Creator" />
+          <label className="label" htmlFor="campaign-from">From name</label>
+          <input id="campaign-from" className="input" value={form.fromName} onChange={(e) => setForm((f) => ({ ...f, fromName: e.target.value }))} placeholder="Demo Creator" />
         </div>
         <div className="sm:col-span-3">
-          <label className="label">Subject</label>
-          <input className="input" required value={form.subject} onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))} placeholder="New tools for creators" />
+          <label className="label" htmlFor="campaign-subject">Subject</label>
+          <input id="campaign-subject" className="input" required value={form.subject} onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))} placeholder="New tools for creators" />
         </div>
         <div className="sm:col-span-3">
-          <label className="label">Body (HTML)</label>
+          <label className="label" htmlFor="campaign-body">Body (HTML)</label>
           <textarea
+            id="campaign-body"
             className="input min-h-[140px] font-mono text-xs"
             value={form.body}
             onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))}
@@ -482,16 +486,16 @@ function TemplateForm(props: { canWrite: boolean; onDone: () => void }) {
     <form onSubmit={submit} className="mb-3 rounded-xl border border-brand-200 bg-brand-50/60 p-4">
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <label className="label">Name</label>
-          <input className="input" required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Weekly digest" />
+          <label className="label" htmlFor="template-name">Name</label>
+          <input id="template-name" className="input" required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Weekly digest" />
         </div>
         <div>
-          <label className="label">Subject</label>
-          <input className="input" required value={form.subject} onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))} placeholder="This week in creator tools" />
+          <label className="label" htmlFor="template-subject">Subject</label>
+          <input id="template-subject" className="input" required value={form.subject} onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))} placeholder="This week in creator tools" />
         </div>
         <div className="sm:col-span-2">
-          <label className="label">Body (HTML)</label>
-          <textarea className="input min-h-[120px] font-mono text-xs" value={form.body} onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))} placeholder={"<p>Hi {{name}},</p>…"} />
+          <label className="label" htmlFor="template-body">Body (HTML)</label>
+          <textarea id="template-body" className="input min-h-[120px] font-mono text-xs" value={form.body} onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))} placeholder={"<p>Hi {{name}},</p>…"} />
         </div>
       </div>
       {error && <p className="mt-2 text-xs text-red-600">{error}</p>}

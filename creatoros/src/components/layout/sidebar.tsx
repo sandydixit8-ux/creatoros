@@ -2,28 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Link2, CalendarCheck, Users, UsersRound, BarChart3, Wand2, Mail, Sparkles, Settings, ShoppingBag, GraduationCap, BookOpen, LayoutTemplate, ShieldCheck } from "lucide-react";
-
-const NAV = [
-  { href: "/app", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/app/bio", label: "Bio Pages", icon: Link2 },
-  { href: "/app/templates", label: "Templates", icon: LayoutTemplate },
-  { href: "/app/community", label: "Community", icon: UsersRound },
-  { href: "/app/store", label: "Store", icon: ShoppingBag },
-  { href: "/app/courses", label: "Courses", icon: GraduationCap },
-  { href: "/app/learn", label: "My Learning", icon: BookOpen },
-  { href: "/app/leads", label: "Leads", icon: Users },
-  { href: "/app/email", label: "Email", icon: Mail },
-  { href: "/app/booking", label: "Booking", icon: CalendarCheck },
-  { href: "/app/analytics", label: "Analytics", icon: BarChart3 },
-  { href: "/app/coach", label: "AI Coach", icon: Wand2 },
-  { href: "/app/billing", label: "Billing", icon: Sparkles },
-  { href: "/app/settings", label: "Settings", icon: Settings },
-];
+import { ShieldCheck } from "lucide-react";
+import { APP_NAV, appNavActive } from "@/components/layout/app-nav";
 
 export function Sidebar({ orgName, plan, isAdmin }: { orgName: string; plan: string; isAdmin: boolean }) {
   const pathname = usePathname();
-  const nav = isAdmin ? [...NAV, { href: "/app/admin", label: "Admin", icon: ShieldCheck }] : NAV;
+  const nav = isAdmin ? [...APP_NAV, { href: "/app/admin", label: "Admin", icon: ShieldCheck }] : APP_NAV;
 
   return (
     <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-navy-100 bg-white lg:flex">
@@ -31,18 +15,19 @@ export function Sidebar({ orgName, plan, isAdmin }: { orgName: string; plan: str
         <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-white">C</span>
         <span>Creator<span className="text-brand-600">OS</span></span>
       </div>
-      <nav className="flex-1 space-y-1 overflow-y-auto p-3">
+      <nav aria-label="Dashboard" className="flex-1 space-y-1 overflow-y-auto p-3">
         {nav.map((item) => {
-          const active = pathname === item.href || (item.href !== "/app" && pathname.startsWith(item.href));
+          const active = appNavActive(pathname, item.href);
           return (
             <Link
               key={item.href}
               href={item.href}
+              aria-current={active ? "page" : undefined}
               className={`flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
                 active ? "bg-brand-50 text-brand-700" : "text-navy-600 hover:bg-navy-50 hover:text-navy-900"
               }`}
             >
-              <item.icon className="h-4 w-4" />
+              <item.icon className="h-4 w-4" aria-hidden />
               {item.label}
             </Link>
           );

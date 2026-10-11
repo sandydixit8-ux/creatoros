@@ -19,7 +19,7 @@ export function SummaryCards({ initial, revenue }: { initial: Summary; revenue: 
     { label: "Visitors", value: fmt(data.visitors), accent: "text-brand-600" },
     { label: "Page views", value: fmt(data.pageViews), accent: "text-navy-600" },
     { label: "Leads", value: fmt(data.leads), accent: "text-emerald-600" },
-    { label: "Bookings", value: fmt(data.bookings), accent: "text-indigo-600" },
+    { label: "Bookings", value: fmt(data.bookings), accent: "text-brand-600" },
     { label: "Conversion", value: `${data.conversionRate}%`, accent: "text-amber-600" },
     { label: "Revenue", value: revenueValue(revenue), accent: "text-navy-900" },
   ];

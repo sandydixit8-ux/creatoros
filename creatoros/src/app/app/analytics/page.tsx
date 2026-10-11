@@ -110,7 +110,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
         <div className="card p-6">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold text-navy-900">Bookings ({rangeInfo.label})</h2>
-            <CalendarCheck className="h-4 w-4 text-indigo-500" />
+            <CalendarCheck className="h-4 w-4 text-brand-600" />
           </div>
           <div className="mt-2 text-3xl font-bold text-navy-950">{summ.bookings}</div>
           <p className="mt-3 text-sm text-navy-500">{recentBookings} total confirmed</p>

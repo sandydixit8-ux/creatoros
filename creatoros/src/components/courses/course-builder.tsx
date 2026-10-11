@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, ExternalLink, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
+import { ConfirmAction } from "@/components/ui/confirm-action";
 
 interface Lesson {
   id: string;
@@ -103,7 +104,6 @@ export function CourseBuilder(props: {
   }
 
   async function deleteCourse() {
-    if (!window.confirm(`Delete "${course.title}" and all its lessons? Enrollments are removed too.`)) return;
     await fetch(`/api/courses/${course.id}`, { method: "DELETE" });
     router.push("/app/courses");
   }
@@ -121,7 +121,6 @@ export function CourseBuilder(props: {
   }
 
   async function removeSection(sectionId: string) {
-    if (!window.confirm("Delete this section and its lessons?")) return;
     await fetch(`/api/courses/sections/${sectionId}`, { method: "DELETE" });
     await refresh();
   }
@@ -183,7 +182,6 @@ export function CourseBuilder(props: {
   }
 
   async function removeLesson(lessonId: string) {
-    if (!window.confirm("Delete this lesson?")) return;
     await fetch(`/api/courses/lessons/${lessonId}`, { method: "DELETE" });
     await refresh();
   }
@@ -217,16 +215,16 @@ export function CourseBuilder(props: {
 
       <form onSubmit={saveMeta} className="card grid gap-3 p-5 sm:grid-cols-2">
         <div className="sm:col-span-2">
-          <label className="label">Title</label>
-          <input className="input" disabled={!props.canWrite} value={meta.title} onChange={(e) => setMeta({ ...meta, title: e.target.value })} />
+          <label className="label" htmlFor="course-title">Title</label>
+          <input id="course-title" className="input" disabled={!props.canWrite} value={meta.title} onChange={(e) => setMeta({ ...meta, title: e.target.value })} />
         </div>
         <div className="sm:col-span-2">
-          <label className="label">Description</label>
-          <textarea className="input" rows={3} disabled={!props.canWrite} value={meta.description} onChange={(e) => setMeta({ ...meta, description: e.target.value })} />
+          <label className="label" htmlFor="course-description">Description</label>
+          <textarea id="course-description" className="input" rows={3} disabled={!props.canWrite} value={meta.description} onChange={(e) => setMeta({ ...meta, description: e.target.value })} />
         </div>
         <div>
-          <label className="label">Price (USD, 0 = free)</label>
-          <input className="input" disabled={!props.canWrite} inputMode="decimal" value={meta.price} onChange={(e) => setMeta({ ...meta, price: e.target.value })} />
+          <label className="label" htmlFor="course-price">Price (USD, 0 = free)</label>
+          <input id="course-price" className="input" disabled={!props.canWrite} inputMode="decimal" value={meta.price} onChange={(e) => setMeta({ ...meta, price: e.target.value })} />
         </div>
         {error && <p className="self-end text-xs text-red-600">{error}</p>}
         {props.canWrite && (
@@ -234,9 +232,16 @@ export function CourseBuilder(props: {
             <button type="submit" disabled={busy} className="btn-primary !py-2 text-sm">
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save details"}
             </button>
-            <button type="button" onClick={deleteCourse} className="btn-secondary !py-2 text-sm text-red-600">
-              <Trash2 className="h-4 w-4" /> Delete course
-            </button>
+            <ConfirmAction
+              message={`Delete "${course.title}" and all its lessons? Enrollments are removed too.`}
+              onConfirm={deleteCourse}
+              trigger={
+                <>
+                  <Trash2 className="h-4 w-4" aria-hidden /> Delete course
+                </>
+              }
+              triggerClassName="btn-secondary !py-2 text-sm"
+            />
           </div>
         )}
       </form>
@@ -262,9 +267,12 @@ export function CourseBuilder(props: {
                     >
                       + Lesson
                     </button>
-                    <button type="button" onClick={() => removeSection(sec.id)} className="text-navy-400 hover:text-red-600" aria-label="Delete section">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                    <ConfirmAction
+                      message="Delete this section and its lessons?"
+                      onConfirm={() => removeSection(sec.id)}
+                      ariaLabel="Delete section"
+                      triggerClassName="text-navy-400 hover:text-red-600"
+                    />
                   </div>
                 )}
               </div>
@@ -300,9 +308,12 @@ export function CourseBuilder(props: {
                         >
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
-                        <button type="button" onClick={() => removeLesson(les.id)} className="text-navy-400 hover:text-red-600" aria-label="Delete lesson">
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        <ConfirmAction
+                          message="Delete this lesson?"
+                          onConfirm={() => removeLesson(les.id)}
+                          ariaLabel="Delete lesson"
+                          triggerClassName="text-navy-400 hover:text-red-600"
+                        />
                       </div>
                     )}
                   </div>
@@ -312,8 +323,8 @@ export function CourseBuilder(props: {
               {lessonForm?.sectionId === sec.id && (
                 <form onSubmit={addLesson} className="space-y-2 border-t border-navy-100 bg-brand-50/40 p-4">
                   <div className="grid gap-2 sm:grid-cols-3">
-                    <input className="input sm:col-span-2" required maxLength={160} placeholder="Lesson title" value={lessonForm.title} onChange={(e) => setLessonForm({ ...lessonForm, title: e.target.value })} />
-                    <select className="input" value={lessonForm.type} onChange={(e) => setLessonForm({ ...lessonForm, type: e.target.value, content: e.target.value === "quiz" && !lessonForm.content ? QUIZ_PLACEHOLDER : lessonForm.content })}>
+                    <input className="input sm:col-span-2" required maxLength={160} placeholder="Lesson title" aria-label="Lesson title" value={lessonForm.title} onChange={(e) => setLessonForm({ ...lessonForm, title: e.target.value })} />
+                    <select className="input" aria-label="Lesson type" value={lessonForm.type} onChange={(e) => setLessonForm({ ...lessonForm, type: e.target.value, content: e.target.value === "quiz" && !lessonForm.content ? QUIZ_PLACEHOLDER : lessonForm.content })}>
                       {LESSON_TYPES.map((t) => (
                         <option key={t} value={t}>{t}</option>
                       ))}
@@ -323,11 +334,12 @@ export function CourseBuilder(props: {
                     className="input font-mono text-xs"
                     rows={lessonForm.type === "quiz" ? 4 : 3}
                     placeholder={lessonForm.type === "quiz" ? QUIZ_PLACEHOLDER : lessonForm.type === "video" ? "Video URL (YouTube/Vimeo/mp4)" : lessonForm.type === "pdf" ? "PDF URL" : "Lesson content"}
+                    aria-label="Lesson content"
                     value={lessonForm.content}
                     onChange={(e) => setLessonForm({ ...lessonForm, content: e.target.value })}
                   />
                   <div className="flex items-center gap-2">
-                    <input className="input w-28" inputMode="numeric" placeholder="Min" value={lessonForm.duration} onChange={(e) => setLessonForm({ ...lessonForm, duration: e.target.value })} />
+                    <input className="input w-28" inputMode="numeric" placeholder="Min" aria-label="Lesson duration in minutes" value={lessonForm.duration} onChange={(e) => setLessonForm({ ...lessonForm, duration: e.target.value })} />
                     <button type="submit" disabled={busy} className="btn-primary !py-2 text-sm">
                       {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add lesson"}
                     </button>
@@ -343,7 +355,7 @@ export function CourseBuilder(props: {
 
         {props.canWrite && (
           <form onSubmit={addSection} className="mt-4 flex gap-2">
-            <input className="input" required maxLength={160} placeholder="New section (e.g. Week 1)" value={sectionTitle} onChange={(e) => setSectionTitle(e.target.value)} />
+            <input className="input" required maxLength={160} placeholder="New section (e.g. Week 1)" aria-label="New section title" value={sectionTitle} onChange={(e) => setSectionTitle(e.target.value)} />
             <button type="submit" className="btn-primary shrink-0 !py-2 text-sm">
               <Plus className="h-4 w-4" /> Add section
             </button>
@@ -360,8 +372,8 @@ export function CourseBuilder(props: {
             </button>
           </div>
           <div className="grid gap-2 sm:grid-cols-3">
-            <input className="input sm:col-span-2" value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} />
-            <select className="input" value={editForm.type} onChange={(e) => setEditForm({ ...editForm, type: e.target.value })}>
+            <input className="input sm:col-span-2" aria-label="Lesson title" value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} />
+            <select className="input" aria-label="Lesson type" value={editForm.type} onChange={(e) => setEditForm({ ...editForm, type: e.target.value })}>
               {LESSON_TYPES.map((t) => (
                 <option key={t} value={t}>{t}</option>
               ))}
@@ -370,11 +382,12 @@ export function CourseBuilder(props: {
           <textarea
             className="input font-mono text-xs"
             rows={editForm.type === "quiz" ? 4 : 3}
+            aria-label="Lesson content"
             value={editForm.content}
             onChange={(e) => setEditForm({ ...editForm, content: e.target.value })}
           />
           <div className="flex flex-wrap items-center gap-3">
-            <input className="input w-28" inputMode="numeric" value={editForm.duration} onChange={(e) => setEditForm({ ...editForm, duration: e.target.value })} />
+            <input className="input w-28" inputMode="numeric" aria-label="Lesson duration in minutes" value={editForm.duration} onChange={(e) => setEditForm({ ...editForm, duration: e.target.value })} />
             <label className="flex items-center gap-2 text-sm text-navy-600">
               <input type="checkbox" checked={editForm.published} onChange={(e) => setEditForm({ ...editForm, published: e.target.checked })} />
               Published

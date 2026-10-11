@@ -113,7 +113,7 @@ export default async function DashboardPage() {
               <ul className="space-y-2">
                 {recentBookings.map((b) => (
                   <li key={b.id} className="flex items-center justify-between rounded-lg border border-navy-100 px-3 py-2 text-sm">
-                    <span><CalendarCheck className="mr-2 inline h-3.5 w-3.5 text-indigo-500" />{b.attendee_name}</span>
+                    <span><CalendarCheck className="mr-2 inline h-3.5 w-3.5 text-brand-600" />{b.attendee_name}</span>
                     <span className="text-navy-400">{formatWhen(b.starts_at)}</span>
                   </li>
                 ))}

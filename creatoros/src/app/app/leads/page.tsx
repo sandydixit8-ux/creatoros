@@ -50,6 +50,7 @@ export default async function LeadsPage({ searchParams }: Props) {
               name="q"
               defaultValue={q}
               placeholder="Search email or name…"
+              aria-label="Search leads by email or name"
               className="input w-64"
             />
           </form>
@@ -71,13 +72,14 @@ export default async function LeadsPage({ searchParams }: Props) {
       ) : (
         <div className="card overflow-x-auto">
           <table className="w-full min-w-[640px] text-left text-sm">
+            <caption className="sr-only">Leads</caption>
             <thead>
               <tr className="border-b border-navy-100 text-xs uppercase tracking-wide text-navy-400">
-                <th className="px-5 py-3 font-medium">Contact</th>
-                <th className="px-5 py-3 font-medium">Consent</th>
-                <th className="px-5 py-3 font-medium">Source</th>
-                <th className="px-5 py-3 font-medium">Campaign</th>
-                <th className="px-5 py-3 font-medium">Captured</th>
+                <th scope="col" className="px-5 py-3 font-medium">Contact</th>
+                <th scope="col" className="px-5 py-3 font-medium">Consent</th>
+                <th scope="col" className="px-5 py-3 font-medium">Source</th>
+                <th scope="col" className="px-5 py-3 font-medium">Campaign</th>
+                <th scope="col" className="px-5 py-3 font-medium">Captured</th>
               </tr>
             </thead>
             <tbody>

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { SITE_URL } from "@/lib/constants";
+import { PLAN_META } from "@/lib/plans-meta";
 import { ConsentBanner } from "@/components/consent/consent-banner";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
@@ -24,7 +25,6 @@ export const metadata: Metadata = {
     "creator monetization",
     "content creation",
     "creator analytics",
-    "social media scheduling",
     "creator storefront",
     "link in bio",
     "digital products",
@@ -34,9 +34,6 @@ export const metadata: Metadata = {
   creator: "CreatorOS",
   publisher: "CreatorOS",
   category: "business",
-  alternates: {
-    canonical: "/",
-  },
   openGraph: {
     type: "website",
     url: SITE_URL,
@@ -64,7 +61,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#4f46e5",
+  themeColor: "#7C3AED",
   width: "device-width",
   initialScale: 1,
 };
@@ -101,7 +98,7 @@ const jsonLd = {
         lowPrice: "0",
         highPrice: "99",
         priceCurrency: "USD",
-        offerCount: "3",
+        offerCount: String(PLAN_META.length),
       },
     },
   ],

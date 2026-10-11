@@ -50,10 +50,11 @@ export function ProfileForm({ initial, hasProfile }: { initial: ProfileData; has
         <h2 className="mb-4 font-semibold text-navy-900">Public profile</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="label">Username</label>
+            <label className="label" htmlFor="profile-username">Username</label>
             <div className="flex items-center gap-1 rounded-xl border border-navy-200 bg-white px-3 focus-within:border-brand-500">
               <span className="text-sm text-brand-600">@</span>
               <input
+                id="profile-username"
                 className="w-full bg-transparent py-2 text-sm text-navy-900 focus:outline-none"
                 value={form.username}
                 onChange={(e) => setForm((f) => ({ ...f, username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "") }))}
@@ -63,24 +64,24 @@ export function ProfileForm({ initial, hasProfile }: { initial: ProfileData; has
             {!hasProfile && <p className="mt-1 text-xs text-navy-400">Choose your unique handle.</p>}
           </div>
           <div>
-            <label className="label">Display name</label>
-            <input className="input" value={form.displayName} onChange={(e) => setForm((f) => ({ ...f, displayName: e.target.value }))} />
+            <label className="label" htmlFor="profile-display-name">Display name</label>
+            <input id="profile-display-name" className="input" value={form.displayName} onChange={(e) => setForm((f) => ({ ...f, displayName: e.target.value }))} />
           </div>
           <div className="sm:col-span-2">
-            <label className="label">Bio</label>
-            <textarea className="input min-h-[80px]" value={form.bio} onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))} placeholder="Who you are and what you help with…" />
+            <label className="label" htmlFor="profile-bio">Bio</label>
+            <textarea id="profile-bio" className="input min-h-[80px]" value={form.bio} onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))} placeholder="Who you are and what you help with…" />
           </div>
           <div>
-            <label className="label">Avatar URL</label>
-            <input className="input" value={form.avatarUrl} onChange={(e) => setForm((f) => ({ ...f, avatarUrl: e.target.value }))} placeholder="https://…" />
+            <label className="label" htmlFor="profile-avatar">Avatar URL</label>
+            <input id="profile-avatar" className="input" value={form.avatarUrl} onChange={(e) => setForm((f) => ({ ...f, avatarUrl: e.target.value }))} placeholder="https://…" />
           </div>
           <div>
-            <label className="label">Website</label>
-            <input className="input" value={form.website} onChange={(e) => setForm((f) => ({ ...f, website: e.target.value }))} placeholder="https://…" />
+            <label className="label" htmlFor="profile-website">Website</label>
+            <input id="profile-website" className="input" value={form.website} onChange={(e) => setForm((f) => ({ ...f, website: e.target.value }))} placeholder="https://…" />
           </div>
           <div className="sm:col-span-2">
-            <label className="label">Default timezone (booking)</label>
-            <select className="input" value={form.timezone} onChange={(e) => setForm((f) => ({ ...f, timezone: e.target.value }))}>
+            <label className="label" htmlFor="profile-timezone">Default timezone (booking)</label>
+            <select id="profile-timezone" className="input" value={form.timezone} onChange={(e) => setForm((f) => ({ ...f, timezone: e.target.value }))}>
               {TIMEZONES.map((tz) => (
                 <option key={tz} value={tz}>{tz}</option>
               ))}
@@ -118,11 +119,12 @@ export function ProfileForm({ initial, hasProfile }: { initial: ProfileData; has
 function SocialInput(props: { icon: typeof Instagram; label: string; value: string; onChange: (v: string) => void }) {
   return (
     <div>
-      <label className="label">{props.label}</label>
+      <span className="label">{props.label}</span>
       <div className="flex items-center gap-2 rounded-xl border border-navy-200 bg-white px-3 focus-within:border-brand-500">
         <props.icon className="h-4 w-4 text-navy-400" />
         <input
           className="w-full bg-transparent py-2 text-sm text-navy-900 focus:outline-none"
+          aria-label={props.label}
           value={props.value}
           onChange={(e) => props.onChange(e.target.value)}
           placeholder="https://…"

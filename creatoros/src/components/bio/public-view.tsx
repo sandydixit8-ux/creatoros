@@ -20,7 +20,7 @@ function safeHref(value: unknown): string {
 
 export function PublicBioPageView({ bio }: { bio: PublicBioPage }) {
   const theme = bio.page.theme;
-  const accent = theme.accent || "#4f46e5";
+  const accent = theme.accent || "#7C3AED";
   const [visitorId] = useState(() => (typeof globalThis !== "undefined" && globalThis.crypto ? globalThis.crypto.randomUUID() : `v${Date.now()}`));
   // D-5: analytics are opt-in. Without consent the page still renders fully -
   // we simply do not report the visit, and `/api/track` refuses it anyway.
@@ -74,7 +74,7 @@ export function PublicBioPageView({ bio }: { bio: PublicBioPage }) {
       style={{ background: theme.bg ? `linear-gradient(180deg, ${theme.bg}_14, ${theme.bg}_04)` : undefined, backgroundColor: theme.bgColor || "#f7f7fb" }}
     >
       <div className="mx-auto max-w-[520px] px-4 py-10">
-        <BannerImg url={bio.profile.avatarUrl} accent={accent} />
+        <BannerImg url={bio.profile.avatarUrl} accent={accent} name={bio.profile.displayName || bio.profile.username} />
         <h1 className="mt-4 text-center text-2xl font-bold" style={{ color: theme.textColor || "#111827" }}>
           {bio.profile.displayName || bio.profile.username}
         </h1>
@@ -134,10 +134,10 @@ export function PublicBioPageView({ bio }: { bio: PublicBioPage }) {
   );
 }
 
-function BannerImg({ url, accent }: { url: string; accent: string }) {
+function BannerImg({ url, accent, name }: { url: string; accent: string; name: string }) {
   if (url) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={url} alt="" className="mx-auto h-28 w-28 rounded-full border-4 border-white object-cover shadow-soft" />;
+    return <img src={url} alt={`${name} avatar`} className="mx-auto h-28 w-28 rounded-full border-4 border-white object-cover shadow-soft" />;
   }
   return (
     <div

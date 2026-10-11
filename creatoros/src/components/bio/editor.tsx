@@ -138,16 +138,18 @@ export function BioEditor(props: {
             <h2 className="mb-3 text-sm font-semibold text-navy-800">Page settings</h2>
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label className="label">Title</label>
+                <label className="label" htmlFor="bio-page-title">Title</label>
                 <input
+                  id="bio-page-title"
                   className="input"
                   value={page.title}
                   onChange={(e) => setPage((p) => ({ ...p, title: e.target.value }))}
                 />
               </div>
               <div>
-                <label className="label">Slug (optional)</label>
+                <label className="label" htmlFor="bio-page-slug">Slug (optional)</label>
                 <input
+                  id="bio-page-slug"
                   className="input"
                   value={page.slug}
                   onChange={(e) => setPage((p) => ({ ...p, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") }))}
@@ -242,8 +244,8 @@ function BlockCard(props: {
           >
             {block.active ? "Active" : "Hidden"}
           </button>
-          <button type="button" onClick={props.onRemove} className="text-navy-400 hover:text-red-600">
-            <Trash2 className="h-4 w-4" />
+          <button type="button" onClick={props.onRemove} aria-label="Remove block" className="text-navy-400 hover:text-red-600">
+            <Trash2 className="h-4 w-4" aria-hidden />
           </button>
         </span>
       </div>
@@ -288,8 +290,9 @@ function BlockPayloadEditor(props: { block: EditorBlock; services: EditorService
     case "booking":
       return (
         <div>
-          <label className="label">Service</label>
+          <label className="label" htmlFor="bio-booking-service">Service</label>
           <select
+            id="bio-booking-service"
             className="input"
             value={(p.serviceSlug as string) ?? ""}
             onChange={(e) => props.onChange({ payload: { ...p, serviceSlug: e.target.value } })}
@@ -326,11 +329,11 @@ function BlockPayloadEditor(props: { block: EditorBlock; services: EditorService
 function Field(props: { label: string; value: string; onChange: (v: string) => void; textarea?: boolean }) {
   return (
     <div>
-      <label className="label">{props.label}</label>
+      <span className="label">{props.label}</span>
       {props.textarea ? (
-        <textarea className="input min-h-[72px]" value={props.value} onChange={(e) => props.onChange(e.target.value)} />
+        <textarea className="input min-h-[72px]" aria-label={props.label} value={props.value} onChange={(e) => props.onChange(e.target.value)} />
       ) : (
-        <input className="input" value={props.value} onChange={(e) => props.onChange(e.target.value)} />
+        <input className="input" aria-label={props.label} value={props.value} onChange={(e) => props.onChange(e.target.value)} />
       )}
     </div>
   );
@@ -367,7 +370,7 @@ function PreviewBlock({ block }: { block: EditorBlock }) {
     case "profile":
       return (
         <div className="rounded-2xl bg-white p-4 text-center shadow-soft">
-          <div className="mx-auto h-14 w-14 rounded-full bg-gradient-to-br from-brand-500 to-indigo-700" />
+          <div className="mx-auto h-14 w-14 rounded-full bg-gradient-to-br from-brand-500 to-brand-700" />
           <div className="mt-2 text-sm font-semibold text-navy-900">{p.title || "Your name"}</div>
           <div className="text-xs text-navy-500">{p.subtitle || ""}</div>
         </div>

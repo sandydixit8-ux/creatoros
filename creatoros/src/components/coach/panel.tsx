@@ -12,12 +12,12 @@ interface Insights {
   nextTarget: string;
 }
 
-export function CoachPanel() {
+export function CoachPanel({ initialCredits = null }: { initialCredits?: number | null }) {
   const [insights, setInsights] = useState<Insights | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [unavailable, setUnavailable] = useState(false);
-  const [creditsLeft, setCreditsLeft] = useState<number | null>(null);
+  const [creditsLeft, setCreditsLeft] = useState<number | null>(initialCredits);
 
   async function run() {
     setLoading(true);
@@ -88,8 +88,8 @@ export function CoachPanel() {
             </h2>
             <p className="mt-1 text-sm text-navy-500">Uses your last 30 days of traffic, leads, bookings and services.</p>
             {creditsLeft !== null && (
-              <p className="mt-1 text-xs text-navy-400">
-                {creditsLeft} AI credit{creditsLeft === 1 ? "" : "s"} left this month
+              <p aria-live="polite" className="mt-1 text-xs text-navy-400">
+                {creditsLeft === -1 ? "Unlimited AI credits this month" : `${creditsLeft} AI credit${creditsLeft === 1 ? "" : "s"} left this month`}
               </p>
             )}
           </div>
@@ -98,9 +98,17 @@ export function CoachPanel() {
             {loading ? "Analyzing…" : insights ? "Re-analyze" : "Analyze my business"}
           </button>
         </div>
+        <p className="mt-3 border-t border-brand-100 pt-3 text-xs leading-relaxed text-navy-400">
+          AI-generated guidance based on your platform data. It can be incomplete or wrong — review it before acting, and
+          treat it as a suggestion, not financial, legal or tax advice.
+        </p>
       </div>
 
-      {message && !insights && <div className="card p-5 text-sm text-navy-500">{message}</div>}
+      {message && !insights && (
+        <div role="status" className="card p-5 text-sm text-navy-500">
+          {message}
+        </div>
+      )}
 
       {insights && (
         <div className="space-y-6">

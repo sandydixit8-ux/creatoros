@@ -54,13 +54,14 @@ export function FunnelPanel({ summary }: { summary: FunnelSummary }) {
           </div>
         ) : (
           <table className="w-full text-sm">
+            <caption className="sr-only">Recent signups</caption>
             <thead>
               <tr className="border-b border-navy-100 text-left text-xs uppercase tracking-wide text-navy-400">
-                <th className="px-4 py-2 font-medium">Workspace</th>
-                <th className="px-4 py-2 font-medium">Source</th>
-                <th className="px-4 py-2 font-medium">Activated</th>
-                <th className="px-4 py-2 font-medium">Paid</th>
-                <th className="px-4 py-2 font-medium">Signed up</th>
+                <th scope="col" className="px-4 py-2 font-medium">Workspace</th>
+                <th scope="col" className="px-4 py-2 font-medium">Source</th>
+                <th scope="col" className="px-4 py-2 font-medium">Activated</th>
+                <th scope="col" className="px-4 py-2 font-medium">Paid</th>
+                <th scope="col" className="px-4 py-2 font-medium">Signed up</th>
               </tr>
             </thead>
             <tbody>

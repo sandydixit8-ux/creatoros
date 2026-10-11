@@ -40,7 +40,7 @@ export function RevenueChart({ data }: { data: RevenueMonth[] }) {
         {bars.map((b) => (
           <g key={b.d.month}>
             <title>{`${b.d.month}: ${b.d.byCurrency.length ? formatMoneyBreakdown(b.d.byCurrency) : formatMoneyCents(0)}`}</title>
-            <rect x={b.x} y={b.y} width={b.barW} height={b.barH} rx="4" fill="#4f46e5" opacity="0.9" />
+            <rect x={b.x} y={b.y} width={b.barW} height={b.barH} rx="4" fill="#7C3AED" opacity="0.9" />
             <text x={b.x + b.barW / 2} y={height - 4} textAnchor="middle" fontSize="10" fill="#94a3b8">
               {b.d.month.slice(2)}
             </text>
@@ -75,7 +75,7 @@ export function RevenueBreakdown({ sources }: { sources: { label: string; count:
           </div>
           <div className="h-2 rounded-full bg-navy-100">
             <div
-              className="h-2 rounded-full bg-gradient-to-r from-brand-500 to-indigo-500"
+              className="h-2 rounded-full bg-gradient-to-r from-brand-500 to-brand-700"
               style={{ width: `${s.byCurrency.reduce((t, a) => t + a.cents, 0) === 0 ? 0 : Math.max(2, (s.byCurrency.reduce((t, a) => t + a.cents, 0) / maxCents) * 100)}%` }}
             />
           </div>

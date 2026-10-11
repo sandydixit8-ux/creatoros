@@ -12,7 +12,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="flex min-h-screen bg-navy-50/50">
       <Sidebar orgName={session.org.name} plan={session.org.plan} isAdmin={isPlatformAdmin(session.user.email)} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <TopNav userName={session.user.name} />
+        <TopNav userName={session.user.name} orgName={session.org.name} plan={session.org.plan} isAdmin={isPlatformAdmin(session.user.email)} />
         <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
       </div>
     </div>

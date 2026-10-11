@@ -65,12 +65,14 @@ export function EnrollmentForm(props: { courseId: string; isPaid: boolean }) {
         required
         className="input w-52 !py-2 text-sm"
         placeholder="Your email"
+        aria-label="Your email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
       />
       <input
         className="input w-40 !py-2 text-sm"
         placeholder="Name (optional)"
+        aria-label="Your name (optional)"
         value={name}
         onChange={(e) => setName(e.target.value)}
       />
@@ -81,6 +83,7 @@ export function EnrollmentForm(props: { courseId: string; isPaid: boolean }) {
           required
           className="input w-40 !py-2 text-sm"
           placeholder="Phone"
+          aria-label="Phone"
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
         />

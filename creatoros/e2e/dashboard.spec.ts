@@ -28,6 +28,13 @@ test.describe("dashboard shell", () => {
     }
   });
 
+  test("unknown dashboard route renders the not-found shell", async ({ page }) => {
+    await login(page);
+    await page.goto("/app/definitely-not-a-real-route");
+    await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Back to home" })).toBeVisible();
+  });
+
   test("settings profile form loads demo values and saves", async ({ page }) => {
     await login(page);
     await page.goto("/app/settings");
@@ -53,9 +60,11 @@ test.describe("dashboard shell", () => {
     await expect(page.getByText("E2E Smoke Widget")).toBeVisible();
     await expect(page.getByText("$7.50")).toBeVisible();
 
-    // Clean up so other specs see a tidy store.
-    page.on("dialog", (d) => d.accept());
-    await page.getByRole("row", { name: /E2E Smoke Widget/ }).getByRole("button", { name: "Delete" }).click();
+    // Clean up so other specs see a tidy store. Deletion uses an inline
+    // confirm (no native dialog): first click arms, second click confirms.
+    const del = page.getByRole("row", { name: /E2E Smoke Widget/ }).getByRole("button", { name: "Delete" });
+    await del.click();
+    await del.click();
     await expect(page.getByText("E2E Smoke Widget")).toHaveCount(0, { timeout: 10000 });
   });
 });

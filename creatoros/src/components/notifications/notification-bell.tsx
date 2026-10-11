@@ -18,11 +18,18 @@ export function NotificationBell() {
         // ignore transient fetch errors
       }
     };
+    const onVisibility = () => {
+      if (!document.hidden) void refresh();
+    };
     void refresh();
-    const t = setInterval(refresh, 30000);
+    const t = setInterval(() => {
+      if (!document.hidden) void refresh();
+    }, 30000);
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       alive = false;
       clearInterval(t);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
 

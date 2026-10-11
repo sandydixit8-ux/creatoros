@@ -89,12 +89,12 @@ export function CourseList(props: { canWrite: boolean }) {
       {showForm && (
         <form onSubmit={create} className="card grid gap-3 border-brand-200 bg-brand-50/60 p-5 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <label className="label">Course title</label>
-            <input className="input" required maxLength={160} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Complete design masterclass" />
+            <label className="label" htmlFor="new-course-title">Course title</label>
+            <input id="new-course-title" className="input" required maxLength={160} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Complete design masterclass" />
           </div>
           <div>
-            <label className="label">Price (USD, 0 = free)</label>
-            <input className="input" required inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="49.00" />
+            <label className="label" htmlFor="new-course-price">Price (USD, 0 = free)</label>
+            <input id="new-course-price" className="input" required inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="49.00" />
           </div>
           {error && <p className="text-xs text-red-600 sm:col-span-2">{error}</p>}
           <div className="flex gap-2 sm:col-span-2">

@@ -195,7 +195,11 @@ describe("D-5: a forged cookie cannot unlock tracking", () => {
 
   it("refuses a valid payload with a tampered signature", async () => {
     const cookie = await grantViaApi(true, "banner");
-    const tampered = cookie.slice(0, -1) + (cookie.endsWith("A") ? "B" : "A");
+    const token = cookie.slice(`${CONSENT_COOKIE_NAME}=`.length);
+    const [body, sig] = token.split(".");
+    const mid = Math.floor(sig.length / 2);
+    const flipped = sig[mid] === "A" ? "B" : "A";
+    const tampered = `${CONSENT_COOKIE_NAME}=${body}.${sig.slice(0, mid)}${flipped}${sig.slice(mid + 1)}`;
 
     const res = await track(
       trackRequest({ username: USERNAME, eventType: "page_view" }, tampered)

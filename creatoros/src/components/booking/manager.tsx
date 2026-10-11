@@ -195,8 +195,9 @@ function ServiceForm({ onDone }: { onDone: () => void }) {
     <form onSubmit={submit} className="mb-4 rounded-xl border border-brand-200 bg-brand-50/60 p-4">
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <label className="label">Name</label>
+          <label className="label" htmlFor="svc-name">Name</label>
           <input
+            id="svc-name"
             className="input"
             required
             value={form.name}
@@ -205,20 +206,20 @@ function ServiceForm({ onDone }: { onDone: () => void }) {
           />
         </div>
         <div>
-          <label className="label">Slug (URL)</label>
-          <input className="input" required value={form.slug} onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") }))} placeholder="strategy-call" />
+          <label className="label" htmlFor="svc-slug">Slug (URL)</label>
+          <input id="svc-slug" className="input" required value={form.slug} onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") }))} placeholder="strategy-call" />
         </div>
         <div>
-          <label className="label">Duration (min)</label>
-          <input className="input" type="number" min={5} max={480} required value={form.durationMin} onChange={(e) => setForm((f) => ({ ...f, durationMin: Number(e.target.value) }))} />
+          <label className="label" htmlFor="svc-duration">Duration (min)</label>
+          <input id="svc-duration" className="input" type="number" min={5} max={480} required value={form.durationMin} onChange={(e) => setForm((f) => ({ ...f, durationMin: Number(e.target.value) }))} />
         </div>
         <div>
-          <label className="label">Price (USD)</label>
-          <input className="input" type="number" min={0} step={1} value={form.priceCents / 100} onChange={(e) => setForm((f) => ({ ...f, priceCents: Math.round(Number(e.target.value) * 100) }))} placeholder="0 = free" />
+          <label className="label" htmlFor="svc-price">Price (USD)</label>
+          <input id="svc-price" className="input" type="number" min={0} step={1} value={form.priceCents / 100} onChange={(e) => setForm((f) => ({ ...f, priceCents: Math.round(Number(e.target.value) * 100) }))} placeholder="0 = free" />
         </div>
         <div className="sm:col-span-2">
-          <label className="label">Description</label>
-          <textarea className="input min-h-[56px]" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="What happens on this call?" />
+          <label className="label" htmlFor="svc-description">Description</label>
+          <textarea id="svc-description" className="input min-h-[56px]" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} placeholder="What happens on this call?" />
         </div>
       </div>
       {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
@@ -249,6 +250,7 @@ function AvailabilityEditor(props: {
   const [end, setEnd] = useState(() => minutesToTime(props.windows[0]?.end_min ?? 10 * 60));
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [err, setErr] = useState("");
 
   async function save() {
     const windows = Object.entries(days)
@@ -256,6 +258,7 @@ function AvailabilityEditor(props: {
       .map(([dow]) => ({ dayOfWeek: Number(dow), startMin: timeToMinutes(start), endMin: timeToMinutes(end) }));
     setSaving(true);
     setSaved(false);
+    setErr("");
     try {
       const res = await fetch(`/api/booking/services/${props.serviceId}`, {
         method: "PUT",
@@ -267,7 +270,7 @@ function AvailabilityEditor(props: {
         setTimeout(() => setSaved(false), 1500);
       } else {
         const j = await res.json().catch(() => ({}));
-        alert(j.error?.message || "Could not save availability");
+        setErr(j.error?.message || "Could not save availability");
       }
     } finally {
       setSaving(false);
@@ -293,14 +296,15 @@ function AvailabilityEditor(props: {
       </div>
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         <div>
-          <label className="label">From</label>
-          <input className="input" type="time" value={start} onChange={(e) => setStart(e.target.value)} />
+          <span className="label">From</span>
+          <input className="input" type="time" aria-label="From" value={start} onChange={(e) => setStart(e.target.value)} />
         </div>
         <div>
-          <label className="label">To</label>
-          <input className="input" type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
+          <span className="label">To</span>
+          <input className="input" type="time" aria-label="To" value={end} onChange={(e) => setEnd(e.target.value)} />
         </div>
       </div>
+      {err && <p className="mt-2 text-xs text-red-600">{err}</p>}
       <button type="button" onClick={save} disabled={saving} className="btn-primary mt-3 !py-2 text-sm">
         {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saved ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
         {saving ? "Saving…" : saved ? "Saved" : "Save availability"}

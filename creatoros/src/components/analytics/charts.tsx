@@ -31,8 +31,8 @@ export function ViewsChart({ data }: { data: Point[] }) {
       {[0.25, 0.5, 0.75, 1].map((f) => (
         <line key={f} x1={padX} x2={width - padX} y1={padY + innerH - f * innerH} y2={padY + innerH - f * innerH} stroke="#e9edf5" strokeWidth="1" />
       ))}
-      <polygon points={area("views")} fill="rgba(79,70,229,0.08)" />
-      <polyline points={points("views")} fill="none" stroke="#4f46e5" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+      <polygon points={area("views")} fill="rgba(124,58,237,0.10)" />
+      <polyline points={points("views")} fill="none" stroke="#7C3AED" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
       <polygon points={area("leads")} fill="rgba(16,185,129,0.06)" />
       <polyline points={points("leads")} fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
@@ -41,7 +41,7 @@ export function ViewsChart({ data }: { data: Point[] }) {
 
 export function DonutChart({ parts }: { parts: { label: string; count: number }[] }) {
   const total = parts.reduce((a, b) => a + b.count, 0);
-  const colors = ["#4f46e5", "#10b981", "#f59e0b", "#0ea5e9", "#ec4899", "#8b5cf6", "#64748b"];
+  const colors = ["#7C3AED", "#10b981", "#f59e0b", "#0ea5e9", "#ec4899", "#8b5cf6", "#64748b"];
   if (total === 0) return <div className="py-8 text-center text-sm text-navy-400">No data yet</div>;
 
   const size = 160;
@@ -56,7 +56,7 @@ export function DonutChart({ parts }: { parts: { label: string; count: number }[
 
   return (
     <div className="flex items-center gap-6">
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true" focusable="false">
         <circle cx={cx} cy={cy} r={r} fill="none" stroke="#e9edf5" strokeWidth="18" />
         {parts.map((p, i) => (
           <circle

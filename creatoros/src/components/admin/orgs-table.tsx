@@ -34,12 +34,13 @@ export function OrgsTable({ initial, plans }: { initial: Org[]; plans: string[] 
   return (
     <div className="card overflow-x-auto p-0">
       <table className="w-full text-left text-sm">
+        <caption className="sr-only">Organizations</caption>
         <thead className="border-b border-navy-100 text-xs uppercase text-navy-400">
           <tr>
-            <th className="px-4 py-3">Organization</th>
-            <th className="px-4 py-3">Members</th>
-            <th className="px-4 py-3">Created</th>
-            <th className="px-4 py-3">Plan</th>
+            <th scope="col" className="px-4 py-3">Organization</th>
+            <th scope="col" className="px-4 py-3">Members</th>
+            <th scope="col" className="px-4 py-3">Created</th>
+            <th scope="col" className="px-4 py-3">Plan</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-navy-50">

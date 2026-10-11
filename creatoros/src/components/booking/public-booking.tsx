@@ -206,6 +206,7 @@ export function PublicBookingClient(props: {
                   <input
                     className="input"
                     placeholder="Your name"
+                    aria-label="Your name"
                     required
                     value={form.name}
                     onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
@@ -213,6 +214,7 @@ export function PublicBookingClient(props: {
                   <input
                     className="input"
                     placeholder="Email for confirmation"
+                    aria-label="Email for confirmation"
                     type="email"
                     required
                     value={form.email}
@@ -221,6 +223,7 @@ export function PublicBookingClient(props: {
                   <textarea
                     className="input min-h-[64px]"
                     placeholder="Anything to prep for the call? (optional)"
+                    aria-label="Notes for the call (optional)"
                     value={form.notes}
                     onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
                   />
