@@ -122,3 +122,77 @@ npm test -- dodo-webhook
 Covers signature accept/reject (wrong secret, tampered body, stale timestamp,
 wrong delivery id, rotation), event mapping, currency support and plan→product
 mapping.
+
+## 7. Go-live runbook (test → live)
+
+Run the whole thing in **test mode locally first**. Do not flip the production box
+until 7.1 passes: `BILLING_CURRENCY=usd` on the box changes the live billing page
+for every tenant, so a broken checkout there is customer-visible.
+
+### 7.1 Verify in test mode (local, no money)
+
+1. `.env.local` (never the box) with test-mode values:
+   ```
+   PAYMENT_PROVIDER=dodo
+   DODO_PAYMENTS_API_KEY=<test key>
+   DODO_PAYMENTS_WEBHOOK_KEY=whsec_<test webhook secret>
+   DODO_ENV=test
+   DODO_CURRENCIES=usd,gbp,eur
+   DODO_PRODUCT_STARTER=pdt_...
+   DODO_PRODUCT_CREATOR=pdt_...
+   DODO_PRODUCT_PRO=pdt_...
+   DODO_PRODUCT_BUSINESS=pdt_...
+   BILLING_CURRENCY=usd
+   ```
+2. Forward test webhooks to the local route (Dodo CLI, test-mode key only):
+   ```
+   dodo login "<test key>" test
+   dodo wh listen http://localhost:3000/api/webhooks/stripe
+   ```
+   (No CLI? Expose the local port with a tunnel and add that URL as a test-mode
+   webhook endpoint instead.)
+3. `npm run dev`, register a throwaway account, open `/app/billing`, upgrade to
+   **Creator**, pay with a Dodo test card (see *Testing Process* docs).
+4. Confirm the redirect returns to the app, then check fulfilment:
+   ```sql
+   select type, processed_at from webhook_events order by rowid desc limit 5;
+   select plan from organizations where id = '<org>';
+   select provider, provider_subscription_id, status from subscriptions where tenant_id = '<org>';
+   ```
+   Pass = a `customer.subscription.*` event with `processed_at` set and the org
+   moved to `creator`.
+5. Verify the §5 open items by inspecting the stored delivery JSON (metadata
+   propagation) and exercising refund + cancel:
+   - Metadata: the subscription webhook payload should carry
+     `data.metadata.tenantId` / `data.metadata.plan`. If it does not, stop and
+     correlate by `customer_id` before going live.
+   - Refund: admin refund route on the newest order → `POST /refunds` succeeds.
+   - Cancel: `/api/billing/cancel` → `PATCH /subscriptions/{id}` succeeds and a
+     `customer.subscription.deleted` (mapped) event downgrades the org.
+
+### 7.2 Flip to live
+
+1. Recreate the products in **Live mode** (the dashboard "Copy to live" option) →
+   new `pdt_` ids.
+2. Create a **live** API key and a **live** webhook endpoint
+   (`https://usecreatoros.co/api/webhooks/stripe`, same event list) → live
+   `whsec_`.
+3. On the box, set the live values and switch billing currency:
+   ```bash
+   sed -i '/^DODO_/d;/^BILLING_CURRENCY=/d' /home/ubuntu/app/.env
+   cat >> /home/ubuntu/app/.env <<'EOF'
+   BILLING_CURRENCY=usd
+   DODO_ENV=live
+   DODO_PAYMENTS_API_KEY=<live key>
+   DODO_PAYMENTS_WEBHOOK_KEY=whsec_<live secret>
+   DODO_CURRENCIES=usd,gbp,eur
+   DODO_PRODUCT_STARTER=pdt_...
+   DODO_PRODUCT_CREATOR=pdt_...
+   DODO_PRODUCT_PRO=pdt_...
+   DODO_PRODUCT_BUSINESS=pdt_...
+   EOF
+   systemctl restart creatoros
+   ```
+   `PAYMENT_PROVIDER` stays `cashfree`; routing is per-currency.
+4. Live smoke test: one real purchase at the cheapest plan, confirm the plan is
+   applied, then refund it from the admin refund route. Keep the receipt.
