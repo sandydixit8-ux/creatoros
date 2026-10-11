@@ -289,17 +289,23 @@ export const cashfreeProvider: PaymentProvider = {
     }
 
     // Map Cashfree's envelope onto the shape the webhook route already handles.
-    const eventData = (parsed.event_data || {}) as Record<string, unknown>;
+    // Payment Gateway / Payouts V2 use `type` + `data`; the legacy/Subscriptions
+    // envelopes use `event` + `event_data`. Accept both, so an API-version change
+    // cannot silently drop every delivery (the endpoint-validation event is
+    // `type: "WEBHOOK"` and would 400 if we only read `event`).
+    const eventData = (parsed.event_data || parsed.data || {}) as Record<string, unknown>;
     const order = (eventData.order || {}) as Record<string, unknown>;
     const payment = (eventData.payment || {}) as Record<string, unknown>;
     const subscription = (eventData.subscription || {}) as Record<string, unknown>;
-    const cashfreeEvent = String(parsed.event || "");
+    const form = (eventData.form || {}) as Record<string, unknown>;
+    const cashfreeEvent = String(parsed.event || parsed.type || parsed.event_type || "");
 
-    // Only Payment Gateway webhooks carry `event`; Payment Forms posts a
-    // different envelope (data.form / data.order, no event id) to the same
-    // dashboard. Those cannot be mapped onto an order or subscription, so
-    // reject them instead of guessing an id.
-    if (!cashfreeEvent) return null;
+    // Payment Forms posts a different envelope (data.form / data.order) to the
+    // same dashboard. It cannot be mapped onto an order or subscription, so
+    // reject it by shape rather than guessing an id.
+    if (!cashfreeEvent || cashfreeEvent.startsWith("PAYMENT_FORM") || Object.keys(form).length > 0) {
+      return null;
+    }
 
     // Cashfree always sends event_id. If it is somehow absent, derive a stable
     // id from the payload hash rather than building a degenerate key that would
@@ -309,6 +315,12 @@ export const cashfreeProvider: PaymentProvider = {
       parsed.event_id ||
         `cf_derived_${crypto.createHash("sha256").update(rawBody).digest("hex").slice(0, 32)}`
     );
+
+    // Endpoint validation / dashboard "Test" event. Answer with a no-op so the
+    // route returns 200; a 400 here blocks webhook endpoint setup.
+    if (cashfreeEvent === "WEBHOOK") {
+      return { id: eventId, type: "cashfree.webhook_validation", data: {} };
+    }
 
     // Subscription webhooks arrive on the same endpoint; route them separately.
     if (cashfreeEvent.startsWith("SUBSCRIPTION_")) {

@@ -200,6 +200,45 @@ describe("cashfree webhook signature verification", () => {
     const event = await withSecret(() => cashfreeProvider.verifyWebhook(body, sign(body, CF_TS), CF_TS));
     expect(event?.type).toBe("checkout.session.expired");
   });
+
+  it("accepts the current Payment Gateway envelope (type + data, no event field)", async () => {
+    // Cashfree's live/2023-08-01 envelope uses `type` + `data`, not
+    // `event` + `event_data`. Reading only `event` dropped every real delivery.
+    const body = JSON.stringify({
+      data: { order: { order_id: "ord_new", order_status: "PAID" }, payment: { payment_status: "SUCCESS" } },
+      type: "PAYMENT_SUCCESS",
+      event_time: "2026-10-11T14:03:42+05:30",
+    });
+    const event = await withSecret(() => cashfreeProvider.verifyWebhook(body, sign(body, CF_TS), CF_TS));
+    expect(event?.type).toBe("checkout.session.completed");
+    expect(event?.data.id).toBe("ord_new");
+    expect(event?.data.mode).toBe("payment");
+  });
+
+  it("accepts a subscription webhook delivered in the type + data envelope", async () => {
+    const body = JSON.stringify({
+      data: {
+        subscription: {
+          subscription_id: "sub_xyz",
+          subscription_status: "ACTIVE",
+          subscription_tags: { tenantId: "org_1", plan: "creator" },
+        },
+      },
+      type: "SUBSCRIPTION_STATUS_CHANGE",
+      event_time: "2026-10-11T14:03:42+05:30",
+    });
+    const event = await withSecret(() => cashfreeProvider.verifyWebhook(body, sign(body, CF_TS), CF_TS));
+    expect(event?.type).toBe("customer.subscription.updated");
+    expect(event?.data.status).toBe("active");
+    expect((event?.data.metadata as Record<string, unknown>).tenantId).toBe("org_1");
+    expect((event?.data.metadata as Record<string, unknown>).plan).toBe("creator");
+  });
+
+  it("answers the dashboard endpoint-validation event (type WEBHOOK) instead of dropping it", async () => {
+    const body = JSON.stringify({ data: {}, type: "WEBHOOK", event_time: "2026-10-11T14:03:42+05:30" });
+    const event = await withSecret(() => cashfreeProvider.verifyWebhook(body, sign(body, CF_TS), CF_TS));
+    expect(event?.type).toBe("cashfree.webhook_validation");
+  });
 });
 
 /**
@@ -233,9 +272,14 @@ describe("cashfree Payment Forms payloads", () => {
     expect(await post(formsPayload)).toBeNull();
   });
 
-  it("rejects any payload that is not a Payment Gateway event", async () => {
-    expect(await post({ type: "SOMETHING_ELSE", data: {} })).toBeNull();
+  it("rejects an empty envelope and maps unknown types onto an ignorable event", async () => {
+    // An empty envelope (no discriminator at all) is not a gateway event.
     expect(await post({ event: "" })).toBeNull();
+    expect(await post({ data: {} })).toBeNull();
+    // A known-shape but unhandled `type` is accepted and ignored by the route,
+    // so the gateway gets its 200 instead of retrying forever.
+    const unknown = await post({ type: "SOMETHING_ELSE", data: {} });
+    expect(unknown?.type).toBe("cashfree.SOMETHING_ELSE");
   });
 
   it("still accepts real Payment Gateway events", async () => {
