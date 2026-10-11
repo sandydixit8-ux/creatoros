@@ -1,9 +1,16 @@
-import { describe, it, expect, beforeAll, beforeEach, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterAll, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getDb, closeDb, run, row, nowIso } from "@/lib/db/db";
-import { applySubscription, activeSubscription, cancelSubscriptionTracking, subscriptionsFor } from "./subscriptions";
+import {
+  applySubscription,
+  activeSubscription,
+  cancelSubscriptionTracking,
+  subscriptionsFor,
+  trackPendingSubscription,
+  syncPendingCashfreeSubscription,
+} from "./subscriptions";
 
 let dir: string;
 const TENANT = "org_sub_test";
@@ -156,5 +163,76 @@ describe("billing subscriptions", () => {
     expect(activeSubscription(TENANT)).toBeUndefined();
     const s = row<{ status: string }>("SELECT status FROM subscriptions WHERE tenant_id = ?", TENANT);
     expect(s?.status).toBe("canceled");
+  });
+});
+
+describe("pending subscription sync (webhook fallback)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function stubFetch(payload: unknown) {
+    const fn = vi.fn(async () => ({ status: 200, text: async () => JSON.stringify(payload) }));
+    vi.stubGlobal("fetch", fn);
+    return fn;
+  }
+
+  it("records a pending mandate at checkout that is invisible as an active subscription", () => {
+    trackPendingSubscription({ tenantId: TENANT, provider: "cashfree", providerId: "sub_pending_1", plan: "creator", currency: "inr" });
+    expect(activeSubscription(TENANT)).toBeUndefined();
+    expect(subscriptionsFor(TENANT)).toHaveLength(1);
+    expect(subscriptionsFor(TENANT)[0]?.status).toBe("pending");
+
+    // The same mandate delivered as a webhook later flips the same row to active.
+    applySubscription({ tenantId: TENANT, plan: "creator", provider: "cashfree", providerId: "sub_pending_1", status: "active" });
+    expect(orgPlan()).toBe("creator");
+    expect(activeSubscription(TENANT)?.status).toBe("active");
+    expect(subscriptionsFor(TENANT)).toHaveLength(1);
+  });
+
+  it("promotes a pending mandate when the gateway reports ACTIVE", async () => {
+    trackPendingSubscription({ tenantId: TENANT, provider: "cashfree", providerId: "sub_sync_active", plan: "pro", currency: "inr" });
+    stubFetch({
+      subscription_id: "sub_sync_active",
+      subscription_status: "ACTIVE",
+      next_schedule_date: "2026-11-10T12:00:00+05:30",
+    });
+    await syncPendingCashfreeSubscription(TENANT, { force: true });
+    expect(orgPlan()).toBe("pro");
+    expect(activeSubscription(TENANT)?.provider_id).toBe("sub_sync_active");
+  });
+
+  it("closes a pending mandate the gateway reports as cancelled and grants nothing", async () => {
+    trackPendingSubscription({ tenantId: TENANT, provider: "cashfree", providerId: "sub_sync_cancel", plan: "starter", currency: "inr" });
+    stubFetch({ subscription_id: "sub_sync_cancel", subscription_status: "CANCELLED" });
+    await syncPendingCashfreeSubscription(TENANT, { force: true });
+    expect(orgPlan()).toBe("free");
+    expect(activeSubscription(TENANT)).toBeUndefined();
+    expect(subscriptionsFor(TENANT)[0]?.status).toBe("canceled");
+  });
+
+  it("leaves a mandate pending while it is still authorising", async () => {
+    trackPendingSubscription({ tenantId: TENANT, provider: "cashfree", providerId: "sub_sync_wait", plan: "creator", currency: "inr" });
+    stubFetch({ subscription_id: "sub_sync_wait", subscription_status: "BANK_APPROVAL_PENDING" });
+    await syncPendingCashfreeSubscription(TENANT, { force: true });
+    expect(orgPlan()).toBe("free");
+    expect(subscriptionsFor(TENANT)[0]?.status).toBe("pending");
+  });
+
+  it("stays pending when the gateway lookup fails", async () => {
+    trackPendingSubscription({ tenantId: TENANT, provider: "cashfree", providerId: "sub_sync_err", plan: "creator", currency: "inr" });
+    const fn = vi.fn(async () => ({ status: 500, text: async () => JSON.stringify({ message: "boom" }) }));
+    vi.stubGlobal("fetch", fn);
+    await syncPendingCashfreeSubscription(TENANT, { force: true });
+    expect(orgPlan()).toBe("free");
+    expect(subscriptionsFor(TENANT)[0]?.status).toBe("pending");
+  });
+
+  it("debounces quiet page loads so a fresh mandate is not re-fetched", async () => {
+    trackPendingSubscription({ tenantId: TENANT, provider: "cashfree", providerId: "sub_sync_fresh", plan: "creator", currency: "inr" });
+    const fn = stubFetch({ subscription_id: "sub_sync_fresh", subscription_status: "ACTIVE" });
+    await syncPendingCashfreeSubscription(TENANT);
+    expect(fn).not.toHaveBeenCalled();
+    expect(orgPlan()).toBe("free");
   });
 });

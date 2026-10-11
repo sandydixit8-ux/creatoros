@@ -1,6 +1,7 @@
 import { all, row, run, newId, nowIso } from "@/lib/db/db";
 import { planRank } from "@/lib/plans";
 import { audit } from "@/lib/audit";
+import { fetchSubscription, type CfSubscription } from "@/lib/payments/cashfree-subscriptions";
 
 export interface SubscriptionRow {
   id: string;
@@ -171,4 +172,90 @@ export function activeSubscription(tenantId: string): SubscriptionRow | undefine
 
 export function subscriptionsFor(tenantId: string): SubscriptionRow[] {
   return all<SubscriptionRow>("SELECT * FROM subscriptions WHERE tenant_id = ? ORDER BY created_at DESC", tenantId);
+}
+
+/**
+ * Record the mandate a checkout session just opened. Status `pending` means
+ * "Cashfree returned a session but we have not seen it become active yet".
+ * The subscription webhook promotes it; `syncPendingCashfreeSubscription` is
+ * the fallback for when that webhook has not been configured in the dashboard.
+ */
+export function trackPendingSubscription(input: {
+  tenantId: string;
+  provider: string;
+  providerId: string;
+  plan: string;
+  currency: string;
+}): void {
+  if (row("SELECT id FROM subscriptions WHERE provider = ? AND provider_id = ?", input.provider, input.providerId)) return;
+  const id = newId("sub");
+  run(
+    `INSERT INTO subscriptions (id, tenant_id, provider, provider_id, customer_id, status, plan, current_period_end, currency, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    id,
+    input.tenantId,
+    input.provider,
+    input.providerId,
+    null,
+    "pending",
+    input.plan,
+    null,
+    input.currency,
+    nowIso(),
+    nowIso()
+  );
+}
+
+/** Cashfree terminal states that mean the mandate will never collect again. */
+const CF_TERMINAL = ["CANCELLED", "CUSTOMER_CANCELLED", "EXPIRED", "COMPLETED", "CARD_EXPIRED"];
+
+/**
+ * Reconcile an open Cashfree mandate against the live gateway. The webhook is
+ * the primary path for promoting a subscription; this is the fallback so a
+ * paying customer is not stranded when the dashboard webhook has not been
+ * configured. Only an ACTIVE upstream subscription grants the plan — a local
+ * `pending` row alone (or a spoofed `?upgraded=` query) can never invent one.
+ *
+ * `force` skips the debounce and is used for the explicit post-checkout return
+ * (`/app/billing?upgraded=plan`); quiet page loads reconcile at most once a
+ * minute so a lingering row does not hammer the gateway.
+ */
+export async function syncPendingCashfreeSubscription(tenantId: string, opts: { force?: boolean } = {}): Promise<void> {
+  const pending = row<SubscriptionRow>(
+    "SELECT * FROM subscriptions WHERE tenant_id = ? AND provider = 'cashfree' AND status = 'pending' ORDER BY created_at DESC LIMIT 1",
+    tenantId
+  );
+  if (!pending?.provider_id) return;
+
+  if (!opts.force) {
+    const ageMs = Date.now() - new Date(pending.updated_at).getTime();
+    if (!Number.isFinite(ageMs) || ageMs < 60_000) return;
+  }
+
+  let info: CfSubscription;
+  try {
+    info = await fetchSubscription(pending.provider_id);
+  } catch (e) {
+    console.error("[billing.sync] cashfree status fetch failed:", e instanceof Error ? e.message : e);
+    return;
+  }
+
+  const cfStatus = String(info.subscription_status || "").toUpperCase();
+  if (CF_TERMINAL.includes(cfStatus)) {
+    cancelSubscriptionTracking(tenantId, pending.provider_id);
+    return;
+  }
+  if (cfStatus === "ACTIVE") {
+    applySubscription({
+      tenantId,
+      plan: pending.plan,
+      provider: "cashfree",
+      providerId: pending.provider_id,
+      status: "active",
+      currentPeriodEnd: info.next_schedule_date || null,
+      currency: pending.currency,
+    });
+  }
+  // INITIALIZED / BANK_APPROVAL_PENDING / ON_HOLD are not collecting yet; the
+  // subscription webhook (when configured) or a later sync promotes them.
 }

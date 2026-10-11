@@ -5,7 +5,7 @@ import { getSession } from "@/lib/auth/get-session";
 import { row } from "@/lib/db/db";
 import { getLimits, PLAN_PRICES } from "@/lib/plans";
 import { allUsage } from "@/lib/usage";
-import { activeSubscription } from "@/lib/billing/subscriptions";
+import { activeSubscription, syncPendingCashfreeSubscription } from "@/lib/billing/subscriptions";
 import { getPaymentProviderForCurrency, cashfreeSdkMode, resolvePlanCurrency } from "@/lib/payments";
 import { CURRENCY_COOKIE } from "@/lib/currency";
 import CurrencySelect from "@/components/currency-select";
@@ -15,9 +15,15 @@ export const dynamic = "force-dynamic";
 
 const PLAN_ORDER = ["free", "starter", "creator", "pro", "business"] as const;
 
-export default async function BillingPage() {
+export default async function BillingPage({ searchParams }: { searchParams: Promise<{ upgraded?: string }> }) {
   const s = await getSession();
   if (!s) redirect("/auth/login");
+
+  const sp = await searchParams;
+  // Post-checkout reconciliation: promote a mandate that Cashfree never turned
+  // into a webhook (dashboard webhook not configured). Only an ACTIVE upstream
+  // subscription is applied, so a spoofed ?upgraded= cannot invent a payment.
+  await syncPendingCashfreeSubscription(s.org.id, { force: Boolean(sp?.upgraded) });
 
   const org = row<{ plan: string; name: string }>("SELECT plan, name FROM organizations WHERE id = ?", s.org.id);
   const currentPlan = org?.plan ?? "free";

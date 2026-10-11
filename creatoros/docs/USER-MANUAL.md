@@ -579,6 +579,14 @@ USD/GBP/EUR, Stripe when configured. In development with no keys, a **mock** pro
 simulates upgrades (marked "simulated"). When no configured gateway supports the billing
 currency, upgrades are disabled until keys are set.
 
+**Plan-upgrade fallback:** every checkout records the mandate as `pending`. When the
+customer returns (`/app/billing?upgraded=…`), the app re-checks the Cashfree subscription
+status and applies the plan if it is `ACTIVE` — so paid plans activate even if the
+Cashfree **Subscriptions** webhook has not been enabled in the dashboard. Enabling that
+webhook (events `SUBSCRIPTION_STATUS_CHANGE`, `SUBSCRIPTION_PAYMENT_SUCCESS`,
+`SUBSCRIPTION_PAYMENT_FAILED`, `SUBSCRIPTION_CANCELLED` → `https://usecreatoros.co/api/webhooks/stripe`)
+makes upgrades apply instantly without the return hop.
+
 **Cashfree note:** Cashfree subscription mandates require an **Indian phone number**, so
 the checkout form asks for a phone when Cashfree is active.
 

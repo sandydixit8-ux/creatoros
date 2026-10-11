@@ -8,7 +8,7 @@ import { PLANS, planPriceFor } from "@/lib/plans";
 import { getPaymentProviderForCurrency, getPaymentProvider, resolvePlanCurrency } from "@/lib/payments";
 import { CURRENCY_COOKIE } from "@/lib/currency";
 import { normalisePhone } from "@/lib/payments/cashfree-subscriptions";
-import { applySubscription } from "@/lib/billing/subscriptions";
+import { applySubscription, trackPendingSubscription } from "@/lib/billing/subscriptions";
 import { recordFunnelEvent } from "@/lib/funnel";
 import { SITE_URL } from "@/lib/constants";
 import { audit } from "@/lib/audit";
@@ -81,6 +81,17 @@ export async function POST(req: NextRequest) {
         customerPhone: phone,
         metadata: { tenantId: s.org.id, plan },
       });
+      // Remember the mandate so the post-checkout return page can reconcile it
+      // against the gateway even if the subscription webhook is not configured.
+      if (session.subscriptionId) {
+        trackPendingSubscription({
+          tenantId: s.org.id,
+          provider: provider.name,
+          providerId: session.subscriptionId,
+          plan,
+          currency,
+        });
+      }
       audit({
         tenantId: s.org.id,
         userId: s.user.id,

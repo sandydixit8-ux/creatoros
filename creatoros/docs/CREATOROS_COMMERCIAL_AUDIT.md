@@ -1274,6 +1274,28 @@ US/UK USD at the same time", so billing is now per visitor.
 - **Remaining**: GBP/EUR plan prices (with Dodo product price parity) unlock the third and fourth
   picker entries; see `docs/PAYMENTS-DODO.md §5`.
 
+### 14.19 Subscription webhook fallback (recurring plans, 2026-10-11)
+
+Cashfree's Subscriptions webhook is enabled from the dashboard, which no API can do for us. Until
+someone toggles it on there, plan upgrades still could NOT auto-apply: the mandate is authorised in
+the browser, the money moves, and the org stays on `free` because fulfilment is webhook-only.
+
+- **Track at checkout**: `POST /api/billing/checkout` now records the returned Cashfree mandate as a
+  `pending` subscription row (`trackPendingSubscription`), mapping cashfree subscription id -> org +
+  plan + currency.
+- **Reconcile on return**: `POST` success goes to `/app/billing?upgraded=plan`; the page calls
+  `syncPendingCashfreeSubscription`, which asks the Cashfree API `GET /subscriptions/{id}` and:
+  - `ACTIVE` -> promotes to `active` and applies the plan (same idempotent `applySubscription`),
+  - terminal states (`CANCELLED`/`EXPIRED`/...) -> marks the row canceled, grants nothing,
+  - `BANK_APPROVAL_PENDING` / `ON_HOLD` -> leaves `pending` for a later sync or the webhook.
+- **Guarded**: only an ACTIVE upstream subscription grants a plan; a fresh `pending` row alone, or a
+  spoofed `?upgraded=` query, can never invent one. Quiet page loads reconcile at most once/minute.
+- Same-origin webhook remains the primary path and still works over the `pending` row.
+- Tests: 6 new cases (tracking, ACTIVE promotion, cancel, still-authorising, fetch failure, debounce).
+  Suite 361/361 at the time of writing.
+- **Still recommended** (not required for launch): enabling the Cashfree Subscriptions webhook so
+  upgrades apply instantly without the customer returning to the app; see the runbook.
+
 ### HIGH
 
 | ID | Issue | Evidence | Impact | Fix |
