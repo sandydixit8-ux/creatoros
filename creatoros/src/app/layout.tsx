@@ -5,7 +5,7 @@ import { SITE_URL } from "@/lib/constants";
 import { PLAN_META } from "@/lib/plans-meta";
 import { ConsentBanner } from "@/components/consent/consent-banner";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "optional" });
 
 const description =
   "The all-in-one creator & business monetization operating system: link-in-bio store, booking, courses, analytics, AI growth coach, email and more.";

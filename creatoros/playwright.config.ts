@@ -1,5 +1,8 @@
 import { defineConfig } from "@playwright/test";
 
+const port = process.env.PORT ?? "3000";
+const baseURL = `http://localhost:${port}`;
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
@@ -9,12 +12,12 @@ export default defineConfig({
   expect: { timeout: 10_000 },
   reporter: process.env.CI ? [["github"], ["list"]] : [["list"]],
   use: {
-    baseURL: "http://localhost:3000",
+    baseURL,
     trace: "on-first-retry",
   },
   webServer: {
     command: "node e2e/start-server.mjs",
-    url: "http://localhost:3000",
+    url: baseURL,
     reuseExistingServer: false,
     timeout: 180_000,
   },

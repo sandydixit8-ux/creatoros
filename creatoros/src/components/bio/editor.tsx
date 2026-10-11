@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Check, Eye, ExternalLink, GripVertical, Loader2, Plus, QrCode, Trash2, Link2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, Eye, ExternalLink, GripVertical, Loader2, Plus, QrCode, Trash2, Link2 } from "lucide-react";
 
 export type BlockType = "profile" | "bio" | "link" | "product" | "booking" | "email_capture" | "cta" | "social";
 
@@ -179,6 +179,7 @@ export function BioEditor(props: {
                 total={blocks.length}
                 services={props.services}
                 dragging={dragId === block.id}
+                onMove={(step) => moveBlock(i, i + step)}
                 onDragStart={() => setDragId(block.id)}
                 onDropHere={() => {
                   if (dragId && dragId !== block.id) {
@@ -215,6 +216,7 @@ function BlockCard(props: {
   total: number;
   services: EditorService[];
   dragging: boolean;
+  onMove: (step: number) => void;
   onDragStart: () => void;
   onDropHere: () => void;
   onDragEnd: () => void;
@@ -237,6 +239,24 @@ function BlockCard(props: {
         <span className="text-xs font-semibold uppercase tracking-wide text-navy-500">{block.type}</span>
         <span className="text-xs text-navy-300">#{index + 1}</span>
         <span className="ml-auto flex items-center gap-2">
+          <button
+            type="button"
+            aria-label="Move block up"
+            onClick={() => props.onMove(-1)}
+            disabled={index === 0}
+            className="text-navy-400 hover:text-navy-700 disabled:opacity-30"
+          >
+            <ArrowUp className="h-4 w-4" aria-hidden />
+          </button>
+          <button
+            type="button"
+            aria-label="Move block down"
+            onClick={() => props.onMove(1)}
+            disabled={index === props.total - 1}
+            className="text-navy-400 hover:text-navy-700 disabled:opacity-30"
+          >
+            <ArrowDown className="h-4 w-4" aria-hidden />
+          </button>
           <button
             type="button"
             onClick={() => props.onChange({ active: !block.active })}

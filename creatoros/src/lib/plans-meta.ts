@@ -76,7 +76,7 @@ export const PLAN_META: PlanMeta[] = [
       "Unlimited everything",
       "Unlimited courses & emails",
       "Unlimited AI credits · custom domain + automation",
-      "Priority support",
+      "Hands-on onboarding support",
     ],
   },
 ];

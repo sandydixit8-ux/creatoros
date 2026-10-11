@@ -30,7 +30,9 @@ mirroring every previously shipped archive. Verified contents (3409 members):
 - `.next/` — compiled server + static assets, `BUILD_ID` baked in
 - `node_modules/` — only the build-traced packages (next, react, react-dom, sharp, etc.)
 - `server.js` — standalone runtime launcher, `"poweredByHeader":false` confirmed inside
-- `package.json`, `src/`
+- `package.json`, `src/` — **`src/` is required**: `deploy.sh` sanity-gates on
+  `test -f app/src/lib/db/schema.sql` (a `standalone`-only archive without `src/` is **rejected after
+  extract**, leaving the app dir half-replaced — always include it and re-verify before shipping)
 - `data/` with an **empty** `emails/` directory
 
 Excluded by design:
@@ -114,3 +116,12 @@ If a probe fails, do not leave the old build half-replaced — see `docs/ROLLBAC
   and sitemap URLs (the build had no `NEXT_PUBLIC_SITE_URL`, so `SITE_URL` was inlined as
   localhost). Rebuilt with the env var set and redeployed; live probes confirmed the fix.
 - The archive of record above was compiled from the verified working tree on 11 Oct 2026.
+- **Follow-up (11 Oct 2026):** MARKETING/SEO hotfix archive — SHA256
+  `B7C790F755322ABC512B0DFAB36F7F609A5684191EF195346DA27624B7C1AD37`, BUILD_ID
+  `zH992XfRM9Ar6jl3QDfiz`. Adds Inter `display:"optional"` (font CLS), bio-editor keyboard
+  reorder buttons, Business-plan copy fix, removal of unused deps, e2e `PORT` override, plus
+  docs (`SEO-SETUP.md`, `SEO-CONTENT.md`, `VIDEO-SCRIPTS.md`, `EMAIL-SERIES.md`, `seed-demo.ts`).
+  Gate green (lint/tsc/unit 328/e2e 50); deployed via `~/deploy.sh` (snapshot `…08-14-14`, health
+  ok, probes pass). **Lesson captured:** this deploy.sh checks `app/src/lib/db/schema.sql` — the
+  first (standalone-only) archive was rejected and `~/deploy.sh` had already wiped `app/`; the
+  running service kept serving (loaded in memory) and a correct re-archive deployed cleanly.
