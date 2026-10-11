@@ -40,7 +40,13 @@ describe("OAuth flow cookie", () => {
 
   it("rejects a tampered cookie", () => {
     const flow = createFlow({ redirectTo: "/app", redirectUri: uri });
-    const tampered = flow.cookieValue.slice(0, -1) + (flow.cookieValue.endsWith("A") ? "B" : "A");
+    // Flip the first signature character. Every bit of a base64url character is
+    // significant there, unlike the final character whose low bits are padding —
+    // tampering the last char can decode to the identical signature.
+    const dot = flow.cookieValue.lastIndexOf(".");
+    const sig = flow.cookieValue.slice(dot + 1);
+    const tamperedSig = (sig[0] === "A" ? "B" : "A") + sig.slice(1);
+    const tampered = `${flow.cookieValue.slice(0, dot + 1)}${tamperedSig}`;
     expect(resolveFlow(tampered, flow.state).ok).toBe(false);
   });
 

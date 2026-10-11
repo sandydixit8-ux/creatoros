@@ -53,7 +53,7 @@ export function CrawlButton({ websiteId, running }: { websiteId: string; running
   async function start() {
     setBusy(true);
     setError(null);
-    const res = await api<{ runId: string }>(`/api/websites/${websiteId}/crawl`);
+    const res = await api<{ runId: string }>(`/api/websites/${websiteId}/crawl`, { method: "POST" });
     setBusy(false);
     if (!res.ok) {
       setError(res.error.message);

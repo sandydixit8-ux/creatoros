@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
 /**
  * Guards the API contract in docs/06: a request body is validated with zod
@@ -71,9 +72,8 @@ describe("request body validation", () => {
     expect(offenders, "every request body must pass through a zod safeParse").toEqual([]);
   });
 
-  it("rejects an unknown gap status rather than writing it", async () => {
+  it("rejects an unknown gap status rather than writing it", () => {
     // Regression for the hand-rolled allowlist this replaced.
-    const { z } = await import("zod");
     const patch = z.object({
       id: z.string().min(1).max(64),
       status: z.enum(["missing", "planned", "done", "ignored"]),

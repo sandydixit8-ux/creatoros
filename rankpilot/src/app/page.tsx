@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { PLAN_PRICES } from "@/lib/plans";
+import { FloatingHero } from "@/components/hero-3d";
+import { Reveal, Stagger, StaggerItem, Tilt, FloatPanel, Layer, Parallax, FloatingChip } from "@/components/motion-3d";
 
 const MODULES = [
   {
@@ -114,129 +116,224 @@ export default function LandingPage() {
       </header>
 
       {/* Hero */}
-      <section className="border-b border-ink-100 bg-gradient-to-b from-brand-50/70 to-white">
-        <div className="mx-auto max-w-6xl px-4 py-20 text-center">
-          <span className="mb-5 inline-flex items-center gap-2 rounded-full border border-brand-200 bg-white px-3 py-1 text-xs font-medium text-brand-700">
-            SEO · AEO · GEO · Social — one growth loop
-          </span>
-          <h1 className="mx-auto max-w-3xl text-4xl font-bold tracking-tight text-ink-950 sm:text-5xl">
-            Turn Your Website Into an AI-Ready Growth Engine
-          </h1>
-          <p className="mx-auto mt-5 max-w-2xl text-lg text-ink-600">
-            Analyze SEO, AEO and GEO opportunities, create high-performing content, grow social
-            reach and continuously improve your digital visibility.
-          </p>
-          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <Link href="/register" className="btn-primary px-6 py-3 text-base">
-              Analyze My Website
-            </Link>
-            <Link href="/free-seo-audit" className="btn-secondary px-6 py-3 text-base">
-              Try the free audit
-            </Link>
-          </div>
-          <p className="mt-4 text-xs text-ink-400">
-            No credit card required · We never guarantee rankings, traffic or citations — we
-            optimize what you can measure.
-          </p>
+      <section className="relative overflow-hidden border-b border-ink-100 bg-gradient-to-b from-brand-50/70 to-white">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-60 [background:radial-gradient(60%_50%_at_50%_0%,rgba(37,99,235,0.14),transparent_70%)]"
+        />
+        <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 py-20 lg:grid-cols-2">
+          <Reveal className="text-center lg:text-left">
+            <span className="mb-5 inline-flex items-center gap-2 rounded-full border border-brand-200 bg-white px-3 py-1 text-xs font-medium text-brand-700">
+              SEO · AEO · GEO · Social — one growth loop
+            </span>
+            <h1 className="mx-auto max-w-3xl text-4xl font-bold tracking-tight text-ink-950 sm:text-5xl lg:mx-0">
+              Turn Your Website Into an AI-Ready Growth Engine
+            </h1>
+            <p className="mx-auto mt-5 max-w-2xl text-lg text-ink-600 lg:mx-0">
+              Analyze SEO, AEO and GEO opportunities, create high-performing content, grow social
+              reach and continuously improve your digital visibility.
+            </p>
+            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row lg:justify-start">
+              <Link href="/register" className="btn-primary px-6 py-3 text-base">
+                Analyze My Website
+              </Link>
+              <Link href="/free-seo-audit" className="btn-secondary px-6 py-3 text-base">
+                Try the free audit
+              </Link>
+            </div>
+            <p className="mt-4 text-xs text-ink-400">
+              No credit card required · We never guarantee rankings, traffic or citations — we
+              optimize what you can measure.
+            </p>
+          </Reveal>
+          <Reveal delay={0.15} className="order-first lg:order-last">
+            <FloatingHero />
+          </Reveal>
         </div>
       </section>
 
       {/* Problem */}
       <section className="mx-auto max-w-6xl px-4 py-16">
-        <div className="grid gap-8 md:grid-cols-3">
+        <Stagger className="grid gap-8 md:grid-cols-3">
           {[
             ["Metrics everywhere, answers nowhere", "Dashboards list hundreds of issues but never tell you which one matters first or what to do about it."],
             ["Search changed, tools didn't", "People now ask AI engines directly. Being crawlable is no longer the same as being understood or cited."],
             ["Content without a system", "Teams publish constantly but rarely repurpose, measure or learn — so every post starts from zero."],
           ].map(([t, d]) => (
-            <div key={t}>
+            <StaggerItem key={t}>
               <h3 className="text-base font-semibold text-ink-900">{t}</h3>
               <p className="mt-2 text-sm leading-6 text-ink-600">{d}</p>
-            </div>
+            </StaggerItem>
           ))}
-        </div>
+        </Stagger>
       </section>
 
       {/* Modules */}
-      <section id="product" className="border-y border-ink-100 bg-ink-50">
+      <section id="product" className="relative border-y border-ink-100 bg-ink-50">
+        <FloatingChip delay={0.4} className="right-6 top-24 hidden lg:block">
+          <span className="rounded-xl bg-white px-3 py-1.5 text-xs font-semibold text-brand-700 shadow-lg shadow-ink-900/10 ring-1 ring-brand-100">
+            AEO ready
+          </span>
+        </FloatingChip>
+        <FloatingChip delay={1.4} duration={6.5} className="left-6 bottom-24 hidden lg:block">
+          <span className="rounded-xl bg-ink-900 px-3 py-1.5 text-xs font-semibold text-white shadow-lg shadow-ink-900/20">
+            GEO ↑ 21%
+          </span>
+        </FloatingChip>
         <div className="mx-auto max-w-6xl px-4 py-16">
-          <h2 className="text-3xl font-bold text-ink-950">One operating system for growth</h2>
-          <p className="mt-3 max-w-2xl text-ink-600">
-            RankPilot connects the full loop: understand your site, prioritize opportunities,
-            generate the solution, implement it, measure the result and decide what to do next.
-          </p>
-          <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <Reveal>
+            <h2 className="text-3xl font-bold text-ink-950">One operating system for growth</h2>
+            <p className="mt-3 max-w-2xl text-ink-600">
+              RankPilot connects the full loop: understand your site, prioritize opportunities,
+              generate the solution, implement it, measure the result and decide what to do next.
+            </p>
+          </Reveal>
+          <Stagger className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {MODULES.map((m) => (
-              <div key={m.title} className="card p-5">
-                <h3 className="font-semibold text-ink-900">{m.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-ink-600">{m.body}</p>
-              </div>
+              <StaggerItem key={m.title}>
+                <Tilt className="card h-full p-5">
+                  <h3 className="font-semibold text-ink-900">{m.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-ink-600">{m.body}</p>
+                </Tilt>
+              </StaggerItem>
             ))}
-          </div>
+          </Stagger>
         </div>
       </section>
 
       {/* How it works */}
       <section id="how" className="mx-auto max-w-6xl px-4 py-16">
-        <h2 className="text-3xl font-bold text-ink-950">How it works</h2>
-        <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <Reveal>
+          <h2 className="text-3xl font-bold text-ink-950">How it works</h2>
+        </Reveal>
+        <Stagger className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {STEPS.map((s) => (
-            <div key={s.n} className="card p-5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-sm font-bold text-white">
-                {s.n}
-              </div>
-              <h3 className="mt-3 font-semibold text-ink-900">{s.t}</h3>
-              <p className="mt-1.5 text-sm leading-6 text-ink-600">{s.d}</p>
-            </div>
+            <StaggerItem key={s.n}>
+              <Tilt className="card h-full p-5" intensity={12}>
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-sm font-bold text-white">
+                  {s.n}
+                </div>
+                <h3 className="mt-3 font-semibold text-ink-900">{s.t}</h3>
+                <p className="mt-1.5 text-sm leading-6 text-ink-600">{s.d}</p>
+              </Tilt>
+            </StaggerItem>
           ))}
+        </Stagger>
+      </section>
+
+      {/* Growth loop — 3D floating cards */}
+      <section className="relative overflow-hidden border-y border-ink-100 bg-gradient-to-b from-white to-brand-50/60">
+        <Parallax offset={90} className="pointer-events-none absolute inset-0">
+          <div className="absolute left-[6%] top-10 h-64 w-64 rounded-full bg-brand-300/30 blur-3xl" />
+          <div className="absolute right-[8%] bottom-4 h-72 w-72 rounded-full bg-violet-300/30 blur-3xl" />
+        </Parallax>
+        <div className="relative mx-auto max-w-6xl px-4 py-20">
+          <Reveal className="text-center">
+            <span className="inline-flex items-center gap-2 rounded-full border border-brand-200 bg-white px-3 py-1 text-xs font-medium text-brand-700">
+              The growth loop
+            </span>
+            <h2 className="mt-4 text-3xl font-bold text-ink-950">The loop that compounds</h2>
+            <p className="mx-auto mt-3 max-w-2xl text-ink-600">
+              Audit, create, measure — then let the results decide what to do next. Every turn of
+              the loop makes the next one cheaper.
+            </p>
+          </Reveal>
+
+          <div className="mt-16 grid gap-10 lg:grid-cols-3 lg:gap-8">
+            {[
+              { k: "Audit", t: "Find what matters", d: "Crawl your site and surface the highest-value issues first — not a wall of metrics.", tag: "Technical + AEO + GEO", z: 42 },
+              { k: "Create", t: "Draft the fix", d: "AI writes the title, answer, schema or post, and you review the BEFORE/AFTER diff.", tag: "Content studio", z: 58 },
+              { k: "Measure", t: "Prove the lift", d: "Track exactly what changed after you ship, then let the data drive the next action.", tag: "Results loop", z: 74 },
+            ].map((item, index) => (
+              <FloatPanel
+                key={item.k}
+                delay={index * 0.4}
+                distance={14 + index * 4}
+                duration={6.5}
+                className="relative"
+              >
+                <div className="card p-6 pt-7">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-brand-600">
+                    {item.k}
+                  </div>
+                  <h3 className="mt-2 text-lg font-semibold text-ink-900">{item.t}</h3>
+                  <p className="mt-2 text-sm leading-6 text-ink-600">{item.d}</p>
+                </div>
+                <Layer z={item.z} className="absolute -top-3 right-4">
+                  <span className="rounded-full bg-ink-900 px-3 py-1 text-[11px] font-semibold text-white shadow-lg shadow-ink-900/20">
+                    {item.tag}
+                  </span>
+                </Layer>
+              </FloatPanel>
+            ))}
+          </div>
         </div>
+
+        <FloatingChip delay={0.2} className="left-4 top-1/4 hidden md:block">
+          <span className="rounded-xl bg-white px-3 py-1.5 text-xs font-semibold text-brand-700 shadow-lg shadow-ink-900/10 ring-1 ring-brand-100">
+            +38 fixes queued
+          </span>
+        </FloatingChip>
+        <FloatingChip delay={1.1} duration={6} className="right-5 top-1/3 hidden md:block">
+          <span className="rounded-xl bg-ink-900 px-3 py-1.5 text-xs font-semibold text-white shadow-lg shadow-ink-900/20">
+            score 92 ↑
+          </span>
+        </FloatingChip>
       </section>
 
       {/* Use cases */}
       <section id="use-cases" className="border-y border-ink-100 bg-ink-50">
         <div className="mx-auto max-w-6xl px-4 py-16">
-          <h2 className="text-3xl font-bold text-ink-950">Built for how you work</h2>
-          <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <Reveal>
+            <h2 className="text-3xl font-bold text-ink-950">Built for how you work</h2>
+          </Reveal>
+          <Stagger className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {USE_CASES.map(([t, d]) => (
-              <div key={t} className="card p-5">
-                <h3 className="font-semibold text-ink-900">{t}</h3>
-                <p className="mt-2 text-sm leading-6 text-ink-600">{d}</p>
-              </div>
+              <StaggerItem key={t}>
+                <Tilt className="card h-full p-5">
+                  <h3 className="font-semibold text-ink-900">{t}</h3>
+                  <p className="mt-2 text-sm leading-6 text-ink-600">{d}</p>
+                </Tilt>
+              </StaggerItem>
             ))}
-          </div>
+          </Stagger>
         </div>
       </section>
 
       {/* Pricing */}
       <section id="pricing" className="mx-auto max-w-6xl px-4 py-16">
-        <h2 className="text-3xl font-bold text-ink-950">Simple, honest pricing</h2>
-        <p className="mt-3 text-ink-600">Usage-based limits. Upgrade when you outgrow a plan — never pay for vanity metrics.</p>
-        <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <Reveal>
+          <h2 className="text-3xl font-bold text-ink-950">Simple, honest pricing</h2>
+          <p className="mt-3 text-ink-600">Usage-based limits. Upgrade when you outgrow a plan — never pay for vanity metrics.</p>
+        </Reveal>
+        <Stagger className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {PRICING.map((p) => (
-            <div
-              key={p.name}
-              className={`card flex flex-col p-6 ${p.featured ? "border-brand-300 ring-1 ring-brand-200" : ""}`}
-            >
-              <div className="text-sm font-semibold text-brand-600">{p.name}</div>
-              <div className="mt-2 flex items-baseline gap-1">
-                <span className="text-3xl font-bold text-ink-950">${PLAN_PRICES[p.plan].usd}</span>
-                <span className="text-sm text-ink-400">/mo</span>
-              </div>
-              <div className="mt-1 text-xs text-ink-500">{p.tagline}</div>
-              <ul className="mt-4 flex-1 space-y-2 text-sm text-ink-600">
-                {p.features.map((f) => (
-                  <li key={f} className="flex gap-2">
-                    <span className="text-brand-600">✓</span>
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <Link href="/register" className={`mt-5 ${p.featured ? "btn-primary" : "btn-secondary"}`}>
-                {p.cta}
-              </Link>
-            </div>
+            <StaggerItem key={p.name}>
+              <Tilt
+                className={`card flex h-full flex-col p-6 ${p.featured ? "border-brand-300 ring-1 ring-brand-200" : ""}`}
+                intensity={8}
+              >
+                <div className="text-sm font-semibold text-brand-600">{p.name}</div>
+                <div className="mt-2 flex items-baseline gap-1">
+                  <span className="text-3xl font-bold text-ink-950">${PLAN_PRICES[p.plan].usd}</span>
+                  <span className="text-sm text-ink-400">/mo</span>
+                </div>
+                <div className="mt-1 text-xs text-ink-500">{p.tagline}</div>
+                <ul className="mt-4 flex-1 space-y-2 text-sm text-ink-600">
+                  {p.features.map((f) => (
+                    <li key={f} className="flex gap-2">
+                      <span className="text-brand-600">✓</span>
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+                <Link href="/register" className={`mt-5 ${p.featured ? "btn-primary" : "btn-secondary"}`}>
+                  {p.cta}
+                </Link>
+              </Tilt>
+            </StaggerItem>
           ))}
-        </div>
+        </Stagger>
         <p className="mt-6 text-sm text-ink-500">
           <Link href="/pricing" className="font-medium text-brand-700 hover:underline">
             Compare every plan limit
@@ -248,27 +345,33 @@ export default function LandingPage() {
       {/* FAQ */}
       <section id="faq" className="border-t border-ink-100 bg-ink-50">
         <div className="mx-auto max-w-3xl px-4 py-16">
-          <h2 className="text-3xl font-bold text-ink-950">Honest answers</h2>
-          <div className="mt-8 space-y-5">
+          <Reveal>
+            <h2 className="text-3xl font-bold text-ink-950">Honest answers</h2>
+          </Reveal>
+          <Stagger className="mt-8 space-y-5">
             {FAQS.map(([q, a]) => (
-              <details key={q} className="card p-5">
-                <summary className="cursor-pointer text-sm font-semibold text-ink-900">{q}</summary>
-                <p className="mt-2 text-sm leading-6 text-ink-600">{a}</p>
-              </details>
+              <StaggerItem key={q}>
+                <details className="card p-5">
+                  <summary className="cursor-pointer text-sm font-semibold text-ink-900">{q}</summary>
+                  <p className="mt-2 text-sm leading-6 text-ink-600">{a}</p>
+                </details>
+              </StaggerItem>
             ))}
-          </div>
+          </Stagger>
         </div>
       </section>
 
       {/* CTA */}
       <section className="mx-auto max-w-6xl px-4 py-16 text-center">
-        <h2 className="text-3xl font-bold text-ink-950">Know your next best move</h2>
-        <p className="mx-auto mt-3 max-w-xl text-ink-600">
-          Run a full growth audit on your website and get a prioritized action list in minutes.
-        </p>
-        <Link href="/register" className="btn-primary mt-6 inline-flex px-6 py-3 text-base">
-          Analyze My Website
-        </Link>
+        <Reveal>
+          <h2 className="text-3xl font-bold text-ink-950">Know your next best move</h2>
+          <p className="mx-auto mt-3 max-w-xl text-ink-600">
+            Run a full growth audit on your website and get a prioritized action list in minutes.
+          </p>
+          <Link href="/register" className="btn-primary mt-6 inline-flex px-6 py-3 text-base">
+            Analyze My Website
+          </Link>
+        </Reveal>
       </section>
 
       <footer className="border-t border-ink-100 bg-white">
