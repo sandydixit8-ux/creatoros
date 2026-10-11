@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { row } from "@/lib/db/db";
 import { webhookProviders, type PaymentProvider, type ProviderWebhookEvent } from "@/lib/payments";
 import { claimWebhookEvent, markWebhookProcessed, markWebhookFailed } from "@/lib/payments/webhook-events";
-import { fulfillOrderBySession, markOrderFailed, type FulfillResult } from "@/lib/store/orders";
+import { fulfillOrder, fulfillOrderBySession, markOrderFailed, type FulfillResult } from "@/lib/store/orders";
 import { applySubscription } from "@/lib/billing/subscriptions";
 import { recordFunnelEvent } from "@/lib/funnel";
 import { ok, fail } from "@/lib/http";
@@ -29,25 +29,44 @@ export async function POST(req: NextRequest) {
   if (providers.length === 0) return fail("Payments not configured", 503, "payments_not_configured");
 
   const raw = await req.text();
+  const headers = req.headers;
+
+  // A signature header is present for any genuine gateway delivery: Cashfree
+  // (x-webhook-signature), Stripe (stripe-signature), or Dodo Payments
+  // (Standard Webhooks webhook-signature). Its absence is the tell for a
+  // dashboard endpoint-validation ping or a stray request.
+  const signed = Boolean(
+    headers.get("x-webhook-signature") || headers.get("stripe-signature") || headers.get("webhook-signature")
+  );
 
   // Delivery diagnostic (PII-free): proves whether a gateway postal arrived at
   // all even when signature rejection drops it before an event row exists.
   console.log(
-    `[webhook] inbound len=${raw.length} host=${req.headers.get("x-forwarded-host") || req.headers.get("host") || ""} sig=${Boolean(req.headers.get("x-webhook-signature"))} ts=${Boolean(req.headers.get("x-webhook-timestamp"))}`
+    `[webhook] inbound len=${raw.length} host=${req.headers.get("x-forwarded-host") || req.headers.get("host") || ""} signed=${signed}`
   );
-  if (!req.headers.get("x-webhook-signature") && !req.headers.get("stripe-signature")) {
+  if (!signed) {
     console.log("[webhook] rejected: no signature header present");
   }
 
-  // The sender is whichever gateway's signature verifies: Cashfree signs with
-  // x-webhook-signature + x-webhook-timestamp, Stripe with stripe-signature.
+  // The sender is whichever gateway's signature verifies. Each gateway names
+  // its headers differently, so pick the right set before verifying.
   let provider: PaymentProvider | null = null;
   let event: ProviderWebhookEvent | null = null;
   for (const candidate of providers) {
-    const cashfree = candidate.name === "cashfree";
-    const signature = (cashfree ? req.headers.get("x-webhook-signature") : req.headers.get("stripe-signature")) || "";
-    const timestamp = (cashfree ? req.headers.get("x-webhook-timestamp") : "") || "";
-    const verified = await candidate.verifyWebhook(raw, signature, timestamp);
+    let signature = "";
+    let timestamp = "";
+    let deliveryId = "";
+    if (candidate.name === "cashfree") {
+      signature = headers.get("x-webhook-signature") || "";
+      timestamp = headers.get("x-webhook-timestamp") || "";
+    } else if (candidate.name === "dodo") {
+      signature = headers.get("webhook-signature") || "";
+      timestamp = headers.get("webhook-timestamp") || "";
+      deliveryId = headers.get("webhook-id") || "";
+    } else {
+      signature = headers.get("stripe-signature") || "";
+    }
+    const verified = await candidate.verifyWebhook(raw, signature, timestamp, deliveryId);
     if (verified) {
       provider = candidate;
       event = verified;
@@ -60,7 +79,7 @@ export async function POST(req: NextRequest) {
   // path we answer 200 on purpose: Cashfree's dashboard sends an unsigned
   // validation POST when you add a webhook endpoint, and 400-ing it blocks
   // the Subscriptions product setup in the merchant dashboard.
-  if (!provider && !event && !req.headers.get("x-webhook-signature") && !req.headers.get("stripe-signature")) {
+  if (!provider && !event && !signed) {
     return ok({ received: true, verified: false });
   }
   if (!provider || !event) return fail("Invalid signature", 400, "invalid_signature");
@@ -76,6 +95,11 @@ export async function POST(req: NextRequest) {
   }
 
   const sessionId = str(event.data.id);
+  // The order id carried in metadata is the most reliable handle: it is stable
+  // across gateways, whereas the provider session id differs (Stripe/Cashfree
+  // echo the checkout id; Dodo reports the payment id on `payment.succeeded`).
+  const eventMetadata = (event.data.metadata ?? {}) as Record<string, unknown>;
+  const metaOrderId = str(eventMetadata.orderId);
   let result: FulfillResult | "subscription_applied" | "tenant_not_found" | "ignored" | "not_payable" = "ignored";
 
   try {
@@ -111,6 +135,8 @@ export async function POST(req: NextRequest) {
               result = "tenant_not_found";
             }
           }
+        } else if (metaOrderId) {
+          result = fulfillOrder(metaOrderId);
         } else if (sessionId) {
           result = fulfillOrderBySession(sessionId);
         }
@@ -174,7 +200,13 @@ export async function POST(req: NextRequest) {
         break;
       }
       case "checkout.session.expired":
-        if (sessionId) {
+        if (metaOrderId) {
+          const order = row<{ id: string }>("SELECT id FROM orders WHERE id = ? AND status = 'pending'", metaOrderId);
+          if (order) {
+            markOrderFailed(order.id, "canceled");
+            result = "not_payable";
+          }
+        } else if (sessionId) {
           const order = row<{ id: string }>("SELECT id FROM orders WHERE provider_session_id = ? AND status = 'pending'", sessionId);
           if (order) {
             markOrderFailed(order.id, "canceled");

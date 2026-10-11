@@ -66,6 +66,7 @@ Nine working product modules, all server-rendered against a single SQLite file:
 | Currency-based routing | LIVE | `src/lib/payments/index.ts:47-55` |
 | Stripe (USD) | Implemented, **untested webhooks** | `src/lib/payments/stripe-provider.ts` |
 | Cashfree (INR) | LIVE, verified end-to-end | `src/lib/payments/cashfree-provider.ts` |
+| Dodo Payments (MoR, USD/GBP/EUR) | Implemented, **unit-tested; needs account to verify end-to-end** | `src/lib/payments/dodo-provider.ts` |
 | Mock provider (non-prod) | LIVE | `src/lib/payments/mock.ts` |
 | Provider recorded on order | LIVE | `src/lib/store/orders.ts:166-177` |
 | Cashfree HMAC-SHA256 + `timingSafeEqual` | LIVE | `src/lib/payments/cashfree-provider.ts:266-277` |
@@ -74,9 +75,9 @@ Nine working product modules, all server-rendered against a single SQLite file:
 | Idempotent fulfilment (conditional UPDATE) | LIVE | `src/lib/store/orders.ts:191-192` |
 | Refunds (full/partial, provider-aware, audited) | LIVE | `src/app/api/admin/orders/[id]/refund/route.ts` |
 | Entitlements revoked on refund | **NOT IMPLEMENTED** | refund route updates order only |
-| Multi-currency | USD + INR only | `STRIPE_CURRENCIES` / `CASHFREE_CURRENCIES` |
+| Multi-currency | INR (Cashfree) + USD/GBP/EUR (Dodo MoR), Stripe when configured | `DODO_CURRENCIES` / `STRIPE_CURRENCIES` / `CASHFREE_CURRENCIES` |
 | FX conversion | **NOT IMPLEMENTED** | hardcoded `RATE = 84`, display only (`src/lib/money-format.ts:3`) |
-| Tax / VAT / GST / invoicing | **NOT IMPLEMENTED** | no logic anywhere |
+| Tax / VAT / GST / invoicing | Handled by Dodo (Merchant of Record) for USD/GBP/EUR; none for own Cashfree INR sales | `src/lib/payments/dodo-provider.ts`; Dodo is seller of record |
 | Webhook replay-window validation | **NOT IMPLEMENTED** | timestamp used for HMAC only, never for freshness |
 
 All money is stored as integer minor units — correct. The provider abstraction is clean and genuinely extensible.
@@ -1217,6 +1218,38 @@ before any marketing traffic, which is the point of the test. The delivery fix i
 enable Cashfree "Subscriptions" webhooks and point them at `https://usecreatoros.co/api/webhooks/stripe`.
 Webhook delivery can then be re-verified at no cost by cancelling the four `INITIALIZED` subscriptions
 via `POST /subscriptions/{id}/manage` and watching for `customer.subscription.deleted` events.
+
+### 14.17 Dodo Payments wired as a Merchant of Record for US/UK billing (2026-10-11)
+
+Stripe is invite-only for India, and Cashfree stays INR-only for this account, so a USD/GBP
+customer still hit the "not available yet" dead end (§14.10, §14.11). Dodo Payments is now wired
+as a fourth provider that settles those currencies and acts as the merchant of record, so Dodo -
+not the creator - is the seller of record for sales tax/VAT.
+
+- **Provider module** `src/lib/payments/dodo-provider.ts`: same `PaymentProvider` surface as
+  Cashfree/Stripe (checkout, subscription, cancel, refund, status, webhook verify). No new
+  dependencies - raw `fetch` + `node:crypto`. Dashboard products are mandatory (Dodo has no inline
+  pricing); platform plans map through `DODO_PRODUCT_<PLANKEY>`. Webhooks are **Standard Webhooks**:
+  HMAC-SHA256 over `${webhook-id}.${webhook-timestamp}.${rawBody}`, base64 secret after `whsec_`,
+  5-minute tolerance.
+- **Routing**: `getPaymentProviderForCurrency` now tries Cashfree -> Stripe -> Dodo, so INR keeps
+  settling on Cashfree and USD/GBP/EUR settle on Dodo when it is configured. `providerByName` and
+  `webhookProviders` include it.
+- **Webhook route** (`src/app/api/webhooks/stripe/route.ts`): per-provider header extraction
+  (`webhook-signature` / `webhook-timestamp` / `webhook-id`, the last as the idempotency key), and
+  one-time fulfilment resolves the order from `metadata.orderId` before falling back to the session id.
+- **Billing route fix**: `src/app/api/billing/checkout/route.ts` gated the provider path on
+  `stripeReady || cashfreeReady` hardcoded, so a configured Dodo would still have reported "not
+  available yet". It now gates on `provider.isConfigured()` and requires a phone only when
+  `provider.requiresCustomerPhone` (Cashfree mandates), matching the billing page which already
+  derived both from the resolved provider.
+- **Tests**: `src/lib/payments/dodo-webhook.test.ts` (18: signature accept/reject/rotation/tolerance,
+  event mapping, currency, product id) plus provider-routing cases in `payments.test.ts`. Full suite
+  348/348.
+- **Still requires the Dodo account** (cannot be done from here): dashboard products + ids, API/webhook
+  keys, and the test-mode verifications listed in `docs/PAYMENTS-DODO.md §5` (metadata propagation,
+  refund path, cancel path, plan-price parity, $1 minimum). One-time creator store/course products
+  in USD also need a `dodo_product_id` column - scoped out of this change.
 
 ### HIGH
 

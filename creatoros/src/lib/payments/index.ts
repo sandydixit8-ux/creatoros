@@ -2,6 +2,7 @@ import type { PaymentProvider } from "./types";
 import { mockProvider } from "./mock";
 import { stripeProvider } from "./stripe-provider";
 import { cashfreeProvider } from "./cashfree-provider";
+import { dodoProvider } from "./dodo-provider";
 
 export type {
   PaymentProvider,
@@ -16,6 +17,7 @@ export type {
  * Resolve the active payment provider.
  * - PAYMENT_PROVIDER=cashfree + CASHFREE_* set  -> Cashfree
  * - PAYMENT_PROVIDER=stripe   + STRIPE_SECRET_KEY set -> Stripe
+ * - PAYMENT_PROVIDER=dodo     + DODO_PAYMENTS_API_KEY set -> Dodo (MoR)
  * - PAYMENT_PROVIDER=mock                           -> dev mock
  * - otherwise -> unconfigured stub (checkout returns 503 until keys exist)
  */
@@ -24,6 +26,7 @@ export function getPaymentProvider(): PaymentProvider {
 
   if (preferred === "cashfree" && cashfreeProvider.isConfigured()) return cashfreeProvider;
   if (preferred === "stripe" && stripeProvider.isConfigured()) return stripeProvider;
+  if (preferred === "dodo" && dodoProvider.isConfigured()) return dodoProvider;
 
   const dev = process.env.NODE_ENV !== "production";
   if (dev) return mockProvider;
@@ -54,7 +57,7 @@ export function getPaymentProviderForCurrency(currency: string): PaymentProvider
   const preferred = getPaymentProvider();
   if (preferred.isConfigured() && preferred.supportsCurrency(currency)) return preferred;
 
-  for (const candidate of [cashfreeProvider, stripeProvider]) {
+  for (const candidate of [cashfreeProvider, stripeProvider, dodoProvider]) {
     if (candidate.isConfigured() && candidate.supportsCurrency(currency)) return candidate;
   }
   return unconfiguredProvider;
@@ -71,6 +74,7 @@ export function providerByName(name: string | null | undefined): PaymentProvider
   if (!wanted) return null;
   if (wanted === "cashfree") return cashfreeProvider;
   if (wanted === "stripe") return stripeProvider;
+  if (wanted === "dodo") return dodoProvider;
   if (wanted === "mock") return mockProvider;
   return null;
 }
@@ -78,13 +82,14 @@ export function providerByName(name: string | null | undefined): PaymentProvider
 /**
  * Every configured provider, for endpoints that must verify an inbound webhook
  * without knowing which gateway sent it. Cashfree signs with
- * `x-webhook-signature` + `x-webhook-timestamp`, Stripe with `stripe-signature`.
+ * `x-webhook-signature` + `x-webhook-timestamp`, Stripe with `stripe-signature`,
+ * Dodo Payments with Standard Webhooks `webhook-signature`/`-id`/`-timestamp`.
  */
 export function webhookProviders(): PaymentProvider[] {
   const ordered: PaymentProvider[] = [];
   const preferred = getPaymentProvider();
   if (preferred.name !== "unconfigured") ordered.push(preferred);
-  for (const candidate of [cashfreeProvider, stripeProvider]) {
+  for (const candidate of [cashfreeProvider, stripeProvider, dodoProvider]) {
     if (candidate.isConfigured() && !ordered.some((p) => p.name === candidate.name)) ordered.push(candidate);
   }
   return ordered;

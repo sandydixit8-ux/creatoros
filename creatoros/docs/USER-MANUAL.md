@@ -569,9 +569,11 @@ that `AI_API_KEY` (or `OPENAI_API_KEY`) must be set. It uses `AI_BASE_URL` (defa
 or `inr`).
 
 **Provider:** the active provider is resolved from `PAYMENT_PROVIDER`
-(`cashfree`, `stripe`, or `mock`). In development with no keys, a **mock** provider
-simulates upgrades (marked "simulated"). When unconfigured in production, upgrades are
-disabled until keys are set.
+(`cashfree`, `stripe`, `dodo`, or `mock`). Which gateway actually settles a checkout is
+picked per currency: Cashfree for INR, **Dodo Payments** (Merchant of Record) for
+USD/GBP/EUR, Stripe when configured. In development with no keys, a **mock** provider
+simulates upgrades (marked "simulated"). When no configured gateway supports the billing
+currency, upgrades are disabled until keys are set.
 
 **Cashfree note:** Cashfree subscription mandates require an **Indian phone number**, so
 the checkout form asks for a phone when Cashfree is active.
@@ -684,12 +686,17 @@ Environment variables (see `.env.example`). Never commit real secrets.
 
 | Variable | Purpose |
 |---|---|
-| `PAYMENT_PROVIDER` | `cashfree`, `stripe`, or `mock`. |
+| `PAYMENT_PROVIDER` | `cashfree`, `stripe`, `dodo`, or `mock`. |
 | `BILLING_CURRENCY` | `usd` (default) or `inr`. |
 | `CASHFREE_ENV` | `live` or `sandbox`. |
 | `CASHFREE_CLIENT_ID` / `CASHFREE_CLIENT_SECRET` | Cashfree API credentials. |
 | `CASHFREE_API_VERSION` | e.g. `2025-01-01`. |
 | `STRIPE_SECRET_KEY` | Stripe credentials when using Stripe. |
+| `DODO_PAYMENTS_API_KEY` | Dodo Payments API key (test `dodo_test_*` / live). |
+| `DODO_PAYMENTS_WEBHOOK_KEY` | Dodo Standard-Webhooks signing secret (`whsec_…`). |
+| `DODO_ENV` | `test` (default) or `live`. |
+| `DODO_CURRENCIES` | Gateway allows this checkout currency (`usd,gbp,eur`). Per-country, not per-key. |
+| `DODO_PRODUCT_<PLANKEY>` | Dodo dashboard product id for each plan (e.g. `DODO_PRODUCT_CREATOR`). |
 
 ### Email
 

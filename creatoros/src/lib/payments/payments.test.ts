@@ -75,6 +75,8 @@ describe("currency-based provider routing", () => {
     "CASHFREE_CURRENCIES",
     "STRIPE_SECRET_KEY",
     "STRIPE_CURRENCIES",
+    "DODO_PAYMENTS_API_KEY",
+    "DODO_CURRENCIES",
   ];
   const saved = new Map(keys.map((k) => [k, process.env[k]]));
 
@@ -122,6 +124,7 @@ describe("currency-based provider routing", () => {
   it("resolves the provider recorded on an order for refunds and status checks", () => {
     expect(providerByName("cashfree")?.name).toBe("cashfree");
     expect(providerByName("stripe")?.name).toBe("stripe");
+    expect(providerByName("dodo")?.name).toBe("dodo");
     expect(providerByName("")).toBeNull();
     expect(providerByName("nope")).toBeNull();
   });
@@ -130,6 +133,23 @@ describe("currency-based provider routing", () => {
     expect(webhookProviders().map((p) => p.name)).toEqual(["cashfree"]);
     process.env.STRIPE_SECRET_KEY = "sk_test_123";
     expect(webhookProviders().map((p) => p.name)).toEqual(["cashfree", "stripe"]);
+  });
+
+  it("routes USD to Dodo (MoR) when it is the only non-INR gateway", () => {
+    // Cashfree stays INR-only, so USD needs an international gateway. Dodo
+    // serves it without the Stripe invite-only-India problem.
+    process.env.DODO_PAYMENTS_API_KEY = "dodo_test_key";
+    expect(getPaymentProviderForCurrency("usd").name).toBe("dodo");
+    expect(getPaymentProviderForCurrency("gbp").name).toBe("dodo");
+    expect(getPaymentProviderForCurrency("inr").name).toBe("cashfree");
+    expect(webhookProviders().map((p) => p.name)).toEqual(["cashfree", "dodo"]);
+  });
+
+  it("prefers the selected provider (PAYMENT_PROVIDER=dodo) for a currency it supports", () => {
+    process.env.DODO_PAYMENTS_API_KEY = "dodo_test_key";
+    process.env.PAYMENT_PROVIDER = "dodo";
+    expect(getPaymentProvider().name).toBe("dodo");
+    expect(getPaymentProviderForCurrency("usd").name).toBe("dodo");
   });
 });
 

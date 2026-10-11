@@ -50,16 +50,15 @@ export async function POST(req: NextRequest) {
   const phone = normalisePhone(parsed.data.phone);
   const currency = billingCurrency();
   const provider = getPaymentProviderForCurrency(currency);
-  const cashfreeReady = provider.name === "cashfree" && provider.isConfigured();
-  const stripeReady = provider.name === "stripe" && provider.isConfigured();
+  const ready = provider.isConfigured();
 
-  if (stripeReady || cashfreeReady) {
+  if (ready) {
     // Price the plan in the configured billing currency. Cashfree supports
     // both USD and INR mandates, so this is a merchant choice.
     const prices = PLAN_PRICES[plan];
     const amountCents = (currency === "inr" ? prices.inr : prices.usd) * 100;
 
-    if (cashfreeReady && !phone) {
+    if (provider.requiresCustomerPhone && !phone) {
       return err.validation({ phone: "A 10-digit phone number is required for Indian mandates" });
     }
 

@@ -95,8 +95,15 @@ export interface PaymentProvider {
   /** One-time checkout is not enough for plans — a recurring monthly session. */
   createSubscriptionSession(input: SubscriptionSessionInput): Promise<SubscriptionSessionResult>;
   cancelSubscription(providerId: string): Promise<{ subscriptionId: string }>;
-  /** Verify webhook signature and parse the event. Returns null when invalid. */
-  verifyWebhook(rawBody: string, signature: string, timestamp?: string): Promise<ProviderWebhookEvent | null>;
+  /**
+   * Verify webhook signature and parse the event. Returns null when invalid.
+   *
+   * `id` is the delivery id header. Stripe and Cashfree carry the event id in
+   * the body, so they ignore it; a Standard Webhooks sender (Dodo Payments)
+   * signs `${id}.${timestamp}.${body}` and has no body-level id, so the header
+   * is the only source for both the signature and the idempotency key.
+   */
+  verifyWebhook(rawBody: string, signature: string, timestamp?: string, id?: string): Promise<ProviderWebhookEvent | null>;
   getCheckoutPaymentStatus(sessionId: string): Promise<PaymentStatus>;
   refundPayment(input: { sessionId: string; amountCents?: number }): Promise<{ refundId: string }>;
 }
