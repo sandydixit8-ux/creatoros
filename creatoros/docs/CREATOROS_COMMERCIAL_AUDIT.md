@@ -243,7 +243,7 @@ checkout started, renewal, upgrades/downgrades, ARR/ARPU, cohorts, CAC and payba
 |---|---|---|
 | Stripe | Implemented | 503 if unconfigured in production |
 | Cashfree | Implemented, INR | Sandbox by default |
-| Resend / Mailgun / Brevo | Implemented | **Silently falls through to local file, campaign still marked `sent`** |
+| Resend / Mailgun / Brevo | Implemented | Fails closed: provider rejection records a `failed` send; campaign status is `sent`/`partial`/`failed`; no file fallback in production |
 | OpenAI-compatible AI | Implemented, key-gated | Fails closed |
 | Cloudflare RUM | Passive (CSP allow) | — |
 | OAuth / social login | **NOT IMPLEMENTED** | — |

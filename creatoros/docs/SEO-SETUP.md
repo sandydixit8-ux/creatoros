@@ -10,7 +10,7 @@ Applies to `https://usecreatoros.co` (deployed 2026-10-11, BUILD_ID `BV3YuJAAPxG
 | Single `Content-Security-Policy` header (no duplicates) | Verified live | app `proxy`/middleware |
 | `x-powered-by` suppressed | Verified live | Next config |
 | robots.txt: `/auth/` disallowed, others allowed | Verified live | `src/app/robots.ts` |
-| sitemap: 7 public URLs, `/auth` and `/u/*` excluded | Verified live | `src/app/sitemap.ts` |
+| sitemap: 2 public URLs (`/`, `/pricing`), legal/contact + `/auth` + `/u/*` excluded | Verified live | `src/app/sitemap.ts` |
 | Runtime `SITE_URL = https://usecreatoros.co` (canonicals absolute) | Build-time `NEXT_PUBLIC_SITE_URL` | `src/lib/constants.ts` |
 
 Caddy change specifics (`/etc/caddy/Caddyfile`):
@@ -30,7 +30,7 @@ Pattern: `title.template = "%s | CreatorOS"`; default title = `CreatorOS — Cre
 |---|---|---|---|---|
 | `/` | CreatorOS — Create. Grow. Sell. Automate. All in One Place. | "The all-in-one creator & business monetization operating system: link-in-bio store, booking, courses, analytics, AI growth coach, email and more." | `https://usecreatoros.co/` | index |
 | `/pricing` | Pricing | "Simple, transparent pricing for creators. Start free, upgrade when you grow. Cancel anytime." | `/pricing` | index |
-| `/terms` `/privacy` `/refund-policy` `/cookie-policy` `/contact` | {```Legal page```} | from `legalMetadata()` helper | each | index |
+| `/terms` `/privacy` `/refund-policy` `/cookie-policy` `/contact` | {```Legal page```} | from `legalMetadata()` helper | — | **noindex** until counsel-approved copy lands (then flip to index) |
 | `/auth/login` `/auth/register` `/auth/forgot-password` `/auth/reset-password` | Log in / Create account / Reset password | short | — | **noindex** (robots disallow + metadata) |
 | `/u/{username}` | generated from creator page title | generated | generated | index (creator value) |
 | `/u/{username}/{slug}` | generated | generated | generated | index |
@@ -41,7 +41,7 @@ Pattern: `title.template = "%s | CreatorOS"`; default title = `CreatorOS — Cre
 
 ### 3. Recommendations (chasing more queries)
 
-- Add **JSON-LD**: `Organization` + `SoftwareApplication` on `/`; `OfferCatalog`/`ItemList` on `/pricing`; `BreadcrumbList` on legal and `/u` pages.
+- Add **JSON-LD**: `Organization` + `SoftwareApplication` on `/`; `OfferCatalog`/`ItemList` on `/pricing`; `BreadcrumbList` on `/u` pages (skip on noindex legal drafts).
 - `/pricing` primary keywords: `link in bio with payments`, `sell digital products`, `creator monetization`.
 - Homepage: keep H1 keyword-light but ensure `link-in-bio`, `sell`, `email` appear in visible copy (they do in the four pillars).
 - Public creator pages index as themselves; add `noindex` only for non-published pages (already handled by `generateMetadata` publish check).

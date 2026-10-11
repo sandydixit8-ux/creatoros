@@ -95,7 +95,7 @@ verification.
 | Seeds/marketing | `curl -fsS https://usecreatoros.co/ \| rg -c 'offerCount'` | JSON-LD lists all 5 plans |
 | Canonical | `curl -fsS https://usecreatoros.co/pricing \| rg -o 'rel="canonical"[^>]+'` | `href="https://usecreatoros.co/pricing"` (not `/`) |
 | Auth noindex | `curl -fsS https://usecreatoros.co/auth/login \| rg -o 'name="robots"[^>]+'` | `content="noindex, follow"` |
-| Sitemap | `curl -fsS https://usecreatoros.co/sitemap.xml \| rg -c '<loc>'` | legal/contact pages present, no `/auth/` |
+| Sitemap | `curl -fsS https://usecreatoros.co/sitemap.xml \| rg -c '<loc>' \| rg '^2$'` | exactly `/` + `/pricing` — legal/contact/+`/auth/` excluded |
 | Robots | `curl -fsS https://usecreatoros.co/robots.txt` | `/auth/` disallowed |
 | Login path | open a private window, register/log in | lands on `/app`; mobile drawer opens `<lg` |
 
