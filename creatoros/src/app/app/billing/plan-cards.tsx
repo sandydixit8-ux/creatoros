@@ -4,7 +4,6 @@ import { useState } from "react";
 import { Check } from "lucide-react";
 import { loadCashfree } from "@/lib/payments/cashfree-checkout";
 import { formatByCurrency } from "@/lib/plans-meta";
-import CurrencySelect from "@/components/currency-select";
 
 export interface PlanCardData {
   key: string;
@@ -45,7 +44,6 @@ export default function PlanCards({
   mode,
   needsPhone,
   currency,
-  currencies,
   upgradesAvailable = true,
 }: {
   plans: PlanCardData[];
@@ -53,8 +51,6 @@ export default function PlanCards({
   needsPhone: boolean;
   /** Currency the visitor will be charged in (already resolved server-side). */
   currency: string;
-  /** Pickable currencies, a subset of those a configured provider can settle. */
-  currencies: string[];
   /** False when no configured gateway can settle this currency. */
   upgradesAvailable?: boolean;
 }) {
@@ -135,10 +131,6 @@ export default function PlanCards({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-end">
-        <CurrencySelect value={currency} currencies={currencies} />
-      </div>
-
       {needsPhone && (
         <div className="card p-4">
           <label htmlFor="mandate-phone" className="text-sm font-medium text-navy-800">

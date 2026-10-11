@@ -137,7 +137,6 @@ export default async function BillingPage() {
         mode={sdkMode}
         needsPhone={needsPhone}
         currency={currency}
-        currencies={currencies}
         upgradesAvailable={paymentsWired || process.env.NODE_ENV !== "production"}
       />
 
