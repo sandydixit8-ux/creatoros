@@ -84,3 +84,18 @@ export const PLAN_META: PlanMeta[] = [
 export function formatInr(price: number): string {
   return price === 0 ? "₹0" : `₹${price.toLocaleString("en-IN")}`;
 }
+
+/** Localised whole-currency price with the right symbol. USD is the fallback
+ * for any currency without a dedicated format (e.g. future GBP/EUR entries). */
+export function formatByCurrency(currency: string, price: number): string {
+  switch ((currency || "").toLowerCase()) {
+    case "inr":
+      return formatInr(price);
+    case "gbp":
+      return price === 0 ? "£0" : `£${price.toLocaleString("en-GB")}`;
+    case "eur":
+      return price === 0 ? "€0" : `€${price.toLocaleString("de-DE")}`;
+    default:
+      return price === 0 ? "$0" : `$${price.toLocaleString("en-US")}`;
+  }
+}

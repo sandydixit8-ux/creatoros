@@ -72,8 +72,9 @@ export default function PricingPage() {
           </div>
 
           <p className="mx-auto mt-10 max-w-2xl text-center text-xs leading-relaxed text-ink-muted">
-            USD prices are billed via Cashfree. INR plans range from ₹749 to ₹7,499 per month and are set at checkout.
-            Prices exclude payment-processing fees and applicable taxes. See the Refund Policy for the 14-day refund window.
+            Plan prices are billed monthly in your chosen currency at checkout (INR plans range from ₹749 to ₹7,499
+            per month). Prices exclude payment-processing fees and applicable taxes. See the Refund Policy for the
+            14-day refund window.
           </p>
         </section>
 

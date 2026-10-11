@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createHmac } from "node:crypto";
 import { mockProvider } from "./mock";
-import { getPaymentProvider, getPaymentProviderForCurrency, paymentConfiguredForCurrency, providerByName, webhookProviders, cashfreeSdkMode, billingCurrency } from "./index";
+import { getPaymentProvider, getPaymentProviderForCurrency, paymentConfiguredForCurrency, providerByName, webhookProviders, cashfreeSdkMode, billingCurrency, planCurrencies, resolvePlanCurrency } from "./index";
 import { cashfreeProvider } from "./cashfree-provider";
 import { planIdFor, subscriptionIdFor, createSubscription, normalisePhone as cfPhone } from "./cashfree-subscriptions";
 
@@ -541,6 +541,69 @@ describe("billing currency", () => {
       expect(billingCurrency()).toBe("usd");
     } finally {
       restoreEnv("BILLING_CURRENCY", prev);
+    }
+  });
+});
+
+describe("per-visitor plan currency", () => {
+  it("offers only currencies a configured provider can settle AND that have a price", () => {
+    const prev = {
+      provider: process.env.PAYMENT_PROVIDER,
+      cfId: process.env.CASHFREE_CLIENT_ID,
+      cfSecret: process.env.CASHFREE_SECRET_KEY,
+      cfCurrencies: process.env.CASHFREE_CURRENCIES,
+      dodoKey: process.env.DODO_PAYMENTS_API_KEY,
+      dodoCurrencies: process.env.DODO_CURRENCIES,
+    };
+    process.env.PAYMENT_PROVIDER = "cashfree";
+    process.env.CASHFREE_CLIENT_ID = "test_id";
+    process.env.CASHFREE_SECRET_KEY = "test_secret";
+    delete process.env.CASHFREE_CURRENCIES;
+    delete process.env.DODO_PAYMENTS_API_KEY;
+    try {
+      // Cashfree settles INR only -> a single-currency deployment.
+      expect(planCurrencies()).toEqual(["inr"]);
+      // Adding a USD-capable gateway (Dodo) opens USD alongside INR.
+      process.env.DODO_PAYMENTS_API_KEY = "test_dodo_key";
+      delete process.env.DODO_CURRENCIES;
+      expect(planCurrencies()).toEqual(["inr", "usd"]);
+    } finally {
+      restoreEnv("PAYMENT_PROVIDER", prev.provider);
+      restoreEnv("CASHFREE_CLIENT_ID", prev.cfId);
+      restoreEnv("CASHFREE_SECRET_KEY", prev.cfSecret);
+      restoreEnv("CASHFREE_CURRENCIES", prev.cfCurrencies);
+      restoreEnv("DODO_PAYMENTS_API_KEY", prev.dodoKey);
+      restoreEnv("DODO_CURRENCIES", prev.dodoCurrencies);
+    }
+  });
+
+  it("honours the visitor preference, falls back to the deployment default, never a guess", () => {
+    const prev = {
+      provider: process.env.PAYMENT_PROVIDER,
+      cfId: process.env.CASHFREE_CLIENT_ID,
+      cfSecret: process.env.CASHFREE_SECRET_KEY,
+      cfCurrencies: process.env.CASHFREE_CURRENCIES,
+      billing: process.env.BILLING_CURRENCY,
+    };
+    process.env.PAYMENT_PROVIDER = "cashfree";
+    process.env.CASHFREE_CLIENT_ID = "test_id";
+    process.env.CASHFREE_SECRET_KEY = "test_secret";
+    delete process.env.CASHFREE_CURRENCIES;
+    process.env.BILLING_CURRENCY = "inr";
+    try {
+      const picked = resolvePlanCurrency("usd");
+      expect(picked).toEqual({ currency: "inr", available: ["inr"] });
+      const none = resolvePlanCurrency(undefined);
+      expect(none.currency).toBe("inr");
+      // A hostile cookie value cannot force an unsupported charge.
+      const hostile = resolvePlanCurrency("gbp");
+      expect(hostile.currency).toBe("inr");
+    } finally {
+      restoreEnv("PAYMENT_PROVIDER", prev.provider);
+      restoreEnv("CASHFREE_CLIENT_ID", prev.cfId);
+      restoreEnv("CASHFREE_SECRET_KEY", prev.cfSecret);
+      restoreEnv("CASHFREE_CURRENCIES", prev.cfCurrencies);
+      restoreEnv("BILLING_CURRENCY", prev.billing);
     }
   });
 });

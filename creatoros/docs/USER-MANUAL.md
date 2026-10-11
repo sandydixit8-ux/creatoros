@@ -565,8 +565,12 @@ that `AI_API_KEY` (or `OPENAI_API_KEY`) must be set. It uses `AI_BASE_URL` (defa
 - **Plan cards** for all five plans with an upgrade action.
 - If a subscription exists, a **Cancel subscription** button is shown.
 
-**Currency:** billing currency is server-controlled via `BILLING_CURRENCY` (`usd` default
-or `inr`).
+**Currency:** visitors pick their checkout currency with the picker on the billing
+page. The choice (a `cc` cookie) sets the prices shown *and* the currency charged.
+INR is billed through Cashfree, USD through Dodo Payments; the picker only offers
+currencies a configured gateway can actually settle. `BILLING_CURRENCY` remains the
+fallback default (what a visitor sees before they choose) — `usd` or `inr`.
+GBP/EUR plan pricing is not offered yet (see PAYMENTS-DODO.md §5).
 
 **Provider:** the active provider is resolved from `PAYMENT_PROVIDER`
 (`cashfree`, `stripe`, `dodo`, or `mock`). Which gateway actually settles a checkout is
@@ -687,7 +691,7 @@ Environment variables (see `.env.example`). Never commit real secrets.
 | Variable | Purpose |
 |---|---|
 | `PAYMENT_PROVIDER` | `cashfree`, `stripe`, `dodo`, or `mock`. |
-| `BILLING_CURRENCY` | `usd` (default) or `inr`. |
+| `BILLING_CURRENCY` | Fallback default currency (`usd` or `inr`) until a visitor picks; the per-visitor `cc` cookie overrides it. |
 | `CASHFREE_ENV` | `live` or `sandbox`. |
 | `CASHFREE_CLIENT_ID` / `CASHFREE_CLIENT_SECRET` | Cashfree API credentials. |
 | `CASHFREE_API_VERSION` | e.g. `2025-01-01`. |

@@ -1,11 +1,14 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { CreditCard, XCircle } from "lucide-react";
 import { getSession } from "@/lib/auth/get-session";
 import { row } from "@/lib/db/db";
 import { getLimits, PLAN_PRICES } from "@/lib/plans";
 import { allUsage } from "@/lib/usage";
 import { activeSubscription } from "@/lib/billing/subscriptions";
-import { getPaymentProviderForCurrency, cashfreeSdkMode, billingCurrency } from "@/lib/payments";
+import { getPaymentProviderForCurrency, cashfreeSdkMode, resolvePlanCurrency } from "@/lib/payments";
+import { CURRENCY_COOKIE } from "@/lib/currency";
+import CurrencySelect from "@/components/currency-select";
 import PlanCards, { type PlanCardData } from "./plan-cards";
 
 export const dynamic = "force-dynamic";
@@ -21,10 +24,14 @@ export default async function BillingPage() {
   const usage = allUsage(s.org.id);
   const limits = getLimits(currentPlan);
   const sub = activeSubscription(s.org.id);
-  const currency = billingCurrency();
+  // The visitor's currency preference (cc cookie) decides both the prices shown
+  // and the currency charged. `resolvePlanCurrency` restricts to currencies a
+  // configured provider can actually settle, so a stale or hostile cookie never
+  // reaches checkout.
+  const { currency, available: currencies } = resolvePlanCurrency((await cookies()).get(CURRENCY_COOKIE)?.value);
   // Derive both from the provider that will actually settle this currency rather
   // than from PAYMENT_PROVIDER. The env-based check disagreed with the server
-  // whenever the preferred provider could not handle BILLING_CURRENCY: the page
+  // whenever the preferred provider could not handle the currency: the page
   // rendered an Indian 10-digit phone field and live Upgrade buttons for a
   // currency no configured gateway could charge.
   const billingProvider = getPaymentProviderForCurrency(currency);
@@ -33,7 +40,6 @@ export default async function BillingPage() {
   // Cashfree mandates require an Indian phone, so ask for it at checkout.
   const sdkMode = cashfreeSdkMode();
   const needsPhone = paymentsWired && billingProvider.requiresCustomerPhone;
-  const showPriceInr = currency === "inr" && PLAN_PRICES.starter.inr > 0;
 
   const contactCount = (row("SELECT COUNT(*) AS c FROM contacts WHERE tenant_id = ?", s.org.id) as { c: number })?.c ?? 0;
   const pageCount = (row("SELECT COUNT(*) AS c FROM bio_pages WHERE tenant_id = ?", s.org.id) as { c: number })?.c ?? 0;
@@ -54,9 +60,12 @@ export default async function BillingPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-navy-950">Billing &amp; plan</h1>
-        <p className="mt-1 text-sm text-navy-500">You&apos;re on the <span className="font-medium capitalize text-navy-900">{currentPlan}</span> plan.</p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-navy-950">Billing &amp; plan</h1>
+          <p className="mt-1 text-sm text-navy-500">You&apos;re on the <span className="font-medium capitalize text-navy-900">{currentPlan}</span> plan.</p>
+        </div>
+        <CurrencySelect value={currency} currencies={currencies} />
       </div>
 
       {sub && (
@@ -127,15 +136,16 @@ export default async function BillingPage() {
         })}
         mode={sdkMode}
         needsPhone={needsPhone}
-        showPriceInr={showPriceInr}
+        currency={currency}
+        currencies={currencies}
         upgradesAvailable={paymentsWired || process.env.NODE_ENV !== "production"}
       />
 
       <p className="text-center text-xs text-navy-400">
         {paymentsWired
-          ? `Plan upgrades are billed in ${showPriceInr ? "INR" : "USD"} through the payment provider and applied via webhook.`
+          ? `Plan upgrades are billed in ${currency.toUpperCase()} via ${billingProvider.name} and applied through webhooks.`
           : process.env.NODE_ENV === "production"
-            ? `Plan upgrades in ${showPriceInr ? "INR" : "USD"} are not available yet. Contact support if you need a paid plan.`
+            ? `Plan upgrades in ${currency.toUpperCase()} are not available yet. Contact support if you need a paid plan.`
             : "Billing activates once payment provider keys are set. Upgrades are simulated for development until then."}
       </p>
     </div>

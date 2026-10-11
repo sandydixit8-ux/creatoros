@@ -4,8 +4,9 @@ import { ok, err, readJson, getClientIp } from "@/lib/http";
 import { run, row, nowIso } from "@/lib/db/db";
 import { getSession } from "@/lib/auth/get-session";
 import { can } from "@/lib/auth/rbac";
-import { PLANS, PLAN_PRICES } from "@/lib/plans";
-import { getPaymentProviderForCurrency, getPaymentProvider, billingCurrency } from "@/lib/payments";
+import { PLANS, planPriceFor } from "@/lib/plans";
+import { getPaymentProviderForCurrency, getPaymentProvider, resolvePlanCurrency } from "@/lib/payments";
+import { CURRENCY_COOKIE } from "@/lib/currency";
 import { normalisePhone } from "@/lib/payments/cashfree-subscriptions";
 import { applySubscription } from "@/lib/billing/subscriptions";
 import { recordFunnelEvent } from "@/lib/funnel";
@@ -48,15 +49,19 @@ export async function POST(req: NextRequest) {
   if (!org) return err.notFound();
 
   const phone = normalisePhone(parsed.data.phone);
-  const currency = billingCurrency();
+  // The visitor's currency preference (cc cookie) prices the plan and picks the
+  // gateway. resolvePlanCurrency only returns a currency a configured provider
+  // can actually settle, so a stale or hostile cookie cannot force a charge in
+  // an unsupported currency.
+  const { currency } = resolvePlanCurrency(req.cookies.get(CURRENCY_COOKIE)?.value);
   const provider = getPaymentProviderForCurrency(currency);
   const ready = provider.isConfigured();
 
   if (ready) {
-    // Price the plan in the configured billing currency. Cashfree supports
-    // both USD and INR mandates, so this is a merchant choice.
-    const prices = PLAN_PRICES[plan];
-    const amountCents = (currency === "inr" ? prices.inr : prices.usd) * 100;
+    // Price the plan in the visitor's currency. Cashfree settles INR mandates
+    // and Dodo settles USD; the picker only offers currencies a gateway exists
+    // for, so `currency` is always chargeable here.
+    const amountCents = planPriceFor(currency, plan) * 100;
 
     if (provider.requiresCustomerPhone && !phone) {
       return err.validation({ phone: "A 10-digit phone number is required for Indian mandates" });

@@ -54,3 +54,11 @@ export const PLAN_PRICES: Record<string, { usd: number; inr: number }> = {
   pro: { usd: 49, inr: 3499 },
   business: { usd: 99, inr: 7499 },
 };
+
+/** Whole-currency monthly price for a plan, falling back to USD when the
+ * currency has no defined price (GBP/EUR are not offered until they do). */
+export function planPriceFor(currency: string, planKey: string): number {
+  const prices = PLAN_PRICES[planKey];
+  if (!prices) return 0;
+  return (currency || "").toLowerCase() === "inr" ? prices.inr : prices.usd;
+}

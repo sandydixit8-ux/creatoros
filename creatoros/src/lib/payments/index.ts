@@ -118,6 +118,42 @@ export function billingCurrency(): "usd" | "inr" {
   return (process.env.BILLING_CURRENCY || "usd").toLowerCase() === "inr" ? "inr" : "usd";
 }
 
+/**
+ * Plan prices are only defined for USD and INR (PLAN_PRICES). Dodo supports
+ * GBP/EUR too, but a price for those does not exist yet, so they are not
+ * offered until one does — better an unavailable option than a wrong charge.
+ */
+const PLAN_CURRENCY_ORDER = ["inr", "usd"] as const;
+
+/**
+ * Currencies a visitor can actually be charged for plan upgrades right now:
+ * the configured providers' currencies that also have a defined plan price.
+ */
+export function planCurrencies(): string[] {
+  const out: string[] = [];
+  for (const currency of PLAN_CURRENCY_ORDER) {
+    if (getPaymentProviderForCurrency(currency).isConfigured()) out.push(currency);
+  }
+  return out;
+}
+
+/**
+ * Resolve which currency a visitor will be charged in for plan upgrades.
+ *
+ * The visitor's `cc` preference wins when it can be settled; otherwise the
+ * deployment default (BILLING_CURRENCY) applies if it can be settled, and
+ * finally any single available currency. `available` is everything the picker
+ * may offer, so the page can hide options that would fail at checkout.
+ */
+export function resolvePlanCurrency(preferred?: string | null): { currency: string; available: string[] } {
+  const available = planCurrencies();
+  const wanted = (preferred || "").trim().toLowerCase();
+  if (available.includes(wanted)) return { currency: wanted, available };
+  const env = billingCurrency();
+  if (available.includes(env)) return { currency: env, available };
+  return { currency: available[0] ?? "usd", available };
+}
+
 const unconfiguredProvider: PaymentProvider = {
   name: "unconfigured",
   isConfigured: () => false,

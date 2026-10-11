@@ -75,7 +75,7 @@ Nine working product modules, all server-rendered against a single SQLite file:
 | Idempotent fulfilment (conditional UPDATE) | LIVE | `src/lib/store/orders.ts:191-192` |
 | Refunds (full/partial, provider-aware, audited) | LIVE | `src/app/api/admin/orders/[id]/refund/route.ts` |
 | Entitlements revoked on refund | **NOT IMPLEMENTED** | refund route updates order only |
-| Multi-currency | INR (Cashfree) + USD/GBP/EUR (Dodo MoR), Stripe when configured | `DODO_CURRENCIES` / `STRIPE_CURRENCIES` / `CASHFREE_CURRENCIES` |
+| Multi-currency | Per-visitor picker (`cc` cookie): INR (Cashfree) + USD/GBP/EUR (Dodo MoR), Stripe when configured | `DODO_CURRENCIES` / `STRIPE_CURRENCIES` / `CASHFREE_CURRENCIES` |
 | FX conversion | **NOT IMPLEMENTED** | hardcoded `RATE = 84`, display only (`src/lib/money-format.ts:3`) |
 | Tax / VAT / GST / invoicing | Handled by Dodo (Merchant of Record) for USD/GBP/EUR; none for own Cashfree INR sales | `src/lib/payments/dodo-provider.ts`; Dodo is seller of record |
 | Webhook replay-window validation | **NOT IMPLEMENTED** | timestamp used for HMAC only, never for freshness |
@@ -1250,6 +1250,29 @@ not the creator - is the seller of record for sales tax/VAT.
   keys, and the test-mode verifications listed in `docs/PAYMENTS-DODO.md §5` (metadata propagation,
   refund path, cancel path, plan-price parity, $1 minimum). One-time creator store/course products
   in USD also need a `dodo_product_id` column - scoped out of this change.
+
+### 14.18 Per-visitor currency picker (2026-10-11)
+
+§14.17 left one hitch: `billingCurrency()` read a single global `BILLING_CURRENCY`, so a deploy was
+either INR-only (India) or USD-capable (US/UK) — not both. The real live request was "India INR +
+US/UK USD at the same time", so billing is now per visitor.
+
+- **Preference**: the billing page renders a currency picker (INR/USD). Choosing it writes a `cc`
+  cookie; the server component re-renders and the checkout route re-reads it, so the price shown is
+  the currency charged. `BILLING_CURRENCY` is demoted to the fallback for visitors who never choose.
+- **Guard**: `resolvePlanCurrency()` (`src/lib/payments/index.ts`) only returns a currency a
+  configured provider can settle *and* that has a defined plan price, so a stale or hostile cookie
+  cannot force a charge in an unsupported currency. `planCurrencies()` feeds the picker exactly that
+  set (INR+USD today; GBP/EUR are Dodo-supported but have no plan price yet, so they stay hidden —
+  better a missing option than a wrong charge).
+- **Pricing**: `planPriceFor()` prices INR plans in rupees and everything else in USD (single source
+  replacing the check sites); `formatByCurrency()` renders ₹/$/£/€.
+- **Store one-time products were unaffected**: creators already price each product in its own
+  currency and `/api/store/checkout` routes per product currency.
+- **Tests**: `resolvePlanCurrency`/`planCurrencies` (preference honouring, hostile-cookie fallback),
+  `planPriceFor`/`formatByCurrency`. Suite 351/351 at the time of writing.
+- **Remaining**: GBP/EUR plan prices (with Dodo product price parity) unlock the third and fourth
+  picker entries; see `docs/PAYMENTS-DODO.md §5`.
 
 ### HIGH
 

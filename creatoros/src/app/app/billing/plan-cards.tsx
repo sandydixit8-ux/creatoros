@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { Check } from "lucide-react";
 import { loadCashfree } from "@/lib/payments/cashfree-checkout";
+import { formatByCurrency } from "@/lib/plans-meta";
+import CurrencySelect from "@/components/currency-select";
 
 export interface PlanCardData {
   key: string;
@@ -42,13 +44,17 @@ export default function PlanCards({
   plans,
   mode,
   needsPhone,
-  showPriceInr,
+  currency,
+  currencies,
   upgradesAvailable = true,
 }: {
   plans: PlanCardData[];
   mode: "sandbox" | "production";
   needsPhone: boolean;
-  showPriceInr: boolean;
+  /** Currency the visitor will be charged in (already resolved server-side). */
+  currency: string;
+  /** Pickable currencies, a subset of those a configured provider can settle. */
+  currencies: string[];
   /** False when no configured gateway can settle this currency. */
   upgradesAvailable?: boolean;
 }) {
@@ -129,6 +135,10 @@ export default function PlanCards({
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-end">
+        <CurrencySelect value={currency} currencies={currencies} />
+      </div>
+
       {needsPhone && (
         <div className="card p-4">
           <label htmlFor="mandate-phone" className="text-sm font-medium text-navy-800">
@@ -178,7 +188,7 @@ export default function PlanCards({
                 )}
               </div>
               <div className="mt-2 text-xl font-bold text-navy-950">
-                {showPriceInr ? `₹${p.priceInr}` : `$${p.priceUsd}`}
+                {formatByCurrency(currency, currency === "inr" ? p.priceInr : p.priceUsd)}
                 <span className="text-xs font-medium text-navy-400">/mo</span>
               </div>
               <ul className="mt-4 flex-1 space-y-2 text-sm text-navy-600">
