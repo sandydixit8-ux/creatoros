@@ -1434,3 +1434,74 @@ Scores reflect **verified current state**, not roadmap intent.
 **What would legitimately move this to 8+:** closing P0 raises Legal/Trust to ~7 and Payments to ~7. Instrumenting the revenue funnel plus referral, affiliate and free tools raises GTM to ~6–7. Annual plans, dunning, recovery and usage pricing raise Monetization to ~7. Retention work adds ~1 point overall. Landing near **8** is plausible in two focused quarters; **8.5+** additionally requires the marketplace, which is a different-scale programme.
 
 **Scores were not inflated to match the target.** Two areas were scored *down* versus the starting assessment because deeper evidence justified it.
+
+---
+
+## 19. Launch-readiness audit (2026-10-11)
+
+Walkthrough of the live site (`https://usecreatoros.co`, build `lcFcYcMrBW0pTHck2x1Vo`) against the
+launch checklist items 1–2, with probes and code review. Everything not marked *fixed* below is a
+handoff.
+
+### 19.1 Live probes (all on production)
+
+| Subject | Result |
+|---|---|
+| `/`, `/pricing`, `/auth/login`, `/auth/forgot-password`, legal pages, `/contact` | 200 |
+| `/auth/register` (real signup path) via CTA chain from header/footer/hero/pricing | 200 |
+| `/signup`, `/login` (guessed aliases) | 404 — **now fixed**: redirect pages added |
+| `/does-not-exist-xyz` | 404 (app 404 page renders) |
+| `/u/democreator` sample creator page | 200 (footer "Sample creator page" works) |
+| `/app`, `/app/billing`, all `/app/*` | 307 → `/auth/login` (auth guard) |
+| `POST /api/auth/register` malformed | 400 (zod), never 500 |
+| `POST /api/auth/login` bad creds | 400 generic |
+| `POST /api/billing/checkout` unauthenticated | 401 (RBAC guard) |
+| `/u/…random`, `/store/receipt/…random` | 404 |
+| Security headers (`/`) | CSP, HSTS (+preload), `frame-ancestors 'none'`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy` — all present |
+| `EffectiveDate` / robots | legal pages `noindex, follow` (intentional pre-review) |
+
+### 19.2 Code-review findings and fixes (this pass)
+
+- **Root landing pricing footnote was factually wrong** ("USD prices are billed via Cashfree"). USD is
+  not sellable yet (Dodo keys pending) and will be settled by **Dodo Payments**, not Cashfree. Public
+  claim now matches the pricing page — **fixed** (deployed).
+- **Terms of Service cited only Cashfree and USD pricing.** Now: "payment processors: Cashfree for INR,
+  Dodo Payments (Merchant of Record) for USD and other international currencies"; prices shown in chosen
+  currency (USD/INR today); third-party list includes Dodo. **Fixed** (deployed).
+- **`/signup` → 404.** No internal link used it (CTAs point to `/auth/register`), but the natural URL
+  failed. `/signup` → `/auth/register` and `/login` → `/auth/login` redirects added. **Fixed** (deployed).
+- Auth stack verified sound: password hashed (argon2-style wrapper), session cookie HMAC-signed
+  `HttpOnly; SameSite=Lax; Secure` in prod, register rate-limited 10/hr/IP, tenant creation in a
+  transaction, funnel write after commit.
+- Link safety: `src/lib/url-safety.ts` allowlists `http/https/mailto/tel`, rejects obfuscated schemes,
+  recursive `payloadHasDangerousScheme` on bio block payloads; public bio views sanitize. Parameterised
+  SQL everywhere (no string-built queries except migration DDL with a fixed allowlist).
+- Checkout SDK: `sdkMode` flips production/sandbox from `CASHFREE_ENV`; live → production SDK. Verified.
+- Cashfree webhook envelope handling, the per-visitor currency picker (§14.17–14.18) and the
+  subscription webhook fallback (§14.19) are the current plan-upgrade path; live probes confirmed
+  mandate create / status / cancel round-trip against the live API.
+
+### 19.3 Fixed this pass (built + tested; production deploy pending owner authorization)
+
+Root landing pricing footnote, Terms payment-processor/currency copy, `/signup` and `/login` redirect
+aliases, and a mock-upgrade regression the E2E suite caught: with a mock gateway the checkout now
+grants the plan at session creation (the old dev-block apply was unreachable once the currency picker
+made mock "ready"). E2E billing spec: 50/50 suite green with the fix.
+
+### 19.4 Remaining blockers and handoffs (items 2→7)
+
+| Blocker | Type | Who | Action |
+|---|---|---|---|
+| Legal entity name / company number / address | External fact | Owner | Fill `LEGAL_INFO` in `src/components/legal/legal-info.ts`, then counsel review (banners already honest) |
+| Terms draft finalisation | Counsel | Owner | Use `docs/LEGAL-DRAFTS.md`; addresses drift noted in 19.2 now corrected in code |
+| Cashfree Subscriptions webhook enable | Dashboard action | Owner | Events per runbook; fallback ships regardless |
+| Dodo account + KYC + products + keys | External | Owner | Unlocks USD checkout + picker INR/USD |
+| First real ₹ test purchase | Test | Owner | Zero live transactions so far |
+| Per-module authenticated click-through (14 modules) | Human | Beta users (item 5) | No browser session available to the audit; code paths/guards reviewed, click-through delegated |
+| D-13 subscription lifecycle (dunning/grace/recovery) | HIGH | Backlog | After launch; fallback covers the receive + apply case |
+
+### 19.5 Baseline
+
+- Testing: 361/361 unit tests, typecheck + lint clean at the time of this audit.
+- Modules quality gates seen: RBAC-guarded API routes, consent-first capture, quota checks before paid
+  AI calls, receipt + refund flows with transactional money writes (§14.4).

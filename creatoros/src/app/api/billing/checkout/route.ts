@@ -109,6 +109,21 @@ export async function POST(req: NextRequest) {
         amountCents,
         source: provider.name,
       });
+      // The mock gateway has no real authorisation step and no webhook: the
+      // session is "paid" the moment it is created. Grant immediately like the
+      // no-keys dev block below so a simulated upgrade actually upgrades.
+      if (provider.name === "mock") {
+        applySubscription({
+          tenantId: s.org.id,
+          plan,
+          provider: "mock",
+          providerId: session.subscriptionId ?? null,
+          status: "active",
+          currency,
+        });
+        audit({ tenantId: s.org.id, userId: s.user.id, action: "billing.plan_change", resource: plan, ip });
+        recordFunnelEvent({ step: "purchase_completed", tenantId: s.org.id, userId: s.user.id, plan, currency, source: "mock" });
+      }
       return ok({ provider: provider.name, sessionId: session.sessionId, url: session.url ?? null });
     } catch (e) {
       console.error("[billing.checkout] provider error:", e);

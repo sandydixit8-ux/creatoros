@@ -38,9 +38,9 @@ export default function TermsPage() {
       <LegalSection heading="3. Plans, payments and renewals">
         <LegalList
           items={[
-            "Paid plans are billed through our payment processor, Cashfree. By subscribing you authorise recurring charges until you cancel.",
+            "Paid plans are billed through our payment processors: Cashfree for Indian rupee (INR) transactions, and Dodo Payments (as Merchant of Record) for US dollar and other international currencies. By subscribing you authorise recurring charges until you cancel.",
             "Subscriptions renew automatically at the end of each billing period. You can cancel at any time from the Billing page; access continues until the end of the period already paid for.",
-            "Prices are shown in US dollars (USD) and may change. We will give notice of material price changes before they take effect.",
+            "Prices are shown in your chosen currency (US dollars and Indian rupees today) and may change. We will give notice of material price changes before they take effect.",
             "Taxes may apply depending on your location and are your responsibility unless collected by us.",
             "Where required by law, we may suspend or cancel a plan and issue a refund as described in our Refund Policy.",
           ]}
@@ -74,9 +74,9 @@ export default function TermsPage() {
 
       <LegalSection heading="6. Third-party services">
         <p>
-          The service relies on third parties such as Cashfree (payments) and Brevo (transactional email),
-          and may rely on other providers for hosting and delivery. Their terms and privacy policies may
-          also apply. We are not responsible for the acts or omissions of third-party services.
+          The service relies on third parties such as Cashfree and Dodo Payments (payments) and Brevo
+          (transactional email), and may rely on other providers for hosting and delivery. Their terms and
+          privacy policies may also apply. We are not responsible for the acts or omissions of third-party services.
         </p>
       </LegalSection>
 
