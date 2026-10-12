@@ -125,3 +125,9 @@ If a probe fails, do not leave the old build half-replaced — see `docs/ROLLBAC
   ok, probes pass). **Lesson captured:** this deploy.sh checks `app/src/lib/db/schema.sql` — the
   first (standalone-only) archive was rejected and `~/deploy.sh` had already wiped `app/`; the
   running service kept serving (loaded in memory) and a correct re-archive deployed cleanly.
+- **Phase 3 security release (12 Oct 2026):** D-6 + D-15 (`feat(auth)` `33084f5`). Archive SHA256
+  `CCBDA01BE3C14AEADFA427ED8731116E6D7658683680FAE33408B36C6464C8E5`, BUILD_ID
+  `E5q9jqHr-PF8UTeR32lj5`. Adds `users.auth_version` + `email_verify_tokens` (migration 17), the
+  `/auth/verify-email` page/API, and an admin gate that requires a verified mailbox. Deployed via
+  `~/deploy.sh`; health ok, migration 17 confirmed on the live DB, probes green. The owner's
+  allow-listed mailbox (`ADMIN_EMAILS`) was marked verified out-of-band to preserve admin access.
