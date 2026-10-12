@@ -1,7 +1,6 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 
 export const COOKIE_NAME = "creatoros_session";
-const TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 function secret(): string {
   const value = process.env.AUTH_SECRET;
@@ -41,15 +40,47 @@ export function verify(token: string): Record<string, string> | null {
 export interface SessionPayload {
   userId: string;
   orgId: string;
+  /**
+   * Value of users.auth_version at issue time. A password reset bumps that
+   * column, so a cookie signed with an older value is rejected by getSession —
+   * the stateless equivalent of deleting a server-side session row.
+   */
+  authVersion?: number;
+  /** Absolute expiry in ms since epoch. */
+  exp?: number;
 }
+
+export const SESSION_TTL_MS = 30 * 24 * 60 * 60_000;
 
 export function buildSession(payload: SessionPayload): string {
-  return sign({ userId: payload.userId, orgId: payload.orgId });
+  return sign({
+    userId: payload.userId,
+    orgId: payload.orgId,
+    av: String(payload.authVersion ?? 0),
+    exp: String(payload.exp ?? Date.now() + SESSION_TTL_MS),
+  });
 }
 
-export function setSessionCookie(userId: string, orgId: string): string {
-  const token = buildSession({ userId, orgId });
-  return `${COOKIE_NAME}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.floor(TTL_MS / 1000)}${process.env.NODE_ENV === "production" ? "; Secure" : ""}`;
+export function setSessionCookie(userId: string, orgId: string, authVersion = 0): string {
+  const token = buildSession({ userId, orgId, authVersion });
+  return `${COOKIE_NAME}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.floor(SESSION_TTL_MS / 1000)}${process.env.NODE_ENV === "production" ? "; Secure" : ""}`;
+}
+
+/**
+ * True when the signed payload carries an expiry that has already passed.
+ * Cookies issued before exp was added have no claim and are grandfathered:
+ * their browser Max-Age still retires them on schedule.
+ */
+export function sessionExpired(payload: Record<string, string>, now = Date.now()): boolean {
+  if (!payload.exp) return false;
+  const exp = Number(payload.exp);
+  return Number.isFinite(exp) && now > exp;
+}
+
+/** Auth version carried by a payload; legacy cookies with no claim count as 0. */
+export function sessionVersion(payload: Record<string, string>): number {
+  const av = payload.av ? Number(payload.av) : 0;
+  return Number.isFinite(av) ? av : 0;
 }
 
 export function getSessionCookie(cookieHeader: string | null): string | null {

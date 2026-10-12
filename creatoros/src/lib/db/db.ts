@@ -225,6 +225,29 @@ const MIGRATIONS: Array<{ id: number; up: (db: DatabaseSync) => void }> = [
       addColumn(db, "subscriptions", "currency", "TEXT NOT NULL DEFAULT ''");
     },
   },
+  {
+    // D-6: a signed cookie used to be revocable only by deleting a row in the
+    // unused `sessions` table, so a password reset left live cookies working.
+    // auth_version is bumped on reset; the cookie carries the version it was
+    // signed with, and getSession refuses an old one.
+    //
+    // D-15: platform admin is an email allow-list, so an allow-listed address
+    // could be claimed with no proof of ownership. Email verification tokens
+    // provide that proof before admin access is granted.
+    id: 17,
+    up: (db) => {
+      addColumn(db, "users", "auth_version", "INTEGER NOT NULL DEFAULT 0");
+      db.exec(`CREATE TABLE IF NOT EXISTS email_verify_tokens (
+        id          TEXT PRIMARY KEY,
+        user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token_hash  TEXT NOT NULL UNIQUE,
+        expires_at  TEXT NOT NULL,
+        used_at     TEXT,
+        created_at  TEXT NOT NULL
+      )`);
+      db.exec("CREATE INDEX IF NOT EXISTS idx_email_verify_user ON email_verify_tokens(user_id)");
+    },
+  },
 ];
 
 function addColumn(db: DatabaseSync, table: string, column: string, ddl: string) {

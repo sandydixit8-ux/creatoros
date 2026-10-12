@@ -33,12 +33,18 @@ export async function POST(req: NextRequest) {
   const claimed = consumeResetToken(token);
   if (!claimed) return fail("This reset link is invalid or has expired", 400, "invalid_token");
 
-  run("UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?", hashPassword(password), nowIso(), claimed.userId);
+  // Bumping auth_version invalidates every cookie already issued for this
+  // account: each carries the version it was signed with, and getSession now
+  // refuses anything below the current value. This is the real revocation —
+  // the old DELETE FROM sessions touched a table no session ever used.
+  run(
+    "UPDATE users SET password_hash = ?, auth_version = auth_version + 1, updated_at = ? WHERE id = ?",
+    hashPassword(password),
+    nowIso(),
+    claimed.userId
+  );
 
-  // Kill live sessions for this account.
-  const killed = run("DELETE FROM sessions WHERE user_id = ?", claimed.userId);
-
-  audit({ userId: claimed.userId, action: "auth.password_reset_completed", meta: { email: claimed.email, sessionsRevoked: killed.changes }, ip });
+  audit({ userId: claimed.userId, action: "auth.password_reset_completed", meta: { email: claimed.email, sessionsRevoked: "auth_version" }, ip });
 
   return ok({ reset: true });
 }

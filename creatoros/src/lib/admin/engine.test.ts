@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getDb, closeDb, run, nowIso } from "@/lib/db/db";
-import { isPlatformAdmin } from "./access";
+import { isPlatformAdmin, isVerifiedPlatformAdmin } from "./access";
 import { setOrgPlan, planCursor, listFlags, checkFlag, setFlag, updateTicketStatus, listOpenTickets } from "./engine";
 
 let dir: string;
@@ -35,6 +35,15 @@ describe("platform admin access", () => {
   it("denies everyone when ADMIN_EMAILS is unset", () => {
     delete process.env.ADMIN_EMAILS;
     expect(isPlatformAdmin("boss@platform.dev")).toBe(false);
+  });
+});
+
+describe("verified platform admin access", () => {
+  it("requires both an allow-listed email and a verified mailbox", () => {
+    process.env.ADMIN_EMAILS = "boss@platform.dev";
+    expect(isVerifiedPlatformAdmin({ email: "boss@platform.dev", emailVerified: true })).toBe(true);
+    expect(isVerifiedPlatformAdmin({ email: "boss@platform.dev", emailVerified: false })).toBe(false);
+    expect(isVerifiedPlatformAdmin({ email: "nope@x.dev", emailVerified: true })).toBe(false);
   });
 });
 

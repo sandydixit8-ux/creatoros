@@ -11,7 +11,7 @@ if (existing.length === 0) {
   const passwordHash = hashPassword("Demo1234!");
   const uid = newId("usr");
   const orgId = newId("org");
-  run("INSERT INTO users (id, email, password_hash, name, created_at, updated_at) VALUES (?, ?, ?, 'Demo Creator', ?, ?)", uid, email, passwordHash, nowIso(), nowIso());
+  run("INSERT INTO users (id, email, password_hash, name, email_verified, created_at, updated_at) VALUES (?, ?, ?, 'Demo Creator', 1, ?, ?)", uid, email, passwordHash, nowIso(), nowIso());
   run("INSERT INTO organizations (id, name, slug, plan, created_at, updated_at) VALUES (?, 'Demo Creator', 'demo-creator', 'creator', ?, ?)", orgId, nowIso(), nowIso());
   run("INSERT INTO memberships (id, tenant_id, user_id, role, created_at) VALUES (?, ?, ?, 'owner', ?)", newId("mem"), orgId, uid, nowIso());
   const profileId = newId("prf");

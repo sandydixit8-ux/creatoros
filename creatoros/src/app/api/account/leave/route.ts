@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
   if (result.userDeleted) {
     headers = { "Set-Cookie": clearSessionCookie() };
   } else if (result.nextOrgId) {
-    headers = { "Set-Cookie": setSessionCookie(s.user.id, result.nextOrgId) };
+    headers = { "Set-Cookie": setSessionCookie(s.user.id, result.nextOrgId, s.user.authVersion) };
   }
 
   return ok(

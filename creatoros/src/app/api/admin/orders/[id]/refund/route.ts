@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth/get-session";
 import { ok, err, readJson, getClientIp } from "@/lib/http";
-import { isPlatformAdmin } from "@/lib/admin/access";
+import { isVerifiedPlatformAdmin } from "@/lib/admin/access";
 import { getPaymentProvider, providerByName } from "@/lib/payments";
 import { row, run, tx, newId, nowIso } from "@/lib/db/db";
 import { audit } from "@/lib/audit";
@@ -48,7 +48,7 @@ interface RefundIntent {
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const s = await getSession();
   if (!s) return err.auth();
-  if (!isPlatformAdmin(s.user.email)) return err.forbidden();
+  if (!isVerifiedPlatformAdmin(s.user)) return err.forbidden();
 
   const rl = rateLimit(rateKey("admin_refund", s.user.id), 30);
   if (!rl.allowed) return err.rateLimited();

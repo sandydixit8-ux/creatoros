@@ -22,8 +22,8 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return fail("Invalid login data", 400, "validation");
 
   const { email, password } = parsed.data;
-  const user = row<{ id: string; email: string; password_hash: string; name: string }>(
-    "SELECT id, email, password_hash, name FROM users WHERE email = ?",
+  const user = row<{ id: string; email: string; password_hash: string; name: string; auth_version: number }>(
+    "SELECT id, email, password_hash, name, auth_version FROM users WHERE email = ?",
     email.toLowerCase()
   );
   if (!user || !verifyPassword(password, user.password_hash)) {
@@ -39,6 +39,6 @@ export async function POST(req: NextRequest) {
 
   audit({ tenantId: membership.tenant_id, userId: user.id, action: "auth.login", meta: { email }, ip });
 
-  const cookie = setSessionCookie(user.id, membership.tenant_id);
+  const cookie = setSessionCookie(user.id, membership.tenant_id, user.auth_version);
   return ok({ userId: user.id, orgId: membership.tenant_id }, { headers: { "Set-Cookie": cookie } });
 }

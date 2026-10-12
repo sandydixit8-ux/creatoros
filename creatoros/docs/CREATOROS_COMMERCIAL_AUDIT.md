@@ -1301,7 +1301,7 @@ the browser, the money moves, and the org stays on `free` because fulfilment is 
 | ID | Issue | Evidence | Impact | Fix |
 |---|---|---|---|---|
 | ~~**D-5**~~ **FIXED** | Cookie policy promised consent; code had none | closed 2026-10-04, see §14.2 | PECR / UK GDPR / EU eConsent exposure; published policy was inaccurate | Consent banner + preference store; tracking gated on it and withdrawal honoured |
-| **D-6** | Sessions never expire server-side; reset does not invalidate | Payload has no `iat`/`exp` (`src/lib/auth/session.ts:33-40`); `get-session.ts:24-50` checks no age; reset deletes an unused table (`reset-password/route.ts:38-39`) | Stolen cookie valid indefinitely, even after a password reset | Add `iat`/`exp` + server-side session records; make reset revoke |
+| ~~**D-6**~~ **FIXED** | Sessions never expire server-side; reset does not invalidate | closed 2026-10-11, see §19.6 | Stolen cookie valid indefinitely, even after a password reset | Session payload now carries `exp` + `auth_version`; getSession rejects a stale version; reset bumps it |
 | ~~**D-7**~~ **FIXED** | AI credit quota checked *after* the paid LLM call | closed 2026-10-05, see §14.13 | Unlimited AI over quota; revenue leak on the metered dimension | Quota now refused before the call (402), credit consumed on success, route is POST |
 | **D-8** | Contact quota bypassable | bookings and free enrolment create contacts with no `bumpUsage` | Free-tier abuse of the metered dimension | Centralise contact creation through one metered path |
 | **D-9** | Views meter displays 0 forever | writes `"views"` (`track/route.ts:41,45`), reads `usage.viewsPerMonth` (`billing/page.tsx:46`) | Billing screen contradicts enforcement; upgrade prompts misfire | Unify the metric name |
@@ -1311,7 +1311,7 @@ the browser, the money moves, and the org stays on `free` because fulfilment is 
 | ~~**D-12**~~ **FIXED** | Subscription webhook can silently downgrade a tenant to `free` | closed 2026-10-04, see §14.8 | Any update or renewal event without `metadata.plan` moved a paying org to `free` while still charging them; a cancellation also erased the plan history | `plan` is nullable; absent metadata keeps what is known, grants nothing, and audits `billing.subscription_plan_unknown`; entitlement recomputed from remaining subscriptions |
 | **D-13** | No dunning, grace period or recovery on failed renewal | only flips to `past_due` (`cashfree-provider.ts:396-399`); `past_due` grants no plan | Silent revenue loss + creator locked out with no warning | Retry schedule + grace period + recovery email |
 | **D-14** | All five legal docs DRAFT with 3 unresolved placeholders | `src/components/legal/legal-info.ts:2-4` | Users cannot identify the contracting entity | Provide real entity data, obtain counsel review |
-| **D-15** | Unverified email grants platform admin | `ADMIN_EMAILS` match only (`src/lib/admin/access.ts:1-5`); `email_verified` never set (`schema.sql:12`) | Anyone registering a configured admin address gets cross-tenant refund powers | Verify email before granting admin; move admin to a DB role |
+| ~~**D-15**~~ **FIXED** | Unverified email grants platform admin | closed 2026-10-11, see §19.6 | Anyone registering a configured admin address gets cross-tenant refund powers | Email verification link + `users.email_verified`; admin gate requires verified mailbox |
 | **D-16** | Rate limits keyed on spoofable `x-forwarded-for`, in-memory | `src/lib/http.ts:39-43`, `src/lib/security/rate-limit.ts:3-36` | Brute force and credential stuffing practical; limits reset on restart | Prefer `CF-Connecting-IP`; shared store; add account-level throttle |
 | **D-17** | CSRF defence keys on `sec-fetch-site` only | `src/proxy.ts:66-75`; `SameSite=Lax` still sends cookies same-site | A compromised sibling subdomain bypasses it | Add `Origin` validation or a CSRF token |
 | **D-18** | Refunds do not revoke entitlements | refund route updates order only | Refunded buyers keep course access | Revoke enrolments on refund |
@@ -1371,10 +1371,10 @@ Scored on commercial leverage × implementation cost. "Revenue" = direct or comp
 | 2 | Split "leave org" from "delete org"; owner-only + role check | D-2 | 3h |
 | 3 | Env-gate the email file fallback; propagate provider errors | D-3 | 2h |
 | 4 | Allowlist URL schemes; sanitise bio block URLs | D-4 | 3h |
-| 5 | Add session `iat`/`exp`; make password reset revoke | D-6 | 4h |
+| 5 | ~~Add session `iat`/`exp`; make password reset revoke~~ **done** (§19.6) | D-6 | 4h |
 | 6 | ~~Webhook: process-then-mark; 5xx on failure~~ **done** (§14.7) | D-11 | 2h |
 | 7 | ~~Wrap `fulfillOrder` + refund in transactions~~ **done** (§14.4) | D-10 | 4h |
-| 8 | Verify email before granting admin | D-15 | 3h |
+| 8 | ~~Verify email before granting admin~~ **done** (§19.6) | D-15 | 3h |
 | 9 | Stripe live keys + webhook verification tests | — | 2h |
 | 10 | Subscription lifecycle: upgrade, downgrade, cancel, dunning, grace | D-13 | 1–2d |
 | 11 | ~~Cookie consent + preference store~~ **done** | D-5 | 1d |
@@ -1505,3 +1505,38 @@ made mock "ready"). E2E billing spec: 50/50 suite green with the fix.
 - Testing: 361/361 unit tests, typecheck + lint clean at the time of this audit.
 - Modules quality gates seen: RBAC-guarded API routes, consent-first capture, quota checks before paid
   AI calls, receipt + refund flows with transactional money writes (§14.4).
+
+### 19.6 Phase 3 security closure — D-6 + D-15 (2026-10-12)
+
+Both high-severity auth defects are closed in one pass, gated by the full suite (unit 376/376, E2E
+50/50, typecheck + lint clean) before deploy.
+
+**D-6 — sessions expire and reset revokes.** The HMAC cookie payload was `{userId, orgId}` only, so a
+stolen cookie was valid for its full 30-day browser lifetime and a password reset touched the unused
+` sessions` table without effect. Now:
+- `session.ts` signs `{userId, orgId, av, exp}`; `av` mirrors `users.auth_version`, `exp` is the
+  absolute expiry. `sessionExpired()` / `sessionVersion()` are the pure checks; legacy cookies with
+  neither claim are grandfathered to their Max-Age so nobody is force-logged-out on deploy.
+- `get-session.ts` rejects a payload past `exp`, and rejects any cookie whose `av` no longer matches
+  the account's `auth_version`.
+- `reset-password` bumps `users.auth_version` (migration 17), which is the real revocation — every
+  existing cookie for that account is invalid on the next request. Login and the leave-org cookie
+  refresh pass the current version through.
+- `users.auth_version INTEGER NOT NULL DEFAULT 0` added to `schema.sql` and migration 17.
+
+**D-15 — email verification gates platform admin.** `ADMIN_EMAILS` alone was a claim anyone could make
+by registering an allow-listed address first. Now:
+- New `email_verify_tokens` table (schema + migration 17), hashed, single-use, 48h TTL, capped at 3
+  live links per account — modelled on `password_reset_tokens`.
+- `src/lib/auth/email-verify.ts` (create / resolve / consume / revoke); consuming stamps
+  `users.email_verified = 1` atomically.
+- Register fires a verification email (best-effort; a mail failure never fails the committed signup);
+  `/auth/verify-email` page + `POST /api/auth/verify-email` redeem the link.
+- `isVerifiedPlatformAdmin(user)` requires both an allow-listed email **and** `emailVerified`; all 9
+  admin call sites (1 page, 8 API routes + the app layout nav) now use it.
+
+**Operational note for the owner:** the first login after deploy will not be admin until the
+allow-listed mailbox is verified. After deploy, complete the one-time verification (or run
+`UPDATE users SET email_verified = 1 WHERE email = '<admin email>';` on the VM) to restore access.
+
+New tests: 9 for the verification token lifecycle, 5 for session exp/version, 2 for the admin gate.

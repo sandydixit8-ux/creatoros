@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { ShieldAlert } from "lucide-react";
 import { getSession } from "@/lib/auth/get-session";
-import { isPlatformAdmin } from "@/lib/admin/access";
+import { isVerifiedPlatformAdmin } from "@/lib/admin/access";
 import { listOrgs, planCursor, listFlags, listOpenTickets, VALID_TICKET_STATUSES } from "@/lib/admin/engine";
 import { OrgsTable } from "@/components/admin/orgs-table";
 import { FlagsPanel } from "@/components/admin/flags-panel";
@@ -15,7 +15,7 @@ export default async function AdminPage() {
   const s = await getSession();
   if (!s) redirect("/auth/login");
 
-  if (!isPlatformAdmin(s.user.email)) {
+  if (!isVerifiedPlatformAdmin(s.user)) {
     return (
       <div className="card p-10 text-center">
         <ShieldAlert className="mx-auto h-8 w-8 text-navy-300" />

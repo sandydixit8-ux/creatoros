@@ -2,6 +2,9 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { hashPassword } from "@/lib/auth/password";
 import { setSessionCookie } from "@/lib/auth/session";
+import { createVerifyToken } from "@/lib/auth/email-verify";
+import { sendEmail, defaultFromEmail } from "@/lib/email/mailer";
+import { SITE_URL } from "@/lib/constants";
 import { ok, fail, readJson, getClientIp } from "@/lib/http";
 import { rateLimit, rateKey } from "@/lib/security/rate-limit";
 import { run, row, newId, nowIso, tx } from "@/lib/db/db";
@@ -103,6 +106,31 @@ export async function POST(req: NextRequest) {
 
     const cookie = setSessionCookie(user.uid, user.orgId);
 
+    // Prove the mailbox. Without this an allow-listed admin email could be
+    // claimed by whoever registers it first (D-15). A failed send must not fail
+    // the signup — the account is already committed — so it is best-effort and
+    // the user can request a new link later.
+    const verification = createVerifyToken(user.uid);
+    if (verification) {
+      const link = `${SITE_URL}/auth/verify-email?token=${encodeURIComponent(verification.token)}`;
+      try {
+        await sendEmail({
+          to: email.toLowerCase(),
+          toName: name,
+          fromEmail: defaultFromEmail(),
+          subject: "Verify your CreatorOS email",
+          html: `<div style="font:15px/1.6 sans-serif;max-width:520px">
+        <h2 style="margin:0 0 12px">Confirm your email</h2>
+        <p>Welcome to CreatorOS, ${name}. Confirm this address to finish setting up your account.</p>
+        <p><a href="${link}" style="display:inline-block;background:#111;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none">Verify email</a></p>
+        <p style="color:#888;font-size:13px">If you did not create an account, you can ignore this message.</p>
+      </div>`,
+        });
+      } catch (e) {
+        console.error("[auth/register] verification email", e);
+      }
+    }
+
     // Acquisition source, read off the query string so the landing page can carry
     // utm tags through to signup. Recorded after commit so a funnel write can
     // never roll back the account it is describing.
@@ -117,7 +145,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return ok({ userId: user.uid, orgId: user.orgId }, { headers: { "Set-Cookie": cookie } });
+    return ok({ userId: user.uid, orgId: user.orgId, emailVerificationRequired: true }, { headers: { "Set-Cookie": cookie } });
   } catch (e) {
     console.error("[auth/register]", e);
     return fail("Could not create account", 500, "server_error");

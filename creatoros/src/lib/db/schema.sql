@@ -10,6 +10,10 @@ CREATE TABLE IF NOT EXISTS users (
   name            TEXT NOT NULL DEFAULT '',
   role            TEXT NOT NULL DEFAULT 'user',        -- user | admin
   email_verified  INTEGER NOT NULL DEFAULT 0,
+  -- Bumped on password reset. Signed session cookies carry the value they were
+  -- issued at; getSession rejects a cookie whose version is stale, which is how
+  -- a stateless cookie is revoked without a server-side session table.
+  auth_version    INTEGER NOT NULL DEFAULT 0,
   created_at      TEXT NOT NULL,
   updated_at      TEXT NOT NULL
 );
@@ -54,6 +58,20 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
 );
 
 CREATE INDEX IF NOT EXISTS idx_password_reset_user ON password_reset_tokens(user_id);
+
+-- Single-use email verification tokens, stored hashed and one-shot like password
+-- resets. Proving control of the mailbox is what unlocks platform-admin access
+-- for an allow-listed email, so the token is what stands in for ownership.
+CREATE TABLE IF NOT EXISTS email_verify_tokens (
+  id          TEXT PRIMARY KEY,
+  user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash  TEXT NOT NULL UNIQUE,
+  expires_at  TEXT NOT NULL,
+  used_at     TEXT,
+  created_at  TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_verify_user ON email_verify_tokens(user_id);
 
 CREATE TABLE IF NOT EXISTS subscriptions (
   id              TEXT PRIMARY KEY,
