@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { ok, err, readJson, getClientIp, userAgentInfo, clientCountry } from "@/lib/http";
+import { ok, err, readJson, getClientIp, userAgentInfo, clientCountry, isLikelyBot } from "@/lib/http";
 import { getPublicBioPage } from "@/lib/bio/page";
 import { trackEvent, hashVisitorId, newVisitorId } from "@/lib/analytics/engine";
 import { rateLimit, rateKey } from "@/lib/security/rate-limit";
@@ -12,11 +12,15 @@ import { analyticsGranted } from "@/lib/consent-receipt";
 const trackSchema = z.object({
   username: z.string().min(1).max(60),
   pageSlug: z.string().default(""),
-  eventType: z.enum(["page_view", "link_click"]).default("page_view"),
+  eventType: z.enum(["page_view", "link_click", "engagement"]).default("page_view"),
+  eventName: z.string().max(60).default(""),
   ref: z.string().max(500).default(""),
   utm_source: z.string().max(100).default(""),
   utm_campaign: z.string().max(100).default(""),
-  visitorId: z.string().default(""),
+  visitorId: z.string().max(200).default(""),
+  sessionId: z.string().max(120).default(""),
+  engagementMs: z.number().int().min(0).max(24 * 60 * 60 * 1000).default(0),
+  properties: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -46,11 +50,16 @@ export async function POST(req: NextRequest) {
   const rl = rateLimit(rateKey("track", ip), 120);
   if (!rl.allowed) return err.rateLimited();
 
+  // Automated clients are acknowledged but not recorded, so crawler hits do
+  // not inflate a creator's traffic or pollute the country table.
+  if (isLikelyBot(req)) return ok({ tracked: false, bot: true });
+
   const bio = getPublicBioPage(parsed.data.username, parsed.data.pageSlug);
   if (!bio) return err.notFound();
 
   const { device, ref } = userAgentInfo(req);
   const visitorId = parsed.data.visitorId ? hashVisitorId(parsed.data.visitorId) : newVisitorId();
+  const sessionId = parsed.data.sessionId ? hashVisitorId(`s:${parsed.data.sessionId}`) : "";
 
   // Soft-enforce the monthly views quota: the page still renders, tracking just
   // stops counting once the plan limit is exceeded.
@@ -68,12 +77,16 @@ export async function POST(req: NextRequest) {
     tenantId: bio.tenantId,
     pageId: bio.page.id,
     eventType: parsed.data.eventType,
+    eventName: parsed.data.eventName,
     visitorId: parsed.data.visitorId ? visitorId : "",
+    sessionId,
     ref: parsed.data.ref || ref,
     utmSource: parsed.data.utm_source,
     utmCampaign: parsed.data.utm_campaign,
     device,
     country: clientCountry(req),
+    engagementMs: parsed.data.engagementMs,
+    properties: parsed.data.properties,
   });
 
   return ok({ visitorId: parsed.data.visitorId ? visitorId : undefined, tracked: true });

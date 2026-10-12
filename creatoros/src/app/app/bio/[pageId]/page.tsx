@@ -3,6 +3,8 @@ import { getSession } from "@/lib/auth/get-session";
 import { row, all } from "@/lib/db/db";
 import { BioEditor, type BlockType } from "@/components/bio/editor";
 import { getProfileForUser } from "@/lib/bio/page";
+import { listTrackedLinks } from "@/lib/analytics/links";
+import { SITE_URL } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +29,9 @@ export default async function BioEditorPage({ params }: { params: Promise<{ page
     "SELECT id, name, slug, duration_min FROM services WHERE tenant_id = ? AND active = 1",
     s.org.id
   );
+  const trackedLinks = listTrackedLinks(s.org.id)
+    .filter((l) => l.active)
+    .map((l) => ({ slug: l.slug, label: l.label || l.slug }));
 
   return (
     <BioEditor
@@ -35,6 +40,8 @@ export default async function BioEditorPage({ params }: { params: Promise<{ page
       initialBlocks={blocks.map((b) => ({ id: b.id, type: b.type as BlockType, payload: safeJson(b.payload) as Record<string, string>, position: b.position, active: !!b.active }))}
       username={profile?.username ?? ""}
       services={services}
+      trackedLinks={trackedLinks}
+      siteUrl={SITE_URL}
     />
   );
 }

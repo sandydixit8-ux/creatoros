@@ -38,6 +38,8 @@ export function BioEditor(props: {
   initialBlocks: EditorBlock[];
   username: string;
   services: EditorService[];
+  trackedLinks: { slug: string; label: string }[];
+  siteUrl: string;
 }) {
   const [page, setPage] = useState(props.initialPage);
   const [blocks, setBlocks] = useState<EditorBlock[]>(props.initialBlocks);
@@ -178,6 +180,8 @@ export function BioEditor(props: {
                 index={i}
                 total={blocks.length}
                 services={props.services}
+                trackedLinks={props.trackedLinks}
+                siteUrl={props.siteUrl}
                 dragging={dragId === block.id}
                 onMove={(step) => moveBlock(i, i + step)}
                 onDragStart={() => setDragId(block.id)}
@@ -215,6 +219,8 @@ function BlockCard(props: {
   index: number;
   total: number;
   services: EditorService[];
+  trackedLinks: { slug: string; label: string }[];
+  siteUrl: string;
   dragging: boolean;
   onMove: (step: number) => void;
   onDragStart: () => void;
@@ -270,13 +276,25 @@ function BlockCard(props: {
         </span>
       </div>
       <div className="mt-3 pl-6">
-        <BlockPayloadEditor block={block} services={props.services} onChange={props.onChange} />
+        <BlockPayloadEditor
+          block={block}
+          services={props.services}
+          trackedLinks={props.trackedLinks}
+          siteUrl={props.siteUrl}
+          onChange={props.onChange}
+        />
       </div>
     </div>
   );
 }
 
-function BlockPayloadEditor(props: { block: EditorBlock; services: EditorService[]; onChange: (patch: Partial<EditorBlock>) => void }) {
+function BlockPayloadEditor(props: {
+  block: EditorBlock;
+  services: EditorService[];
+  trackedLinks: { slug: string; label: string }[];
+  siteUrl: string;
+  onChange: (patch: Partial<EditorBlock>) => void;
+}) {
   const { block, services } = props;
   const p = block.payload;
 
@@ -297,6 +315,7 @@ function BlockPayloadEditor(props: { block: EditorBlock; services: EditorService
         <div className="grid gap-2 sm:grid-cols-2">
           <Field label="Label" value={(p.title as string) ?? ""} onChange={(v) => props.onChange({ payload: { ...p, title: v } })} />
           <Field label="URL" value={(p.url as string) ?? ""} onChange={(v) => props.onChange({ payload: { ...p, url: v } })} />
+          <TrackedLinkPicker trackedLinks={props.trackedLinks} siteUrl={props.siteUrl} onPick={(url) => props.onChange({ payload: { ...p, url } })} />
         </div>
       );
     case "product":
@@ -305,6 +324,7 @@ function BlockPayloadEditor(props: { block: EditorBlock; services: EditorService
           <Field label="Name" value={(p.title as string) ?? ""} onChange={(v) => props.onChange({ payload: { ...p, title: v } })} />
           <Field label="Price" value={(p.price as string) ?? ""} onChange={(v) => props.onChange({ payload: { ...p, price: v } })} />
           <Field label="Buy URL" value={(p.url as string) ?? ""} onChange={(v) => props.onChange({ payload: { ...p, url: v } })} />
+          <TrackedLinkPicker trackedLinks={props.trackedLinks} siteUrl={props.siteUrl} onPick={(url) => props.onChange({ payload: { ...p, url } })} />
         </div>
       );
     case "booking":
@@ -339,11 +359,36 @@ function BlockPayloadEditor(props: { block: EditorBlock; services: EditorService
         <div className="grid gap-2 sm:grid-cols-2">
           <Field label="Text" value={(p.text as string) ?? ""} onChange={(v) => props.onChange({ payload: { ...p, text: v } })} />
           <Field label="URL" value={(p.url as string) ?? ""} onChange={(v) => props.onChange({ payload: { ...p, url: v } })} />
+          <TrackedLinkPicker trackedLinks={props.trackedLinks} siteUrl={props.siteUrl} onPick={(url) => props.onChange({ payload: { ...p, url } })} />
         </div>
       );
     default:
       return <p className="text-xs text-navy-400">No settings for this block.</p>;
   }
+}
+
+function TrackedLinkPicker(props: { trackedLinks: { slug: string; label: string }[]; siteUrl: string; onPick: (url: string) => void }) {
+  if (props.trackedLinks.length === 0) return null;
+  return (
+    <div className="sm:col-span-2">
+      <label className="label">Insert tracked link</label>
+      <select
+        className="input"
+        value=""
+        onChange={(e) => {
+          if (e.target.value) props.onPick(`${props.siteUrl}/l/${e.target.value}`);
+        }}
+      >
+        <option value="">Choose a tracked link…</option>
+        {props.trackedLinks.map((t) => (
+          <option key={t.slug} value={t.slug}>
+            {t.label}
+          </option>
+        ))}
+      </select>
+      <p className="mt-1 text-xs text-navy-400">Replaces the URL above. Clicks show under Analytics → Links.</p>
+    </div>
+  );
 }
 
 function Field(props: { label: string; value: string; onChange: (v: string) => void; textarea?: boolean }) {

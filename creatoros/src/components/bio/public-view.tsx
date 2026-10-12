@@ -22,6 +22,22 @@ export function PublicBioPageView({ bio }: { bio: PublicBioPage }) {
   const theme = bio.page.theme;
   const accent = theme.accent || "#7C3AED";
   const [visitorId] = useState(() => (typeof globalThis !== "undefined" && globalThis.crypto ? globalThis.crypto.randomUUID() : `v${Date.now()}`));
+  // A per-tab session id groups this visit's events (page view, clicks,
+  // engagement) without any cross-site identifier. Persisted in sessionStorage
+  // so a reload in the same tab is one session; closed tab starts a new one.
+  const [sessionId] = useState(() => {
+    if (typeof window === "undefined") return "";
+    try {
+      let sid = window.sessionStorage.getItem("creatoros_sid");
+      if (!sid) {
+        sid = globalThis.crypto ? globalThis.crypto.randomUUID() : `s${Date.now()}`;
+        window.sessionStorage.setItem("creatoros_sid", sid);
+      }
+      return sid;
+    } catch {
+      return "";
+    }
+  });
   // D-5: analytics are opt-in. Without consent the page still renders fully -
   // we simply do not report the visit, and `/api/track` refuses it anyway.
   // The request carries no consent flag: the server authorises from the signed
@@ -39,12 +55,63 @@ export function PublicBioPageView({ bio }: { bio: PublicBioPage }) {
         pageSlug: bio.page.slug,
         eventType: "page_view",
         visitorId,
+        sessionId,
       }),
     }).catch(() => {});
-  }, [bio.profile.username, bio.page.slug, visitorId, analyticsAllowed]);
+  }, [bio.profile.username, bio.page.slug, visitorId, sessionId, analyticsAllowed]);
+
+  // Report active engagement time (foreground time on the page) when the visit
+  // ends. Uses sendBeacon so the sample survives unload; samples under 1s are
+  // dropped. Only fires with consent; the endpoint re-checks the receipt anyway.
+  useEffect(() => {
+    if (!analyticsAllowed || !sessionId) return;
+    let activeMs = 0;
+    let last = Date.now();
+    let visible = document.visibilityState === "visible";
+    const accumulate = () => {
+      const now = Date.now();
+      if (visible) activeMs += now - last;
+      last = now;
+    };
+    const onVisibility = () => {
+      accumulate();
+      visible = document.visibilityState === "visible";
+    };
+    const flush = () => {
+      accumulate();
+      const ms = Math.round(activeMs);
+      activeMs = 0;
+      if (ms < 1000) return;
+      const payload = JSON.stringify({
+        username: bio.profile.username,
+        pageSlug: bio.page.slug,
+        eventType: "engagement",
+        visitorId,
+        sessionId,
+        engagementMs: ms,
+      });
+      try {
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon(`${SITE_URL}/api/track`, new Blob([payload], { type: "application/json" }));
+        } else {
+          void fetch(`${SITE_URL}/api/track`, { method: "POST", headers: { "Content-Type": "application/json" }, body: payload, keepalive: true });
+        }
+      } catch {
+        // best-effort telemetry; a failed sample is not worth surfacing
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", flush);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", flush);
+    };
+  }, [bio.profile.username, bio.page.slug, visitorId, sessionId, analyticsAllowed]);
 
   function trackLink(url: string) {
     if (!analyticsAllowed) return;
+    // Own tracked short links record the click server-side on the /l/[slug] redirect.
+    if (url.startsWith(`${SITE_URL}/l/`)) return;
     fetch(`${SITE_URL}/api/track`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -54,6 +121,7 @@ export function PublicBioPageView({ bio }: { bio: PublicBioPage }) {
         eventType: "link_click",
         ref: url,
         visitorId,
+        sessionId,
       }),
     }).catch(() => {});
   }

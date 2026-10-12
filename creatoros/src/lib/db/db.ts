@@ -248,6 +248,115 @@ const MIGRATIONS: Array<{ id: number; up: (db: DatabaseSync) => void }> = [
       db.exec("CREATE INDEX IF NOT EXISTS idx_email_verify_user ON email_verify_tokens(user_id)");
     },
   },
+  {
+    // Analytics dashboard (traffic, clicks, countries). The tenant-analytics
+    // table already carried the dimensions we need (ref/utm/device/country);
+    // this adds the pieces the richer reports require without a second event
+    // table: a privacy-safe session id, active engagement time, a finer
+    // `event_name` label, and an allow-listed `properties` JSON blob. New
+    // read-pattern indexes back the country/click/session/realtime views.
+    //
+    // schema.sql declares the new shape for a fresh database; migrate() runs the
+    // schema first, so an existing database only needs the ALTERs below. Defaults
+    // are '' / 0 so existing rows read as "unknown" rather than asserting a value.
+    id: 18,
+    up: (db) => {
+      addColumn(db, "analytics_events", "event_name", "TEXT NOT NULL DEFAULT ''");
+      addColumn(db, "analytics_events", "session_id", "TEXT NOT NULL DEFAULT ''");
+      addColumn(db, "analytics_events", "engagement_ms", "INTEGER NOT NULL DEFAULT 0");
+      addColumn(db, "analytics_events", "properties", "TEXT NOT NULL DEFAULT '{}'");
+      db.exec("CREATE INDEX IF NOT EXISTS idx_events_type_time ON analytics_events(event_type, created_at)");
+      db.exec("CREATE INDEX IF NOT EXISTS idx_events_tenant_country ON analytics_events(tenant_id, country, created_at)");
+      db.exec("CREATE INDEX IF NOT EXISTS idx_events_tenant_session ON analytics_events(tenant_id, session_id)");
+      db.exec("CREATE INDEX IF NOT EXISTS idx_events_visitor_time ON analytics_events(tenant_id, visitor_id, created_at)");
+    },
+  },
+  {
+    // Campaign + short-link registry (tracked links). schema.sql creates these
+    // for a fresh database; migrate() runs the schema first, so an existing
+    // database picks them up here. Kept in the migration as well so the tables
+    // are guaranteed even if schema.sql were not re-run. `slug` is globally
+    // unique because the public `/l/<slug>` redirect resolves from the slug
+    // alone and cannot disambiguate between tenants.
+    id: 19,
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS campaigns (
+          id           TEXT PRIMARY KEY,
+          tenant_id    TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          name         TEXT NOT NULL,
+          utm_source   TEXT NOT NULL DEFAULT '',
+          utm_medium   TEXT NOT NULL DEFAULT '',
+          utm_campaign TEXT NOT NULL DEFAULT '',
+          active       INTEGER NOT NULL DEFAULT 1,
+          created_at   TEXT NOT NULL,
+          updated_at   TEXT NOT NULL,
+          UNIQUE (tenant_id, name)
+        )
+      `);
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS tracked_links (
+          id           TEXT PRIMARY KEY,
+          tenant_id    TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          campaign_id  TEXT REFERENCES campaigns(id) ON DELETE SET NULL,
+          label        TEXT NOT NULL DEFAULT '',
+          slug         TEXT NOT NULL,
+          destination  TEXT NOT NULL,
+          active       INTEGER NOT NULL DEFAULT 1,
+          created_at   TEXT NOT NULL,
+          updated_at   TEXT NOT NULL
+        )
+      `);
+      db.exec("CREATE INDEX IF NOT EXISTS idx_campaigns_tenant ON campaigns(tenant_id)");
+      db.exec("CREATE INDEX IF NOT EXISTS idx_tracked_links_tenant ON tracked_links(tenant_id)");
+      db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_tracked_links_slug ON tracked_links(slug)");
+    },
+  },
+  {
+    // Analytics alert rules + their fired-event feed. schema.sql creates these
+    // for a fresh database; migrate() runs the schema first, so an existing
+    // database picks them up here as well, guaranteeing the tables either way.
+    id: 20,
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS alert_rules (
+          id               TEXT PRIMARY KEY,
+          tenant_id        TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          name             TEXT NOT NULL,
+          metric           TEXT NOT NULL,
+          comparator       TEXT NOT NULL,
+          threshold        REAL NOT NULL DEFAULT 0,
+          window_days      INTEGER NOT NULL DEFAULT 1,
+          channel          TEXT NOT NULL DEFAULT 'email',
+          cooldown_minutes INTEGER NOT NULL DEFAULT 360,
+          active           INTEGER NOT NULL DEFAULT 1,
+          last_fired_at    TEXT,
+          created_at       TEXT NOT NULL,
+          updated_at       TEXT NOT NULL
+        )
+      `);
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS alert_events (
+          id             TEXT PRIMARY KEY,
+          tenant_id      TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          rule_id        TEXT REFERENCES alert_rules(id) ON DELETE SET NULL,
+          rule_name      TEXT NOT NULL DEFAULT '',
+          metric         TEXT NOT NULL DEFAULT '',
+          value          REAL NOT NULL DEFAULT 0,
+          baseline       REAL NOT NULL DEFAULT 0,
+          threshold      REAL NOT NULL DEFAULT 0,
+          message        TEXT NOT NULL DEFAULT '',
+          channel        TEXT NOT NULL DEFAULT 'inapp',
+          delivery       TEXT NOT NULL DEFAULT 'inapp',
+          delivery_error TEXT NOT NULL DEFAULT '',
+          read_at        TEXT,
+          created_at     TEXT NOT NULL
+        )
+      `);
+      db.exec("CREATE INDEX IF NOT EXISTS idx_alert_rules_tenant ON alert_rules(tenant_id)");
+      db.exec("CREATE INDEX IF NOT EXISTS idx_alert_events_tenant ON alert_events(tenant_id, created_at)");
+    },
+  },
 ];
 
 function addColumn(db: DatabaseSync, table: string, column: string, ddl: string) {

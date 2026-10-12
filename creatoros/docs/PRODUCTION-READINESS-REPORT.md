@@ -24,6 +24,9 @@ blocked by Cashfree KYC; one-time payments already work.
 | `npm run build` | Pass — 59 routes |
 | `npm run test:e2e` | 23 / 23 |
 
+> Updated 2026-10-12: after the analytics cycle (below) the suite is **409 / 409
+> (39 files)** and the build still passes with the additional analytics routes.
+
 Production configuration confirmed live:
 `NODE_ENV=production`, `PAYMENT_PROVIDER=cashfree`, `CASHFREE_ENV=live`,
 `EMAIL_PROVIDER=brevo`, `AUTH_SECRET` set (64 chars, not the dev fallback),
@@ -53,6 +56,47 @@ secrets (`.env` was never tracked).
 - **Credential rotation completed & verified:** Brevo API key (`GET /v3/account` → 200),
   Cashfree live secret (probe `POST /pg/orders/...` → `404 order_not_found` = valid), admin
   password changed. Stale `.env` backups removed.
+
+## Analytics platform rollout (2026-10-12)
+
+Full traffic / click / country analytics was built on the existing consent-gated
+`analytics_events` table (no second event store), shipped in five layers:
+
+- **Dashboard MVP** — `/app/analytics` (visitors, page views, countries, devices,
+  sources, top links, pages, realtime, conversion funnel), `/api/track` ingestion,
+  and `/api/analytics/{overview,realtime,export}` (CSV). Migration 18 added
+  `session_id`, `engagement_ms`, `event_name`, `properties` + read indexes.
+- **Tracked links + campaigns** — `campaigns` / `tracked_links` (migration 19),
+  CRUD at `/api/analytics/{campaigns,links}`, a public consent-gated redirect
+  `/l/[slug]`, the `/app/analytics/links` manager, and a tracked-link picker in the
+  bio editor. Slug is globally unique (the redirect has no tenant context).
+- **Alerts** — `alert_rules` / `alert_events` (migration 20),
+  `/api/analytics/alerts`, per-rule cooldowns evaluated by `/api/cron/alerts`, and
+  the dashboard `AlertsPanel` (email + in-app).
+- **Retention** — `pruneAnalyticsEvents` (batched) driven by
+  `/api/cron/analytics-retention`; window from `ANALYTICS_RETENTION_DAYS`
+  (default 400 days).
+- **AI assistant** — `/api/analytics/assistant` answers natural-language questions
+  over a PII-free, tenant-scoped aggregate snapshot; metered against `aiCredits`
+  and gated by the `ai_assistant` feature flag. Located in the dashboard.
+
+Privacy and operational notes:
+
+- Clicks and page views are recorded **only with a valid signed consent receipt**
+  (D-5); the `/l/[slug]` redirect always redirects but records a click only when
+  consent is present and the request is not a bot.
+- Blank/absent `User-Agent` is treated as **human** (privacy tools strip it); only
+  known crawler signatures are filtered. Clicked short links embedded in a bio page
+  are counted once — the redirect owns the event, the client skips same-origin `/l/`.
+- No PII reaches the AI provider: context is aggregate counts only (countries,
+  devices, sources, links, pages) — never visitor/session ids or contact emails.
+- Both cron jobs are gated by `CRON_SECRET` (`Authorization: Bearer <secret>`), with
+  an authenticated owner/admin fallback when it is unset; the endpoint is never open.
+- The new tables are included in the GDPR data-export list; deletion cascades via
+  the `organizations` foreign key.
+
+**Operational follow-up:** schedule `/api/cron/alerts` (e.g. every 15–30 min) and
+`/api/cron/analytics-retention` (daily) and set `CRON_SECRET` in production.
 
 ## Findings
 

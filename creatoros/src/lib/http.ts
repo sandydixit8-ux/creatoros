@@ -64,3 +64,18 @@ export function userAgentInfo(req: Request): { device: string; ref: string } {
   const ref = req.headers.get("referer") || "";
   return { device, ref };
 }
+
+/**
+ * Conservative bot/crawler detection for analytics ingestion. Deliberately
+ * narrow: only well-known crawler and headless-client signatures are flagged,
+ * and a blank User-Agent is treated as human. Some privacy tools strip the UA,
+ * and dropping a real visitor to filter a few bots is the worse error.
+ */
+const BOT_UA =
+  /bot\b|bot\/|crawler|crawl|spider|slurp|bingpreview|headless|phantomjs|puppeteer|playwright|lighthouse|pingdom|uptimerobot|ahrefs|semrush|mj12bot|dotbot|petalbot|yandex|baiduspider|duckduckbot|facebookexternalhit|whatsapp|telegrambot|discordbot|slackbot|curl\/|wget\/|python-requests|python-urllib|go-http-client|libwww|okhttp|apache-httpclient/i;
+
+export function isLikelyBot(req: Request): boolean {
+  const ua = (req.headers.get("user-agent") || "").trim();
+  if (!ua) return false;
+  return BOT_UA.test(ua);
+}

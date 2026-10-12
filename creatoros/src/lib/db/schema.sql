@@ -214,17 +214,91 @@ CREATE TABLE IF NOT EXISTS bookings (
 );
 
 CREATE TABLE IF NOT EXISTS analytics_events (
-  id          TEXT PRIMARY KEY,
-  tenant_id   TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  page_id     TEXT REFERENCES bio_pages(id) ON DELETE SET NULL,
-  event_type  TEXT NOT NULL,                 -- page_view | lead | booking | link_click
-  visitor_id  TEXT NOT NULL DEFAULT '',      -- salted hash, privacy-safe
-  ref         TEXT NOT NULL DEFAULT '',
-  utm_source  TEXT NOT NULL DEFAULT '',
+  id           TEXT PRIMARY KEY,
+  tenant_id    TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  page_id      TEXT REFERENCES bio_pages(id) ON DELETE SET NULL,
+  event_type   TEXT NOT NULL,                -- page_view | lead | booking | link_click | checkout_started | purchase | course_started | course_completed
+  event_name   TEXT NOT NULL DEFAULT '',     -- optional finer label (e.g. cta_click, social_click)
+  visitor_id   TEXT NOT NULL DEFAULT '',     -- salted hash, privacy-safe
+  session_id   TEXT NOT NULL DEFAULT '',     -- salted hash of a per-visit session, privacy-safe
+  ref          TEXT NOT NULL DEFAULT '',
+  utm_source   TEXT NOT NULL DEFAULT '',
   utm_campaign TEXT NOT NULL DEFAULT '',
-  device      TEXT NOT NULL DEFAULT '',
-  country     TEXT NOT NULL DEFAULT '',
-  created_at  TEXT NOT NULL
+  device       TEXT NOT NULL DEFAULT '',
+  country      TEXT NOT NULL DEFAULT '',
+  engagement_ms INTEGER NOT NULL DEFAULT 0,  -- active time on page (page_view events)
+  properties   TEXT NOT NULL DEFAULT '{}',   -- allow-listed JSON metadata
+  created_at   TEXT NOT NULL
+);
+
+-- Campaign + short-link registry. A creator defines a campaign (UTM set) and
+-- mints one or more short links; the public `/l/<slug>` endpoint records a
+-- consent-gated click and redirects to the destination with the campaign's UTM
+-- parameters attached. The click is stored in analytics_events (event_type
+-- 'link_click', properties.linkId) so the existing reports pick it up too.
+CREATE TABLE IF NOT EXISTS campaigns (
+  id           TEXT PRIMARY KEY,
+  tenant_id    TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  name         TEXT NOT NULL,
+  utm_source   TEXT NOT NULL DEFAULT '',
+  utm_medium   TEXT NOT NULL DEFAULT '',
+  utm_campaign TEXT NOT NULL DEFAULT '',
+  active       INTEGER NOT NULL DEFAULT 1,
+  created_at   TEXT NOT NULL,
+  updated_at   TEXT NOT NULL,
+  UNIQUE (tenant_id, name)
+);
+
+-- `slug` is globally unique, not per-tenant: a short link is resolved from the
+-- slug alone, so the same slug in two tenants would be ambiguous.
+CREATE TABLE IF NOT EXISTS tracked_links (
+  id           TEXT PRIMARY KEY,
+  tenant_id    TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  campaign_id  TEXT REFERENCES campaigns(id) ON DELETE SET NULL,
+  label        TEXT NOT NULL DEFAULT '',
+  slug         TEXT NOT NULL,
+  destination  TEXT NOT NULL,
+  active       INTEGER NOT NULL DEFAULT 1,
+  created_at   TEXT NOT NULL,
+  updated_at   TEXT NOT NULL
+);
+
+-- Analytics alerts. A creator defines a rule over one metric (traffic, clicks,
+-- leads, bookings) with a threshold and a rolling window; the scheduled job
+-- (/api/cron/alerts) evaluates each active rule and, when it fires outside its
+-- cooldown, records an alert_event and optionally emails the owner. Fired events
+-- are retained so the dashboard can show a notification feed.
+CREATE TABLE IF NOT EXISTS alert_rules (
+  id               TEXT PRIMARY KEY,
+  tenant_id        TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  name             TEXT NOT NULL,
+  metric           TEXT NOT NULL,                 -- page_views | visitors | link_clicks | leads | bookings
+  comparator       TEXT NOT NULL,                 -- gt | lt | pct_up | pct_down
+  threshold        REAL NOT NULL DEFAULT 0,
+  window_days      INTEGER NOT NULL DEFAULT 1,
+  channel          TEXT NOT NULL DEFAULT 'email', -- email | inapp
+  cooldown_minutes INTEGER NOT NULL DEFAULT 360,
+  active           INTEGER NOT NULL DEFAULT 1,
+  last_fired_at    TEXT,
+  created_at       TEXT NOT NULL,
+  updated_at       TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS alert_events (
+  id             TEXT PRIMARY KEY,
+  tenant_id      TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  rule_id        TEXT REFERENCES alert_rules(id) ON DELETE SET NULL,
+  rule_name      TEXT NOT NULL DEFAULT '',
+  metric         TEXT NOT NULL DEFAULT '',
+  value          REAL NOT NULL DEFAULT 0,
+  baseline       REAL NOT NULL DEFAULT 0,
+  threshold      REAL NOT NULL DEFAULT 0,
+  message        TEXT NOT NULL DEFAULT '',
+  channel        TEXT NOT NULL DEFAULT 'inapp',
+  delivery       TEXT NOT NULL DEFAULT 'inapp',   -- inapp | sent | failed | skipped
+  delivery_error TEXT NOT NULL DEFAULT '',
+  read_at        TEXT,
+  created_at     TEXT NOT NULL
 );
 
 -- Platform-side acquisition funnel: signup -> activation -> checkout -> paid.
@@ -425,8 +499,19 @@ CREATE TABLE IF NOT EXISTS support_tickets (
 
 CREATE INDEX IF NOT EXISTS idx_bio_pages_tenant ON bio_pages(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_blocks_page ON bio_blocks(page_id);
+-- NOTE: indexes on the analytics columns added by migration 18 (session_id,
+-- event_name, engagement_ms, properties) are created inside that migration, not
+-- here. migrate() runs schema.sql before the migrations, so an index referencing
+-- a column an older database has not added yet would make the whole schema exec
+-- fail. Only indexes over columns present since the original schema belong here.
 CREATE INDEX IF NOT EXISTS idx_events_tenant_time ON analytics_events(tenant_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_events_page ON analytics_events(page_id, event_type);
+CREATE INDEX IF NOT EXISTS idx_campaigns_tenant ON campaigns(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_tracked_links_tenant ON tracked_links(tenant_id);
+-- Global uniqueness on purpose: `/l/<slug>` has no tenant context to disambiguate.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tracked_links_slug ON tracked_links(slug);
+CREATE INDEX IF NOT EXISTS idx_alert_rules_tenant ON alert_rules(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_alert_events_tenant ON alert_events(tenant_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_bookings_tenant ON bookings(tenant_id, starts_at);
 CREATE INDEX IF NOT EXISTS idx_contacts_tenant ON contacts(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_audit_tenant ON audit_logs(tenant_id, created_at);

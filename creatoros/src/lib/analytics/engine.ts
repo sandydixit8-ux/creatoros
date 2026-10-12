@@ -8,6 +8,7 @@ export type EventType =
   | "lead"
   | "booking"
   | "link_click"
+  | "engagement"
   | "checkout_started"
   | "purchase"
   | "course_started"
@@ -17,27 +18,49 @@ export interface TrackEventInput {
   tenantId: string;
   pageId?: string;
   eventType: EventType;
+  eventName?: string;
   visitorId?: string;
+  sessionId?: string;
   ref?: string;
   utmSource?: string;
   utmCampaign?: string;
   device?: string;
   country?: string;
+  engagementMs?: number;
+  properties?: Record<string, unknown>;
+}
+
+// Properties are free-form metadata supplied by the caller, so they are capped
+// to keep a single tracked event from becoming an unbounded blob in the row.
+const MAX_PROPERTIES_BYTES = 2048;
+
+function serializeProperties(properties?: Record<string, unknown>): string {
+  if (!properties) return "{}";
+  try {
+    const json = JSON.stringify(properties);
+    return json.length > MAX_PROPERTIES_BYTES ? "{}" : json;
+  } catch {
+    return "{}";
+  }
 }
 
 export function trackEvent(input: TrackEventInput): void {
   run(
-    "INSERT INTO analytics_events (id, tenant_id, page_id, event_type, visitor_id, ref, utm_source, utm_campaign, device, country, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO analytics_events (id, tenant_id, page_id, event_type, event_name, visitor_id, session_id, ref, utm_source, utm_campaign, device, country, engagement_ms, properties, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     newId("evt"),
     input.tenantId,
     input.pageId ?? null,
     input.eventType,
+    input.eventName ?? "",
     input.visitorId ?? "",
+    input.sessionId ?? "",
     input.ref ?? "",
     input.utmSource ?? "",
     input.utmCampaign ?? "",
     input.device ?? "",
     input.country ?? "",
+    Number.isFinite(input.engagementMs) ? Math.max(0, Math.trunc(input.engagementMs as number)) : 0,
+    serializeProperties(input.properties),
     nowIso()
   );
 }

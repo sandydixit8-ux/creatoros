@@ -9,7 +9,7 @@ interface Flag {
   enabled: boolean;
 }
 
-const KNOWN_FLAGS = ["maintenance", "signups_open", "ai_coach", "email_delivery"];
+const KNOWN_FLAGS = ["maintenance", "signups_open", "ai_coach", "ai_assistant", "email_delivery"];
 
 export function FlagsPanel({ initial }: { initial: Flag[] }) {
   const [flags, setFlags] = useState(initial);
