@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --w: 1920px;
+    --h: 1080px;
+    --ts: 1;
+    --font: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: calc(var(--w) / 100);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    width: var(--w); height: var(--h);
+    overflow: hidden;
+    background: #0b1020;
+    font-family: var(--font);
+    color: #f8fafc;
+    -webkit-font-smoothing: antialiased;
+  }
+  .stage {
+    position: relative; width: var(--w); height: var(--h); overflow: hidden;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background:
+      radial-gradient(1200px 700px at 50% -10%, rgba(124, 58, 237, 0.28), transparent 60%),
+      linear-gradient(180deg, #0b1020 0%, #0a0e1c 100%);
+  }
+  #bgGlow { position: absolute; inset: 0; opacity: 0; }
+  #bgGlow .blob { position: absolute; border-radius: 9999px; filter: blur(120px); }
+  #bgGlow .b1 { top: -14%; left: -6%; width: 46%; height: 46%; background: rgba(124, 58, 237, 0.5); }
+  #bgGlow .b2 { top: -10%; right: -8%; width: 40%; height: 44%; background: rgba(34, 211, 238, 0.22); }
+  #bgGlow .b3 { bottom: -18%; left: 35%; width: 46%; height: 44%; background: rgba(139, 92, 246, 0.28); }
+  .grid {
+    position: absolute; inset: 0; opacity: 0.35;
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+    background-size: 64px 64px;
+    -webkit-mask-image: radial-gradient(circle at 50% 40%, #000 0%, transparent 72%);
+    mask-image: radial-gradient(circle at 50% 40%, #000 0%, transparent 72%);
+  }
+  .vignette {
+    position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(circle at 50% 45%, transparent 45%, rgba(0, 0, 0, 0.55) 100%);
+  }
+
+  #logoRow { display: flex; align-items: center; justify-content: center; gap: calc(1.05rem * var(--ts)); }
+  #logoMark {
+    width: calc(5rem * var(--ts)); height: calc(5rem * var(--ts)); border-radius: calc(1.35rem * var(--ts));
+    display: flex; align-items: center; justify-content: center; flex: 0 0 auto;
+    background: linear-gradient(140deg, #7c3aed, #8b5cf6 55%, #22d3ee);
+    box-shadow: 0 24px 60px -18px rgba(124, 58, 237, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  }
+  #logoMark svg { width: calc(2.4rem * var(--ts)); height: calc(2.4rem * var(--ts)); }
+  #wordmark { font-size: calc(3.85rem * var(--ts)); font-weight: 800; letter-spacing: -0.02em; }
+  #wordmark .os { background: linear-gradient(90deg, #c4b5fd, #22d3ee); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+  #headline { margin-top: calc(2.3rem * var(--ts)); text-align: center; }
+  #h1 { font-size: calc(4.05rem * var(--ts)); font-weight: 800; line-height: 1.08; letter-spacing: -0.025em; margin: 0; }
+  #h1 .l1, #h1 .l2 { display: block; }
+  #h1 .grad { background: linear-gradient(90deg, #a78bfa, #c4b5fd 45%, #22d3ee); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  #headline-sub { margin: calc(1.15rem * var(--ts)) 0 0; font-size: calc(1.4rem * var(--ts)); font-weight: 500; color: #a8b3c7; }
+
+  #dashWrap { position: relative; margin-top: calc(2.9rem * var(--ts)); }
+  #dashScale { width: 1180px; transform-origin: top left; }
+  #dash {
+    width: 1180px; border-radius: 26px; border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(23, 30, 53, 0.92); overflow: hidden; transform-origin: 50% 40%;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 40px 90px -30px rgba(0, 0, 0, 0.7);
+  }
+  #dash .bar { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+  .dots { display: flex; gap: 9px; }
+  .dots i { display: block; width: 14px; height: 14px; border-radius: 9999px; }
+  .dots .r { background: rgba(251, 113, 133, 0.85); }
+  .dots .y { background: rgba(251, 191, 36, 0.85); }
+  .dots .g { background: rgba(52, 211, 153, 0.85); }
+  .pill { border-radius: 9999px; border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(255, 255, 255, 0.05); padding: 7px 16px; font-size: 14px; font-weight: 600; color: #7f8aa3; }
+  .pill.live { color: #6ee7b7; border-color: rgba(110, 231, 183, 0.3); background: rgba(110, 231, 183, 0.1); }
+  .dash-body { display: flex; }
+  .rail { width: 72px; padding: 22px 0; display: flex; flex-direction: column; align-items: center; gap: 20px; border-right: 1px solid rgba(255, 255, 255, 0.08); }
+  .rail .ic { width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.08); }
+  .rail .ic.on { background: rgba(139, 92, 246, 0.22); border-color: rgba(139, 92, 246, 0.45); }
+  .content { flex: 1; padding: 26px 30px; }
+  .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .kpi { border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(255, 255, 255, 0.05); padding: 16px 20px; }
+  .kpi .lbl { font-size: 15px; font-weight: 600; color: #7f8aa3; }
+  .kpi .val { margin-top: 6px; font-size: 40px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .chart { margin-top: 20px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(255, 255, 255, 0.04); padding: 18px 22px 12px; }
+  .chart .chead { display: flex; align-items: center; justify-content: space-between; }
+  .chart .chead .a { font-size: 15px; font-weight: 600; color: #7f8aa3; }
+  .chart .chead .b { font-size: 15px; font-weight: 600; color: #22d3ee; }
+  .chart svg { display: block; margin-top: 8px; width: 100%; height: 150px; }
+  #aiRow { margin-top: 20px; display: flex; align-items: center; gap: 16px; border-radius: 16px; border: 1px solid rgba(139, 92, 246, 0.3); background: rgba(139, 92, 246, 0.12); padding: 16px 20px; }
+  #aiRow .ai-ic { width: 46px; height: 46px; border-radius: 12px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; background: rgba(139, 92, 246, 0.28); color: #c4b5fd; }
+  #aiRow .ai-t { font-size: 19px; font-weight: 700; }
+  #aiRow .ai-d { margin-top: 3px; font-size: 15px; color: #a8b3c7; }
+  #aiRow .ring { margin-left: auto; width: 62px; height: 62px; border-radius: 9999px; flex: 0 0 auto; border: 4px solid rgba(52, 211, 153, 0.75); display: flex; align-items: center; justify-content: center; font-size: 19px; font-weight: 700; color: #6ee7b7; font-variant-numeric: tabular-nums; }
+
+  .badge { position: absolute; width: 250px; border-radius: 18px; border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(23, 30, 53, 0.96); padding: 18px 20px; box-shadow: 0 30px 70px -24px rgba(0, 0, 0, 0.75); }
+  .badge .bt { display: flex; align-items: center; gap: 9px; font-size: 16px; font-weight: 700; }
+  .badge .bd { margin-top: 6px; font-size: 13.5px; color: #7f8aa3; line-height: 1.45; }
+  #badge1 { left: -16px; top: 30%; }
+  #badge2 { right: -16px; bottom: 8%; }
+
+  #urlPill {
+    position: absolute; right: calc(2.6rem * var(--ts)); top: calc(2.4rem * var(--ts)); z-index: 20;
+    border-radius: 9999px; border: 1px solid rgba(255, 255, 255, 0.14); background: rgba(255, 255, 255, 0.06);
+    padding: calc(0.6rem * var(--ts)) calc(1.15rem * var(--ts));
+    font-size: calc(1.05rem * var(--ts)); font-weight: 700; color: #f8fafc; opacity: 0;
+  }
+  #outro {
+    position: absolute; inset: 0; z-index: 30; opacity: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: linear-gradient(180deg, rgba(11, 16, 32, 0.86), rgba(11, 16, 32, 0.96));
+  }
+  #outro .brand { display: flex; align-items: center; gap: calc(0.85rem * var(--ts)); }
+  #outro .brand .mk { width: calc(3.2rem * var(--ts)); height: calc(3.2rem * var(--ts)); border-radius: calc(0.95rem * var(--ts)); display: flex; align-items: center; justify-content: center; background: linear-gradient(140deg, #7c3aed, #22d3ee); }
+  #outro .brand .mk svg { width: calc(1.6rem * var(--ts)); height: calc(1.6rem * var(--ts)); }
+  #outro .brand .wm { font-size: calc(2.3rem * var(--ts)); font-weight: 800; letter-spacing: -0.02em; }
+  #outro .brand .wm .os { background: linear-gradient(90deg, #c4b5fd, #22d3ee); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  #outroTitle { margin-top: calc(1.8rem * var(--ts)); font-size: calc(3.1rem * var(--ts)); font-weight: 800; letter-spacing: -0.025em; text-align: center; line-height: 1.1; }
+  #outroSub { margin-top: calc(0.75rem * var(--ts)); font-size: calc(1.35rem * var(--ts)); font-weight: 500; color: #a8b3c7; text-align: center; }
+  #outroCta { margin-top: calc(2rem * var(--ts)); font-size: calc(1.3rem * var(--ts)); font-weight: 700; border-radius: 9999px; border: 1px solid rgba(255, 255, 255, 0.16); background: rgba(255, 255, 255, 0.07); padding: calc(0.75rem * var(--ts)) calc(1.6rem * var(--ts)); }
+</style>
+</head>
+<body>
+  <div class="stage" id="stage">
+    <div id="bgGlow"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div></div>
+    <div class="grid"></div>
+    <div id="urlPill">usecreatoros.co</div>
+
+    <div id="logoRow">
+      <div id="logoMark"><svg viewBox="0 0 24 24" fill="#ffffff"><path d="M12 2l1.9 6.1L20 10l-6.1 1.9L12 18l-1.9-6.1L4 10l6.1-1.9L12 2z"/></svg></div>
+      <div id="wordmark">Creator<span class="os">OS</span></div>
+    </div>
+
+    <div id="headline">
+      <h1 id="h1"><span class="l1">Your Creator Business.</span><span class="l2 grad">One Powerful Workspace.</span></h1>
+      <p id="headline-sub">Create. Grow. Sell. Automate — all in one connected platform.</p>
+    </div>
+
+    <div id="dashWrap">
+      <div id="dashScale">
+        <div id="dash">
+          <div class="bar">
+            <div class="dots"><i class="r"></i><i class="y"></i><i class="g"></i></div>
+            <div style="display:flex;gap:12px;align-items:center"><span class="pill live">Live</span><span class="pill">Sample data</span></div>
+          </div>
+          <div class="dash-body">
+            <div class="rail">
+              <div class="ic on"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#c4b5fd" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1"/></svg></div>
+              <div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#67e8f9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 7-7"/><path d="M14 8h6v6"/></svg></div>
+              <div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6ee7b7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg></div>
+              <div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#93c5fd" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></div>
+              <div class="ic"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fcd34d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M16 12h.01"/></svg></div>
+            </div>
+            <div class="content">
+              <div class="kpis">
+                <div class="kpi"><div class="lbl">Views</div><div class="val" id="kViews">0</div></div>
+                <div class="kpi"><div class="lbl">Leads</div><div class="val" id="kLeads">0</div></div>
+                <div class="kpi"><div class="lbl">Revenue</div><div class="val" id="kRev">0</div></div>
+              </div>
+              <div class="chart">
+                <div class="chead"><span class="a">Audience growth</span><span class="b">+18% this month</span></div>
+                <svg viewBox="0 0 1080 150" preserveAspectRatio="none">
+                  <defs>
+                    <linearGradient id="area" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.42" /><stop offset="100%" stop-color="#8b5cf6" stop-opacity="0" /></linearGradient>
+                    <linearGradient id="line" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#8b5cf6" /><stop offset="100%" stop-color="#22d3ee" /></linearGradient>
+                  </defs>
+                  <path id="chartArea" d="M0 118 C120 104 200 78 320 84 S520 104 640 70 S820 44 940 40 S1040 22 1080 16 L1080 150 L0 150 Z" fill="url(#area)" opacity="0" />
+                  <path id="chartLine" d="M0 118 C120 104 200 78 320 84 S520 104 640 70 S820 44 940 40 S1040 22 1080 16" fill="none" stroke="url(#line)" stroke-width="4" stroke-linecap="round" />
+                </svg>
+              </div>
+              <div id="aiRow">
+                <div class="ai-ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7L12 3z"/></svg></div>
+                <div><div class="ai-t">AI Strategy Coach</div><div class="ai-d">Publish your Tuesday reel — it is your strongest slot this week.</div></div>
+                <div class="ring">84</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="badge" id="badge1">
+          <div class="bt"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#67e8f9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 7-7"/><path d="M14 8h6v6"/></svg>+12% followers</div>
+          <div class="bd">Growing steadily across reels and posts.</div>
+        </div>
+        <div class="badge" id="badge2">
+          <div class="bt"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c4b5fd" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>Booking confirmed</div>
+          <div class="bd">30-min strategy call · 2:00 PM</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="vignette"></div>
+
+    <div id="outro">
+      <div class="brand">
+        <div class="mk"><svg viewBox="0 0 24 24" fill="#ffffff"><path d="M12 2l1.9 6.1L20 10l-6.1 1.9L12 18l-1.9-6.1L4 10l6.1-1.9L12 2z"/></svg></div>
+        <div class="wm">Creator<span class="os">OS</span></div>
+      </div>
+      <div id="outroTitle">Start free — no card required.</div>
+      <div id="outroSub">Set up your workspace in minutes and publish today.</div>
+      <div id="outroCta">usecreatoros.co</div>
+    </div>
+  </div>
+
+<script>
+  var clamp = function (x, a, b) { return Math.max(a, Math.min(b, x)); };
+  var range = function (t, a, b) { return clamp((t - a) / (b - a), 0, 1); };
+  var easeOut = function (x) { return 1 - Math.pow(1 - x, 3); };
+  var lerp = function (a, b, p) { return a + (b - a) * p; };
+  var ease = function (x) { return easeOut(clamp(x, 0, 1)); };
+
+  function el(id) { return document.getElementById(id); }
+  var root = document.documentElement;
+  var bgGlow = el("bgGlow");
+  var logoRow = el("logoRow");
+  var logoMark = el("logoMark");
+  var l1 = document.querySelector("#h1 .l1");
+  var l2 = document.querySelector("#h1 .l2");
+  var headlineSub = el("headline-sub");
+  var dashWrap = el("dashWrap");
+  var dashScale = el("dashScale");
+  var dash = el("dash");
+  var kViews = el("kViews");
+  var kLeads = el("kLeads");
+  var kRev = el("kRev");
+  var chartLine = el("chartLine");
+  var chartArea = el("chartArea");
+  var aiRow = el("aiRow");
+  var badge1 = el("badge1");
+  var badge2 = el("badge2");
+  var urlPill = el("urlPill");
+  var outro = el("outro");
+  var outroTitle = el("outroTitle");
+  var outroSub = el("outroSub");
+  var outroCta = el("outroCta");
+
+  var chartLen = 1000;
+
+  (function setup() {
+    var qs = new URLSearchParams(location.search);
+    var w = parseFloat(qs.get("w") || "1920");
+    var h = parseFloat(qs.get("h") || "1080");
+    var ts = parseFloat(qs.get("ts") || "1");
+    var sFrac = parseFloat(qs.get("sFrac") || "0.615");
+
+    root.style.setProperty("--w", w + "px");
+    root.style.setProperty("--h", h + "px");
+    root.style.setProperty("--ts", String(ts));
+
+    var s = (sFrac * w) / 1180;
+    dashScale.style.transform = "scale(" + s + ")";
+
+    var sceneH = dashScale.offsetHeight; // untransformed canvas height
+    dashWrap.style.width = (1180 * s) + "px";
+    dashWrap.style.height = (sceneH * s) + "px";
+  })();
+
+  function fmtViews(n) { return (n / 1000).toFixed(1) + "k"; }
+  function fmtInt(n) { return String(Math.round(n)); }
+  function fmtRev(n) { return "₹" + Math.round(n / 1000) + "k"; }
+
+  window.__seek = function (t) {
+    bgGlow.style.opacity = String(ease(range(t, 0, 1.0)) * 0.95);
+
+    var logoIn = ease(range(t, 0, 0.9));
+    logoRow.style.opacity = String(logoIn);
+    logoMark.style.transform = "scale(" + lerp(0.55, 1, logoIn).toFixed(4) + ")";
+    logoRow.style.transform = "translateY(" + lerp(-18, 0, logoIn).toFixed(2) + "px)";
+
+    var in1 = ease(range(t, 1.15, 1.95));
+    l1.style.opacity = String(in1);
+    l1.style.transform = "translateY(" + lerp(26, 0, in1).toFixed(2) + "px)";
+    var in2 = ease(range(t, 1.45, 2.25));
+    l2.style.opacity = String(in2);
+    l2.style.transform = "translateY(" + lerp(26, 0, in2).toFixed(2) + "px)";
+    var inS = ease(range(t, 1.85, 2.6));
+    headlineSub.style.opacity = String(inS);
+    headlineSub.style.transform = "translateY(" + lerp(18, 0, inS).toFixed(2) + "px)";
+
+    var dIn = ease(range(t, 2.6, 4.0));
+    var idle = Math.max(0, t - 4.0);
+    var ry = t > 4.0 ? Math.sin(idle * 0.9) * 2.2 : 0;
+    var float = t > 4.0 ? Math.sin(idle * 0.8) * 6 : 0;
+    dash.style.opacity = String(dIn);
+    dash.style.transform = "translateY(" + (lerp(150, 0, dIn) + float).toFixed(2) + "px) rotateX(" + lerp(16, 0, dIn).toFixed(2) + "deg) rotateY(" + ry.toFixed(2) + "deg) scale(" + lerp(0.94, 1, dIn).toFixed(4) + ")";
+
+    var p = ease(range(t, 4.0, 5.6));
+    kViews.textContent = fmtViews(12400 * p);
+    kLeads.textContent = fmtInt(318 * ease(range(t, 4.1, 5.7)));
+    kRev.textContent = fmtRev(86000 * ease(range(t, 4.2, 5.8)));
+
+    var chP = ease(range(t, 4.4, 6.2));
+    chartLine.style.strokeDasharray = String(chartLen);
+    chartLine.style.strokeDashoffset = String(chartLen * (1 - chP));
+    chartArea.style.opacity = String(0.9 * chP);
+
+    var aiP = ease(range(t, 6.0, 6.8));
+    aiRow.style.opacity = String(aiP);
+    aiRow.style.transform = "translateY(" + lerp(16, 0, aiP).toFixed(2) + "px)";
+
+    var b1 = ease(range(t, 6.4, 7.2));
+    var drift1 = Math.sin(Math.max(0, t - 7.2) * 0.9) * 7;
+    badge1.style.opacity = String(b1);
+    badge1.style.transform = "translateY(" + (lerp(24, 0, b1) + drift1).toFixed(2) + "px) scale(" + lerp(0.9, 1, b1).toFixed(4) + ")";
+    var b2 = ease(range(t, 7.0, 7.8));
+    var drift2 = Math.sin(Math.max(0, t - 7.8) * 0.9 + 3.1) * 7;
+    badge2.style.opacity = String(b2);
+    badge2.style.transform = "translateY(" + (lerp(24, 0, b2) + drift2).toFixed(2) + "px) scale(" + lerp(0.9, 1, b2).toFixed(4) + ")";
+
+    var up = ease(range(t, 7.7, 8.4));
+    urlPill.style.opacity = String(up);
+    urlPill.style.transform = "translateY(" + lerp(-14, 0, up).toFixed(2) + "px)";
+
+    var oP = ease(range(t, 8.4, 9.2));
+    outro.style.opacity = String(oP);
+    var o1 = ease(range(t, 8.7, 9.4));
+    var o2 = ease(range(t, 8.9, 9.6));
+    var o3 = ease(range(t, 9.1, 9.9));
+    outroTitle.style.opacity = String(o1);
+    outroTitle.style.transform = "translateY(" + lerp(20, 0, o1).toFixed(2) + "px)";
+    outroSub.style.opacity = String(o2);
+    outroSub.style.transform = "translateY(" + lerp(16, 0, o2).toFixed(2) + "px)";
+    outroCta.style.opacity = String(o3);
+    outroCta.style.transform = "translateY(" + lerp(16, 0, o3).toFixed(2) + "px)";
+  };
+
+  function init() {
+    try { chartLen = chartLine.getTotalLength(); } catch (e) { chartLen = 1000; }
+    chartLine.style.strokeDasharray = String(chartLen);
+    chartLine.style.strokeDashoffset = String(chartLen);
+    window.__seek(0);
+    window.__ready = true;
+  }
+
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(function () { requestAnimationFrame(function () { window.__seek(0); window.__ready = true; }); });
+  }
+  window.addEventListener("load", function () { setTimeout(function () { window.__seek(0); window.__ready = true; }, 50); });
+  window.__seek(0);
+  window.__ready = true;
+</script>
+</body>
+</html>

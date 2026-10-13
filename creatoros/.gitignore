@@ -50,3 +50,7 @@ next-env.d.ts
 build-check.txt
 app7.tar.gz
 ~$*
+
+# marketing video generated assets (regenerate with marketing/video/render.mjs)
+/marketing/video/.frames*/
+/marketing/video/music.m4a
