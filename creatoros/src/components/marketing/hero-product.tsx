@@ -1,42 +1,105 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import {
+  animate,
+  motion,
+  useInView,
+  useMotionValue,
+  useReducedMotion,
+  useSpring,
+  useTransform,
+  type Variants,
+} from "framer-motion";
 import { CalendarCheck, Link2, Mail, Sparkles, TrendingUp, Wallet } from "lucide-react";
 
 const STATS = [
-  { label: "Views", value: "12.4k" },
-  { label: "Leads", value: "318" },
-  { label: "Revenue", value: "$1,924" },
+  { label: "Views", target: 12000, format: (n: number) => `${Math.round(n / 1000)}k` },
+  { label: "Leads", target: 318, format: (n: number) => `${Math.round(n)}` },
+  { label: "Revenue", target: 8400, format: (n: number) => `$${(n / 1000).toFixed(1)}k` },
 ];
+
+const SIDEBAR = [Link2, TrendingUp, CalendarCheck, Mail, Wallet];
+
+const container: Variants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.09, delayChildren: 0.12 } },
+};
+
+const rise: Variants = {
+  hidden: { opacity: 0, y: 24 },
+  show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 110, damping: 18 } },
+};
+
+function Counter({ target, format, play }: { target: number; format: (n: number) => string; play: boolean }) {
+  const [value, setValue] = useState(0);
+  const reduced = useReducedMotion();
+
+  useEffect(() => {
+    if (!play || reduced) return;
+    const controls = animate(0, target, {
+      duration: 1.2,
+      ease: "easeOut",
+      onUpdate: (v) => setValue(v),
+    });
+    return () => controls.stop();
+  }, [play, target, reduced]);
+
+  return <>{format(reduced ? target : value)}</>;
+
+}
 
 export function HeroProduct() {
   const frame = useRef<HTMLDivElement>(null);
-  const [tilt, setTilt] = useState({ rx: 0, ry: 0 });
+  const inView = useInView(frame, { once: true, amount: 0.35 });
+  const reduced = useReducedMotion();
 
-  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
-    const el = frame.current;
-    if (!el) return;
-    if (!window.matchMedia("(pointer: fine)").matches) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const rect = el.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width - 0.5;
-    const y = (e.clientY - rect.top) / rect.height - 0.5;
-    setTilt({ rx: -y * 5, ry: x * 8 });
+  const px = useMotionValue(0);
+  const py = useMotionValue(0);
+
+  const rotateY = useSpring(useTransform(px, [-1, 1], [-13, 13]), { stiffness: 140, damping: 20 });
+  const rotateX = useSpring(useTransform(py, [-1, 1], [11, -11]), { stiffness: 140, damping: 20 });
+  const floatX = useSpring(useTransform(px, [-1, 1], [-18, 18]), { stiffness: 120, damping: 20 });
+  const floatY = useSpring(useTransform(py, [-1, 1], [-12, 12]), { stiffness: 120, damping: 20 });
+
+  function handleMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (reduced || typeof window === "undefined" || !window.matchMedia("(pointer: fine)").matches) return;
+    const rect = frame.current?.getBoundingClientRect();
+    if (!rect) return;
+    px.set(((e.clientX - rect.left) / rect.width) * 2 - 1);
+    py.set(((e.clientY - rect.top) / rect.height) * 2 - 1);
   }
 
-  function onPointerLeave() {
-    setTilt({ rx: 0, ry: 0 });
+  function handleLeave() {
+    px.set(0);
+    py.set(0);
   }
+
+  const floatLoop = {
+    y: [0, -10, 0],
+  };
 
   return (
-    <div className="relative [perspective:1400px]" ref={frame} onPointerMove={onPointerMove} onPointerLeave={onPointerLeave}>
-      <div
-        className="relative mx-auto max-w-[600px] transition-transform duration-300 ease-out will-change-transform [transform-style:preserve-3d]"
-        style={{ transform: `rotateX(${tilt.rx}deg) rotateY(${tilt.ry}deg)` }}
+    <div
+      ref={frame}
+      className="relative"
+      style={{ perspective: 1400 }}
+      onPointerMove={handleMove}
+      onPointerLeave={handleLeave}
+    >
+      <motion.div
+        variants={container}
+        initial="hidden"
+        animate={inView ? "show" : "hidden"}
+        className="relative mx-auto max-w-[600px] will-change-transform"
+        style={{ rotateX, rotateY, transformStyle: "preserve-3d" }}
       >
-        <div aria-hidden className="absolute -inset-8 -z-10 rounded-[48px] bg-gradient-to-br from-brand-500/25 via-transparent to-cyan-400/20 blur-3xl" />
+        <div
+          aria-hidden
+          className="absolute -inset-8 -z-10 rounded-[48px] bg-gradient-to-br from-brand-500/25 via-transparent to-cyan-400/20 blur-3xl"
+        />
 
-        <div className="overflow-hidden rounded-2xl border border-white/10 bg-night-800/90 shadow-card">
+        <motion.div variants={rise} className="overflow-hidden rounded-2xl border border-white/10 bg-night-800/90 shadow-card">
           <div className="flex items-center justify-between border-b border-white/10 px-5 py-3">
             <div className="flex items-center gap-2">
               <span className="flex h-3.5 w-3.5 rounded-full bg-rose-400/80" />
@@ -50,11 +113,10 @@ export function HeroProduct() {
 
           <div className="flex">
             <div aria-hidden className="hidden w-12 flex-col items-center gap-4 border-r border-white/10 py-5 sm:flex">
-              <Link2 className="h-4 w-4 text-brand-400" />
-              <TrendingUp className="h-4 w-4 text-cyan-300" />
-              <CalendarCheck className="h-4 w-4 text-emerald-300" />
-              <Mail className="h-4 w-4 text-blue-300" />
-              <Wallet className="h-4 w-4 text-amber-300" />
+              {SIDEBAR.map((Icon, i) => {
+                const tone = ["text-brand-400", "text-cyan-300", "text-emerald-300", "text-blue-300", "text-amber-300"][i];
+                return <Icon key={i} className={`h-4 w-4 ${tone}`} />;
+              })}
             </div>
 
             <div className="flex-1 p-5">
@@ -62,7 +124,9 @@ export function HeroProduct() {
                 {STATS.map((s) => (
                   <div key={s.label} className="rounded-xl border border-white/10 bg-white/5 px-3 py-3">
                     <div className="text-[11px] font-medium text-ink-muted">{s.label}</div>
-                    <div className="mt-1 text-lg font-semibold tabular-nums text-ink">{s.value}</div>
+                    <div className="mt-1 text-lg font-semibold tabular-nums text-ink">
+                      <Counter target={s.target} format={s.format} play={inView} />
+                    </div>
                   </div>
                 ))}
               </div>
@@ -83,8 +147,23 @@ export function HeroProduct() {
                       <stop offset="100%" stopColor="#22d3ee" />
                     </linearGradient>
                   </defs>
-                  <path d="M0 72 C40 64 60 50 90 52 S140 60 170 42 S220 28 250 26 S290 14 300 10 L300 90 L0 90 Z" fill="url(#heroArea)" />
-                  <path d="M0 72 C40 64 60 50 90 52 S140 60 170 42 S220 28 250 26 S290 14 300 10" fill="none" stroke="url(#heroLine)" strokeWidth="2.5" strokeLinecap="round" />
+                  <motion.path
+                    d="M0 72 C40 64 60 50 90 52 S140 60 170 42 S220 28 250 26 S290 14 300 10 L300 90 L0 90 Z"
+                    fill="url(#heroArea)"
+                    initial={{ opacity: 0 }}
+                    animate={inView ? { opacity: 1 } : { opacity: 0 }}
+                    transition={{ duration: 1.2, delay: 0.5, ease: "easeOut" }}
+                  />
+                  <motion.path
+                    d="M0 72 C40 64 60 50 90 52 S140 60 170 42 S220 28 250 26 S290 14 300 10"
+                    fill="none"
+                    stroke="url(#heroLine)"
+                    strokeWidth={2.5}
+                    strokeLinecap="round"
+                    initial={{ pathLength: 0 }}
+                    animate={inView ? { pathLength: 1 } : { pathLength: 0 }}
+                    transition={{ duration: 1.5, delay: 0.5, ease: "easeInOut" }}
+                  />
                 </svg>
               </div>
 
@@ -104,24 +183,46 @@ export function HeroProduct() {
               </div>
             </div>
           </div>
-        </div>
+        </motion.div>
 
-        <div aria-hidden className="hero-float absolute -right-3 -top-7 hidden w-44 rounded-2xl border border-cyan-300/25 bg-night-800/95 p-4 shadow-card sm:block">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-cyan-300" />
-            <span className="text-xs font-semibold text-ink">+12% followers</span>
-          </div>
-          <p className="mt-1 text-[11px] leading-relaxed text-ink-muted">Growing steadily across reels and posts.</p>
-        </div>
+        <motion.div
+          variants={rise}
+          style={{ x: floatX, y: floatY, z: 70 }}
+          className="absolute -right-3 -top-7 hidden sm:block"
+        >
+          <motion.div
+            aria-hidden
+            animate={reduced ? undefined : floatLoop}
+            transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
+            className="w-44 rounded-2xl border border-cyan-300/25 bg-night-800/95 p-4 shadow-card"
+          >
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-cyan-300" />
+              <span className="text-xs font-semibold text-ink">+12% followers</span>
+            </div>
+            <p className="mt-1 text-[11px] leading-relaxed text-ink-muted">Growing steadily across reels and posts.</p>
+          </motion.div>
+        </motion.div>
 
-        <div aria-hidden className="hero-float hero-float-delay absolute -bottom-8 -left-4 hidden w-48 rounded-2xl border border-brand-400/25 bg-night-800/95 p-4 shadow-card sm:block">
-          <div className="flex items-center gap-2">
-            <CalendarCheck className="h-4 w-4 text-brand-300" />
-            <span className="text-xs font-semibold text-ink">Booking confirmed</span>
-          </div>
-          <p className="mt-1 text-[11px] leading-relaxed text-ink-muted">30-min strategy call · 2:00 PM</p>
-        </div>
-      </div>
+        <motion.div
+          variants={rise}
+          style={{ x: floatX, y: floatY, z: 70 }}
+          className="absolute -bottom-8 -left-4 hidden sm:block"
+        >
+          <motion.div
+            aria-hidden
+            animate={reduced ? undefined : { y: [0, -10, 0] }}
+            transition={{ duration: 7, repeat: Infinity, ease: "easeInOut", delay: 3.5 }}
+            className="w-48 rounded-2xl border border-brand-400/25 bg-night-800/95 p-4 shadow-card"
+          >
+            <div className="flex items-center gap-2">
+              <CalendarCheck className="h-4 w-4 text-brand-300" />
+              <span className="text-xs font-semibold text-ink">Booking confirmed</span>
+            </div>
+            <p className="mt-1 text-[11px] leading-relaxed text-ink-muted">30-min strategy call · 2:00 PM</p>
+          </motion.div>
+        </motion.div>
+      </motion.div>
     </div>
   );
 }
