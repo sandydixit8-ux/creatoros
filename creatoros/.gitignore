@@ -54,3 +54,13 @@ app7.tar.gz
 # marketing video generated assets (regenerate with marketing/video/render.mjs)
 /marketing/video/.frames*/
 /marketing/video/music.m4a
+
+# marketing content factory generated assets (regenerate with marketing/factory/generate.mjs)
+/marketing/factory/out/
+
+# marketing publisher secrets (never commit)
+/marketing/publisher/.env
+/marketing/publisher/.youtube-token.json
+/marketing/publisher/.uploads.json
+/marketing/publisher/.stats-history.jsonl
+/marketing/publisher/.monitor.log

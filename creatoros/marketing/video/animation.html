@@ -242,6 +242,8 @@
   var outroCta = el("outroCta");
 
   var chartLen = 1000;
+  var OFF = 0;
+  var SPD = 1;
 
   (function setup() {
     var qs = new URLSearchParams(location.search);
@@ -249,6 +251,8 @@
     var h = parseFloat(qs.get("h") || "1080");
     var ts = parseFloat(qs.get("ts") || "1");
     var sFrac = parseFloat(qs.get("sFrac") || "0.615");
+    OFF = parseFloat(qs.get("offset") || "0");
+    SPD = parseFloat(qs.get("speed") || "1");
 
     root.style.setProperty("--w", w + "px");
     root.style.setProperty("--h", h + "px");
@@ -267,6 +271,7 @@
   function fmtRev(n) { return "₹" + Math.round(n / 1000) + "k"; }
 
   window.__seek = function (t) {
+    t = OFF + t * SPD;
     bgGlow.style.opacity = String(ease(range(t, 0, 1.0)) * 0.95);
 
     var logoIn = ease(range(t, 0, 0.9));
