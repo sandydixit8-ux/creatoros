@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getDb, closeDb, run, nowIso } from "@/lib/db/db";
 import { isPlatformAdmin, isVerifiedPlatformAdmin } from "./access";
-import { setOrgPlan, planCursor, listFlags, checkFlag, setFlag, updateTicketStatus, listOpenTickets } from "./engine";
+import { setOrgPlan, planCursor, listFlags, checkFlag, setFlag, updateTicketStatus, listOpenTickets, platformMrr, platformRevenue, listOrders, listAudit } from "./engine";
 
 let dir: string;
 const ADMIN = "usr_admin";
@@ -75,5 +75,49 @@ describe("admin engine", () => {
     expect(listOpenTickets().length).toBe(0);
     expect(() => updateTicketStatus(ADMIN, "tkt1", "bogus")).toThrow("invalid_status");
     expect(() => updateTicketStatus(ADMIN, "missing", "open")).toThrow("ticket_not_found");
+  });
+});
+
+describe("platform reporting", () => {
+  it("computes MRR from active paid subscriptions, per currency", () => {
+    run(
+      "INSERT INTO subscriptions (id, tenant_id, provider, status, plan, currency, created_at, updated_at) VALUES ('sub1', ?, 'mock', 'active', 'starter', 'usd', ?, ?)",
+      TENANT,
+      nowIso(),
+      nowIso()
+    );
+    expect(platformMrr()).toContainEqual({ currency: "usd", cents: 900 });
+    expect(platformRevenue(30).activeSubscriptions).toBe(1);
+  });
+
+  it("lists orders with pending-refund state", () => {
+    run(
+      "INSERT INTO orders (id, tenant_id, email, status, amount_cents, currency, provider, provider_session_id, token, created_at, updated_at) VALUES ('ord1', ?, 'buyer@x.dev', 'paid', 2500, 'usd', 'mock', 'sess1', 'tok1', ?, ?)",
+      TENANT,
+      nowIso(),
+      nowIso()
+    );
+    run(
+      "INSERT INTO refunds (id, tenant_id, order_id, amount_cents, currency, provider, status, reason, admin_email, created_at, updated_at) VALUES ('ref1', ?, 'ord1', 500, 'usd', 'mock', 'pending', 'test', 'a@b.c', ?, ?)",
+      TENANT,
+      nowIso(),
+      nowIso()
+    );
+    const order = listOrders().find((o) => o.id === "ord1");
+    expect(order?.status).toBe("paid");
+    expect(order?.has_pending_refund).toBe(true);
+    expect(platformRevenue(30).paidOrders).toBe(1);
+  });
+
+  it("filters the audit trail by action", () => {
+    run(
+      "INSERT INTO audit_logs (id, tenant_id, user_id, action, resource, meta, ip, created_at) VALUES ('aud1', ?, ?, 'admin.plan_change', 'org1', '{}', '', ?)",
+      TENANT,
+      ADMIN,
+      nowIso()
+    );
+    const matches = listAudit({ action: "plan_change" });
+    expect(matches.some((e) => e.id === "aud1")).toBe(true);
+    expect(matches.every((e) => e.action.includes("plan_change"))).toBe(true);
   });
 });
