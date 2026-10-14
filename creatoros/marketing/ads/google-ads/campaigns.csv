@@ -1,0 +1,4 @@
+Campaign,Campaign type,Networks,Budget,Budget type,Languages,Locations,Bid strategy type,Target CPV,Tracking template,Campaign status
+Search - Competitor (US/UK),Search,Google search;Search partners,8.00,Daily,en,United States;United Kingdom,Manual CPC,,"{lpurl}?utm_source=google&utm_medium=cpc&utm_campaign={campaignid}&utm_content={adgroupid}&utm_term={keyword}&gclid={gclid}",Paused
+Search - Category & Intent (US/UK),Search,Google search;Search partners,7.00,Daily,en,United States;United Kingdom,Manual CPC,,"{lpurl}?utm_source=google&utm_medium=cpc&utm_campaign={campaignid}&utm_content={adgroupid}&utm_term={keyword}&gclid={gclid}",Paused
+Video - YouTube Shorts (US/UK),Video,YouTube videos;YouTube search;Video partners,5.00,Daily,en,United States;United Kingdom,Target CPV,0.02,"{lpurl}?utm_source=google&utm_medium=cpc&utm_campaign={campaignid}&utm_content={adgroupid}&gclid={gclid}",Paused

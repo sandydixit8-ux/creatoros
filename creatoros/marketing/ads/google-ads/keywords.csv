@@ -1,0 +1,32 @@
+Campaign,Ad group,Keyword,Match type,Max CPC,Status
+Search - Competitor (US/UK),Comp - Linktree,linktree alternative,Phrase,1.40,Enabled
+Search - Competitor (US/UK),Comp - Linktree,[linktree alternative],Exact,1.40,Enabled
+Search - Competitor (US/UK),Comp - Linktree,linktree vs beacons,Phrase,1.00,Enabled
+Search - Competitor (US/UK),Comp - Linktree,bio link alternative,Phrase,1.00,Enabled
+Search - Competitor (US/UK),Comp - Linktree,better than linktree,Phrase,0.90,Enabled
+Search - Competitor (US/UK),Comp - Kajabi & Stan,stan store alternative,Phrase,1.00,Enabled
+Search - Competitor (US/UK),Comp - Kajabi & Stan,kajabi alternative,Phrase,1.10,Enabled
+Search - Competitor (US/UK),Comp - Kajabi & Stan,course platform alternative,Phrase,0.90,Enabled
+Search - Competitor (US/UK),Comp - Gumroad & Sellfy,gumroad alternative,Phrase,0.90,Enabled
+Search - Competitor (US/UK),Comp - Gumroad & Sellfy,sellfy alternative,Phrase,0.90,Enabled
+Search - Competitor (US/UK),Comp - Bio tools,beacons ai alternative,Phrase,1.00,Enabled
+Search - Competitor (US/UK),Comp - Bio tools,taplink alternative,Phrase,1.00,Enabled
+Search - Competitor (US/UK),Comp - Bio tools,tap bio alternative,Phrase,0.80,Enabled
+Search - Category & Intent (US/UK),Intent - All-in-one,all in one creator platform,Phrase,1.00,Enabled
+Search - Category & Intent (US/UK),Intent - All-in-one,creator business software,Phrase,1.00,Enabled
+Search - Category & Intent (US/UK),Intent - All-in-one,one tool for creators,Phrase,0.90,Enabled
+Search - Category & Intent (US/UK),Intent - All-in-one,link in bio store courses,Phrase,0.80,Enabled
+Search - Category & Intent (US/UK),Intent - Sell digital products,sell digital products online,Phrase,0.80,Enabled
+Search - Category & Intent (US/UK),Intent - Sell digital products,online store for creators,Phrase,0.80,Enabled
+Search - Category & Intent (US/UK),Intent - Sell digital products,how to sell online as a creator,Phrase,0.70,Enabled
+Search - Category & Intent (US/UK),Intent - Sell digital products,how to sell courses online,Phrase,0.70,Enabled
+Search - Category & Intent (US/UK),Intent - Bookings & Email,booking system for creators,Phrase,0.70,Enabled
+Search - Category & Intent (US/UK),Intent - Bookings & Email,email marketing for creators,Phrase,0.70,Enabled
+Search - Category & Intent (US/UK),Intent - Bookings & Email,creator analytics dashboard,Phrase,0.70,Enabled
+Search - Category & Intent (US/UK),Intent - Coaches,best tool for online coaches,Phrase,0.90,Enabled
+Search - Category & Intent (US/UK),Intent - Coaches,coach business software,Phrase,0.90,Enabled
+Search - Category & Intent (US/UK),Intent - Coaches,sell coaching online,Phrase,0.80,Enabled
+Video - YouTube Shorts (US/UK),Video - Hook (Shorts),creator tools,Phrase,,Enabled
+Video - YouTube Shorts (US/UK),Video - Hook (Shorts),link in bio,Phrase,,Enabled
+Video - YouTube Shorts (US/UK),Video - Demo,creator platform,Phrase,,Enabled
+Video - YouTube Shorts (US/UK),Video - Demo,sell online,Phrase,,Enabled
