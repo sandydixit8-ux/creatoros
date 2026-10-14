@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { verifyPassword } from "@/lib/auth/password";
 import { setSessionCookie } from "@/lib/auth/session";
+import { issueMfaToken } from "@/lib/auth/mfa-token";
 import { ok, fail, readJson, getClientIp } from "@/lib/http";
 import { rateLimit, rateKey } from "@/lib/security/rate-limit";
 import { row } from "@/lib/db/db";
@@ -22,8 +23,8 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return fail("Invalid login data", 400, "validation");
 
   const { email, password } = parsed.data;
-  const user = row<{ id: string; email: string; password_hash: string; name: string; auth_version: number }>(
-    "SELECT id, email, password_hash, name, auth_version FROM users WHERE email = ?",
+  const user = row<{ id: string; email: string; password_hash: string; name: string; auth_version: number; totp_enabled: number }>(
+    "SELECT id, email, password_hash, name, auth_version, totp_enabled FROM users WHERE email = ?",
     email.toLowerCase()
   );
   if (!user || !verifyPassword(password, user.password_hash)) {
@@ -36,6 +37,14 @@ export async function POST(req: NextRequest) {
     user.id
   );
   if (!membership) return fail("No organization found for this account", 403, "forbidden");
+
+  // Password was right, but when 2FA is on that is only the first factor. Hand
+  // back a short-lived token instead of a session; the cookie is only issued
+  // once the second factor checks out (POST /api/auth/login/mfa).
+  if (user.totp_enabled === 1) {
+    audit({ tenantId: membership.tenant_id, userId: user.id, action: "auth.login_mfa_required", ip });
+    return ok({ mfaRequired: true, mfaToken: issueMfaToken({ userId: user.id, orgId: membership.tenant_id }) });
+  }
 
   audit({ tenantId: membership.tenant_id, userId: user.id, action: "auth.login", meta: { email }, ip });
 

@@ -357,6 +357,49 @@ const MIGRATIONS: Array<{ id: number; up: (db: DatabaseSync) => void }> = [
       db.exec("CREATE INDEX IF NOT EXISTS idx_alert_events_tenant ON alert_events(tenant_id, created_at)");
     },
   },
+  {
+    // Account security (settings page): TOTP two-factor, one-time backup codes,
+    // and dual-confirmed login-email changes.
+    //
+    // schema.sql declares the same shape for a fresh database; this migration
+    // brings an existing one up to it. users gains the TOTP columns, and the two
+    // supporting tables are created. `totp_secret` defaults to NULL and
+    // `totp_enabled` to 0 so every existing account stays "2FA off" until the
+    // owner proves a code. Neither backup codes nor email changes can be stored
+    // in plaintext, so both live in their own tables as SHA-256 hashes.
+    id: 21,
+    up: (db) => {
+      addColumn(db, "users", "totp_secret", "TEXT");
+      addColumn(db, "users", "totp_enabled", "INTEGER NOT NULL DEFAULT 0");
+      addColumn(db, "users", "totp_confirmed_at", "TEXT");
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS mfa_backup_codes (
+          id         TEXT PRIMARY KEY,
+          user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          code_hash  TEXT NOT NULL,
+          used_at    TEXT,
+          created_at TEXT NOT NULL
+        )
+      `);
+      db.exec("CREATE INDEX IF NOT EXISTS idx_mfa_backup_user ON mfa_backup_codes(user_id)");
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS email_change_requests (
+          id                    TEXT PRIMARY KEY,
+          user_id               TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          current_email         TEXT NOT NULL,
+          new_email             TEXT NOT NULL,
+          current_token_hash    TEXT NOT NULL UNIQUE,
+          new_token_hash        TEXT NOT NULL UNIQUE,
+          current_confirmed_at  TEXT,
+          new_confirmed_at      TEXT,
+          expires_at            TEXT NOT NULL,
+          used_at               TEXT,
+          created_at            TEXT NOT NULL
+        )
+      `);
+      db.exec("CREATE INDEX IF NOT EXISTS idx_email_change_user ON email_change_requests(user_id)");
+    },
+  },
 ];
 
 function addColumn(db: DatabaseSync, table: string, column: string, ddl: string) {

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/get-session";
 import { row } from "@/lib/db/db";
+import { AccountSettings } from "@/components/settings/account-settings";
 import { ProfileForm } from "@/components/settings/profile-form";
 import { PrivacySection } from "@/components/settings/privacy-section";
 import { SupportForm } from "@/components/settings/support-form";
@@ -29,10 +30,25 @@ export default async function SettingsPage() {
       }
     : { username: "", displayName: s.user.name, bio: "", avatarUrl: "", website: "", timezone: "UTC", socials: {} };
 
+  const account = row<{ totp_enabled: number }>(
+    "SELECT totp_enabled FROM users WHERE id = ?",
+    s.user.id
+  );
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-navy-950">Settings</h1>
+        <p className="mt-1 text-sm text-navy-500">Your account and public profile.</p>
+      </div>
+      <AccountSettings
+        name={s.user.name}
+        email={s.user.email}
+        role={s.role}
+        twoFactorEnabled={account?.totp_enabled === 1}
+      />
+      <div>
+        <h2 className="text-lg font-bold text-navy-950">Public profile</h2>
         <p className="mt-1 text-sm text-navy-500">Your public profile — this powers your bio page.</p>
       </div>
       <ProfileForm initial={initial} hasProfile={!!p} />

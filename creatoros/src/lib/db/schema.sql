@@ -14,6 +14,12 @@ CREATE TABLE IF NOT EXISTS users (
   -- issued at; getSession rejects a cookie whose version is stale, which is how
   -- a stateless cookie is revoked without a server-side session table.
   auth_version    INTEGER NOT NULL DEFAULT 0,
+  -- TOTP two-factor. `totp_secret` may hold a not-yet-confirmed secret: it is
+  -- only trusted once `totp_enabled` is 1, which is set after the first code
+  -- verifies. A disabled account must never be asked for a code.
+  totp_secret       TEXT,
+  totp_enabled      INTEGER NOT NULL DEFAULT 0,
+  totp_confirmed_at TEXT,
   created_at      TEXT NOT NULL,
   updated_at      TEXT NOT NULL
 );
@@ -72,6 +78,39 @@ CREATE TABLE IF NOT EXISTS email_verify_tokens (
 );
 
 CREATE INDEX IF NOT EXISTS idx_email_verify_user ON email_verify_tokens(user_id);
+
+-- One-time TOTP backup codes. Stored hashed like every other credential, and a
+-- code is spent by stamping `used_at`, so a leaked list entry works at most once.
+CREATE TABLE IF NOT EXISTS mfa_backup_codes (
+  id         TEXT PRIMARY KEY,
+  user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  code_hash  TEXT NOT NULL,
+  used_at    TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_mfa_backup_user ON mfa_backup_codes(user_id);
+
+-- Pending login-email changes. A change only lands when BOTH the current and the
+-- new mailbox confirm, so a stolen session cannot silently move the login to an
+-- attacker's address, and a typo cannot lock the owner out. Both raw tokens are
+-- emailed and only their SHA-256 hashes are stored; consuming either side clears
+-- the whole request, and an unconfirmed request never touches users.email.
+CREATE TABLE IF NOT EXISTS email_change_requests (
+  id                    TEXT PRIMARY KEY,
+  user_id               TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  current_email         TEXT NOT NULL,
+  new_email             TEXT NOT NULL,
+  current_token_hash    TEXT NOT NULL UNIQUE,
+  new_token_hash        TEXT NOT NULL UNIQUE,
+  current_confirmed_at  TEXT,
+  new_confirmed_at      TEXT,
+  expires_at            TEXT NOT NULL,
+  used_at               TEXT,
+  created_at            TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_change_user ON email_change_requests(user_id);
 
 CREATE TABLE IF NOT EXISTS subscriptions (
   id              TEXT PRIMARY KEY,
