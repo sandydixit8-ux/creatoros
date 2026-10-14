@@ -95,6 +95,28 @@ describe("billing subscriptions", () => {
     expect(activeSubscription(TENANT)?.currency).toBe("inr");
   });
 
+  it("retains a GBP mandate currency rather than coercing it to USD", () => {
+    applySubscription({
+      tenantId: TENANT,
+      plan: "starter",
+      provider: "dodo",
+      providerId: "sub_gbp_1",
+      status: "active",
+      currency: "gbp",
+    });
+    expect(activeSubscription(TENANT)?.currency).toBe("gbp");
+
+    // A later event that omits the currency must not relabel the GBP mandate.
+    applySubscription({
+      tenantId: TENANT,
+      plan: "starter",
+      provider: "dodo",
+      providerId: "sub_gbp_1",
+      status: "active",
+    });
+    expect(activeSubscription(TENANT)?.currency).toBe("gbp");
+  });
+
   it("falls back to the deployment billing currency when none is known", () => {
     applySubscription({
       tenantId: TENANT,

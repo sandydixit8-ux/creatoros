@@ -119,11 +119,11 @@ export function billingCurrency(): "usd" | "inr" {
 }
 
 /**
- * Plan prices are only defined for USD and INR (PLAN_PRICES). Dodo supports
- * GBP/EUR too, but a price for those does not exist yet, so they are not
- * offered until one does — better an unavailable option than a wrong charge.
+ * Plan prices exist for INR, USD and GBP (PLAN_PRICES). Dodo settles USD/GBP,
+ * Cashfree settles INR; EUR has a Dodo currency but no plan price, so it is not
+ * offered until one exists — better an unavailable option than a wrong charge.
  */
-const PLAN_CURRENCY_ORDER = ["inr", "usd"] as const;
+const PLAN_CURRENCY_ORDER = ["inr", "usd", "gbp"] as const;
 
 /**
  * Currencies a visitor can actually be charged for plan upgrades right now:

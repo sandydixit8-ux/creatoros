@@ -130,6 +130,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
             active: key === currentPlan,
             priceInr: PLAN_PRICES[key].inr,
             priceUsd: PLAN_PRICES[key].usd,
+            priceGbp: PLAN_PRICES[key].gbp,
             limits: {
               bioPages: l.bioPages,
               links: l.links,

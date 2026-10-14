@@ -1,5 +1,5 @@
 import { all, row, type SQLParam } from "@/lib/db/db";
-import { PLAN_PRICES } from "@/lib/plans";
+import { PLAN_PRICES, type PriceCurrency } from "@/lib/plans";
 import { normalizeCurrency, type MoneyAmount } from "@/lib/money-format";
 
 export type { MoneyAmount };
@@ -70,7 +70,7 @@ export function mrrByCurrency(tenantId: string): MoneyAmount[] {
   const totals = new Map<string, number>();
   for (const sub of active) {
     const currency = normalizeCurrency(sub.currency);
-    const price = PLAN_PRICES[sub.plan]?.[currency as "usd" | "inr"];
+    const price = PLAN_PRICES[sub.plan]?.[currency as PriceCurrency];
     if (typeof price !== "number") continue;
     totals.set(currency, (totals.get(currency) ?? 0) + price * 100);
   }

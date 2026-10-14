@@ -9,6 +9,7 @@ import { formatMoneyCents, formatMoneyBreakdown } from "@/lib/money-format";
 let dir: string;
 const TENANT = "org_money_test";
 const INR_TENANT = "org_money_inr";
+const GBP_TENANT = "org_money_gbp";
 
 beforeAll(() => {
   dir = mkdtempSync(join(tmpdir(), "creatoros-money-test-"));
@@ -16,12 +17,14 @@ beforeAll(() => {
   getDb();
   run("INSERT INTO organizations (id, name, slug, plan, created_at, updated_at) VALUES (?, 'Money', 'money-org', 'free', ?, ?)", TENANT, nowIso(), nowIso());
   run("INSERT INTO organizations (id, name, slug, plan, created_at, updated_at) VALUES (?, 'MoneyINR', 'money-org-inr', 'free', ?, ?)", INR_TENANT, nowIso(), nowIso());
+  run("INSERT INTO organizations (id, name, slug, plan, created_at, updated_at) VALUES (?, 'MoneyGBP', 'money-org-gbp', 'free', ?, ?)", GBP_TENANT, nowIso(), nowIso());
 
   // Currency is recorded per subscription, so an INR mandate is not costed in USD.
   run("INSERT INTO subscriptions (id, tenant_id, status, plan, currency, created_at, updated_at) VALUES ('sub1', ?, 'active', 'pro', 'usd', ?, ?)", TENANT, nowIso(), nowIso());
   run("INSERT INTO subscriptions (id, tenant_id, status, plan, currency, created_at, updated_at) VALUES ('sub2', ?, 'active', 'starter', 'usd', ?, ?)", TENANT, nowIso(), nowIso());
   run("INSERT INTO subscriptions (id, tenant_id, status, plan, currency, created_at, updated_at) VALUES ('sub3', ?, 'canceled', 'creator', 'usd', ?, ?)", TENANT, nowIso(), nowIso());
   run("INSERT INTO subscriptions (id, tenant_id, status, plan, currency, created_at, updated_at) VALUES ('subinr', ?, 'active', 'starter', 'inr', ?, ?)", INR_TENANT, nowIso(), nowIso());
+  run("INSERT INTO subscriptions (id, tenant_id, status, plan, currency, created_at, updated_at) VALUES ('subgbp', ?, 'active', 'starter', 'gbp', ?, ?)", GBP_TENANT, nowIso(), nowIso());
 
   run("INSERT INTO payments (id, tenant_id, amount_cents, currency, status, created_at) VALUES ('pay1', ?, 4900, 'usd', 'succeeded', ?)", TENANT, nowIso());
   run("INSERT INTO payments (id, tenant_id, amount_cents, currency, status, created_at) VALUES ('pay2', ?, 1900, 'usd', 'succeeded', ?)", TENANT, nowIso());
@@ -30,6 +33,7 @@ beforeAll(() => {
   // Same tenant, same month, rupee revenue: the two currencies must not be added.
   run("INSERT INTO payments (id, tenant_id, amount_cents, currency, status, created_at) VALUES ('payinr', ?, 74900, 'inr', 'succeeded', ?)", TENANT, nowIso());
   run("INSERT INTO payments (id, tenant_id, amount_cents, currency, status, created_at) VALUES ('payinr2', ?, 74900, 'inr', 'succeeded', ?)", INR_TENANT, nowIso());
+  run("INSERT INTO payments (id, tenant_id, amount_cents, currency, status, created_at) VALUES ('paygbp', ?, 700, 'gbp', 'succeeded', ?)", GBP_TENANT, nowIso());
 });
 
 afterAll(() => {
@@ -44,6 +48,10 @@ describe("revenue analytics", () => {
 
   it("values an INR subscription at its INR list price", () => {
     expect(mrrByCurrency(INR_TENANT)).toEqual([{ currency: "inr", cents: 74900 }]);
+  });
+
+  it("keeps a GBP subscription labelled GBP, never relabelled as dollars", () => {
+    expect(mrrByCurrency(GBP_TENANT)).toEqual([{ currency: "gbp", cents: 700 }]);
   });
 
   it("keeps succeeded payments in separate currency buckets", () => {
@@ -85,6 +93,7 @@ describe("money formatting", () => {
   it("formats a single currency without inventing another", () => {
     expect(formatMoneyCents(123456, "usd")).toBe("$1,234.56");
     expect(formatMoneyCents(123456, "inr")).toBe("₹1,234.56");
+    expect(formatMoneyCents(700, "gbp")).toBe("£7.00");
   });
 
   it("renders a multi-currency total as separate figures", () => {

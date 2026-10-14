@@ -10,6 +10,7 @@ export interface PlanCardData {
   active: boolean;
   priceInr: number;
   priceUsd: number;
+  priceGbp: number;
   limits: {
     bioPages: number;
     links: number;
@@ -180,7 +181,7 @@ export default function PlanCards({
                 )}
               </div>
               <div className="mt-2 text-xl font-bold text-navy-950">
-                {formatByCurrency(currency, currency === "inr" ? p.priceInr : p.priceUsd)}
+                {formatByCurrency(currency, currency === "inr" ? p.priceInr : currency === "gbp" ? p.priceGbp : p.priceUsd)}
                 <span className="text-xs font-medium text-navy-400">/mo</span>
               </div>
               <ul className="mt-4 flex-1 space-y-2 text-sm text-navy-600">

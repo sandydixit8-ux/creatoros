@@ -1,5 +1,6 @@
 import { all, row, run, newId, nowIso } from "@/lib/db/db";
 import { planRank } from "@/lib/plans";
+import { normalizeCurrency } from "@/lib/money-format";
 import { audit } from "@/lib/audit";
 import { fetchSubscription, type CfSubscription } from "@/lib/payments/cashfree-subscriptions";
 
@@ -67,10 +68,11 @@ export function applySubscription(input: {
   // Keep a known currency rather than re-guessing on every gateway ping: a
   // subscription created in INR must not be relabelled USD just because a later
   // event omitted the currency. Only fall back to the deployment's billing
-  // currency when we have genuinely never seen one.
-  const knownCurrency = String(
-    input.currency || existing?.currency || (process.env.BILLING_CURRENCY || "usd")
-  ).toLowerCase() === "inr" ? "inr" : "usd";
+  // currency when we have genuinely never seen one. Anything the product cannot
+  // bill in is coerced to USD by normalizeCurrency rather than stored as-is.
+  const knownCurrency = normalizeCurrency(
+    input.currency || existing?.currency || process.env.BILLING_CURRENCY || "usd"
+  );
 
   let sub: SubscriptionRow | undefined = existing;
   if (existing) {

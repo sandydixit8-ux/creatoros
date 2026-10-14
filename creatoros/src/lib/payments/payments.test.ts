@@ -563,10 +563,10 @@ describe("per-visitor plan currency", () => {
     try {
       // Cashfree settles INR only -> a single-currency deployment.
       expect(planCurrencies()).toEqual(["inr"]);
-      // Adding a USD-capable gateway (Dodo) opens USD alongside INR.
+      // Adding Dodo (US/UK MoR) opens USD and GBP alongside INR.
       process.env.DODO_PAYMENTS_API_KEY = "test_dodo_key";
       delete process.env.DODO_CURRENCIES;
-      expect(planCurrencies()).toEqual(["inr", "usd"]);
+      expect(planCurrencies()).toEqual(["inr", "usd", "gbp"]);
     } finally {
       restoreEnv("PAYMENT_PROVIDER", prev.provider);
       restoreEnv("CASHFREE_CLIENT_ID", prev.cfId);
@@ -603,6 +603,41 @@ describe("per-visitor plan currency", () => {
       restoreEnv("CASHFREE_CLIENT_ID", prev.cfId);
       restoreEnv("CASHFREE_SECRET_KEY", prev.cfSecret);
       restoreEnv("CASHFREE_CURRENCIES", prev.cfCurrencies);
+      restoreEnv("BILLING_CURRENCY", prev.billing);
+    }
+  });
+
+  it("opens GBP only when a GBP-capable gateway (Dodo) is configured", () => {
+    const prev = {
+      provider: process.env.PAYMENT_PROVIDER,
+      cfId: process.env.CASHFREE_CLIENT_ID,
+      cfSecret: process.env.CASHFREE_SECRET_KEY,
+      dodoKey: process.env.DODO_PAYMENTS_API_KEY,
+      dodoCurrencies: process.env.DODO_CURRENCIES,
+      billing: process.env.BILLING_CURRENCY,
+    };
+    process.env.PAYMENT_PROVIDER = "cashfree";
+    process.env.CASHFREE_CLIENT_ID = "test_id";
+    process.env.CASHFREE_SECRET_KEY = "test_secret";
+    process.env.BILLING_CURRENCY = "inr";
+    try {
+      // No Dodo key: nothing settles GBP, so it is not offered and a hostile
+      // cookie falls back to the deployment default instead of charging.
+      delete process.env.DODO_PAYMENTS_API_KEY;
+      expect(resolvePlanCurrency("gbp")).toEqual({ currency: "inr", available: ["inr"] });
+
+      // Dodo configured: GBP is offered, the preference is honoured, and the
+      // currency routes to the gateway that can actually settle it.
+      process.env.DODO_PAYMENTS_API_KEY = "test_dodo_key";
+      delete process.env.DODO_CURRENCIES;
+      expect(getPaymentProviderForCurrency("gbp").name).toBe("dodo");
+      expect(resolvePlanCurrency("gbp")).toEqual({ currency: "gbp", available: ["inr", "usd", "gbp"] });
+    } finally {
+      restoreEnv("PAYMENT_PROVIDER", prev.provider);
+      restoreEnv("CASHFREE_CLIENT_ID", prev.cfId);
+      restoreEnv("CASHFREE_SECRET_KEY", prev.cfSecret);
+      restoreEnv("DODO_PAYMENTS_API_KEY", prev.dodoKey);
+      restoreEnv("DODO_CURRENCIES", prev.dodoCurrencies);
       restoreEnv("BILLING_CURRENCY", prev.billing);
     }
   });

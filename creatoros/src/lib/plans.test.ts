@@ -24,12 +24,15 @@ describe("plans", () => {
 });
 
 describe("plan pricing by currency", () => {
-  it("prices INR plans in rupees and everything else in USD", () => {
+  it("prices each plan in its own currency, never a converted guess", () => {
     expect(planPriceFor("inr", "starter")).toBe(749);
     expect(planPriceFor("INR", "business")).toBe(7499);
     expect(planPriceFor("usd", "starter")).toBe(9);
-    // GBP/EUR have no delegated price yet; they must never charge a guess.
-    expect(planPriceFor("gbp", "starter")).toBe(9);
+    // GBP has a delegated price of its own (not USD relabelled).
+    expect(planPriceFor("gbp", "starter")).toBe(7);
+    expect(planPriceFor("GBP", "business")).toBe(79);
+    // EUR has no delegated price yet; it must never charge a guess.
+    expect(planPriceFor("eur", "starter")).toBe(9);
     expect(planPriceFor("unknown", "creator")).toBe(19);
     expect(planPriceFor("inr", "nonexistent")).toBe(0);
   });
@@ -42,6 +45,7 @@ describe("currency formatting", () => {
     expect(formatByCurrency("inr", 1599)).toBe("₹1,599");
     expect(formatByCurrency("usd", 99)).toBe("$99");
     expect(formatByCurrency("gbp", 0)).toBe("£0");
+    expect(formatByCurrency("gbp", 7)).toBe("£7");
     expect(formatByCurrency("eur", 42)).toBe("€42");
     expect(formatByCurrency("unknown", 5)).toBe("$5");
   });

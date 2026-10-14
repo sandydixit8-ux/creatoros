@@ -1,6 +1,6 @@
 import { all, row, run, newId, nowIso, type SQLParam } from "@/lib/db/db";
 import { audit } from "@/lib/audit";
-import { PLANS, PLAN_PRICES } from "@/lib/plans";
+import { PLANS, PLAN_PRICES, type PriceCurrency } from "@/lib/plans";
 import { mergeAmounts } from "@/lib/analytics/money";
 import { normalizeCurrency, type MoneyAmount } from "@/lib/money-format";
 
@@ -129,7 +129,7 @@ export function platformMrr(): MoneyAmount[] {
     "SELECT plan, currency FROM subscriptions WHERE status = 'active' AND plan != 'free'"
   )) {
     const currency = normalizeCurrency(s.currency);
-    const price = PLAN_PRICES[s.plan]?.[currency as "usd" | "inr"];
+    const price = PLAN_PRICES[s.plan]?.[currency as PriceCurrency];
     if (typeof price !== "number") continue;
     totals.set(currency, (totals.get(currency) ?? 0) + price * 100);
   }

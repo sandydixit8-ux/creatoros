@@ -4,6 +4,7 @@ export interface PlanMeta {
   tag: string;
   usd: number;
   inr: number;
+  gbp: number;
   highlight?: boolean;
   cta: string;
   features: string[];
@@ -14,8 +15,9 @@ export const PLAN_META: PlanMeta[] = [
     id: "free",
     name: "Free",
     tag: "Start free, no card required",
-    usd: 0,
-    inr: 0,
+  usd: 0,
+  inr: 0,
+  gbp: 0,
     cta: "Start for Free",
     features: [
       "1 bio page · 5 links · 10 contacts",
@@ -27,8 +29,9 @@ export const PLAN_META: PlanMeta[] = [
     id: "starter",
     name: "Starter",
     tag: "For new creators",
-    usd: 9,
-    inr: 749,
+  usd: 9,
+  inr: 749,
+  gbp: 7,
     cta: "Choose Starter",
     features: [
       "25 links · 500 contacts · 3 services",
@@ -40,8 +43,9 @@ export const PLAN_META: PlanMeta[] = [
     id: "creator",
     name: "Creator",
     tag: "Most popular",
-    usd: 19,
-    inr: 1599,
+  usd: 19,
+  inr: 1599,
+  gbp: 15,
     highlight: true,
     cta: "Choose Creator",
     features: [
@@ -55,8 +59,9 @@ export const PLAN_META: PlanMeta[] = [
     id: "pro",
     name: "Pro",
     tag: "For serious pros",
-    usd: 49,
-    inr: 3499,
+  usd: 49,
+  inr: 3499,
+  gbp: 39,
     cta: "Choose Pro",
     features: [
       "10 bio pages · unlimited links, products & services",
@@ -69,8 +74,9 @@ export const PLAN_META: PlanMeta[] = [
     id: "business",
     name: "Business",
     tag: "For growing teams",
-    usd: 99,
-    inr: 7499,
+  usd: 99,
+  inr: 7499,
+  gbp: 79,
     cta: "Choose Business",
     features: [
       "Unlimited everything",

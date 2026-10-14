@@ -47,12 +47,16 @@ export function withinLimit(used: number, limit: number): boolean {
   return limit === -1 || used < limit;
 }
 
-export const PLAN_PRICES: Record<string, { usd: number; inr: number }> = {
-  free: { usd: 0, inr: 0 },
-  starter: { usd: 9, inr: 749 },
-  creator: { usd: 19, inr: 1599 },
-  pro: { usd: 49, inr: 3499 },
-  business: { usd: 99, inr: 7499 },
+/** Currencies a plan can be priced and charged in. EUR is deliberately absent:
+ * there is no price for it yet, and a currency with no price is never offered. */
+export type PriceCurrency = "usd" | "inr" | "gbp";
+
+export const PLAN_PRICES: Record<string, Record<PriceCurrency, number>> = {
+  free: { usd: 0, inr: 0, gbp: 0 },
+  starter: { usd: 9, inr: 749, gbp: 7 },
+  creator: { usd: 19, inr: 1599, gbp: 15 },
+  pro: { usd: 49, inr: 3499, gbp: 39 },
+  business: { usd: 99, inr: 7499, gbp: 79 },
 };
 
 /** Whole-currency monthly price for a plan, falling back to USD when the
@@ -60,5 +64,8 @@ export const PLAN_PRICES: Record<string, { usd: number; inr: number }> = {
 export function planPriceFor(currency: string, planKey: string): number {
   const prices = PLAN_PRICES[planKey];
   if (!prices) return 0;
-  return (currency || "").toLowerCase() === "inr" ? prices.inr : prices.usd;
+  const key = (currency || "").toLowerCase();
+  if (key === "inr" || key === "gbp") return prices[key];
+  // USD is the fallback for any currency without a dedicated price (e.g. EUR).
+  return prices.usd;
 }

@@ -4,7 +4,7 @@ export interface MoneyAmount {
 }
 
 /** Currencies the product can actually bill in. Keeps Intl from throwing. */
-const SUPPORTED = new Set(["usd", "inr"]);
+const SUPPORTED = new Set(["usd", "inr", "gbp"]);
 
 export function normalizeCurrency(value: string | null | undefined): string {
   const raw = String(value ?? "").trim().toLowerCase();
@@ -17,7 +17,7 @@ function formatter(currency: string): Intl.NumberFormat {
   const key = SUPPORTED.has(currency) ? currency : "usd";
   const cached = FORMATTERS.get(key);
   if (cached) return cached;
-  const built = new Intl.NumberFormat(key === "inr" ? "en-IN" : "en-US", {
+  const built = new Intl.NumberFormat(key === "inr" ? "en-IN" : key === "gbp" ? "en-GB" : "en-US", {
     style: "currency",
     currency: key.toUpperCase(),
     currencyDisplay: key === "inr" ? "narrowSymbol" : "symbol",
