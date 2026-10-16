@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { ok, err, readJson, getClientIp } from "@/lib/http";
 import { row } from "@/lib/db/db";
-import { getPaymentProviderForCurrency, cashfreeSdkMode } from "@/lib/payments";
+import { getCreatorSaleProviderForCurrency, cashfreeSdkMode } from "@/lib/payments";
 import { getProduct, createOrderForProduct, attachCheckoutSession } from "@/lib/store/orders";
 import { getLimits } from "@/lib/plans";
 import { getUsage } from "@/lib/usage";
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
   const product = getProduct(parsed.data.productId);
   if (!product || product.active !== 1) return err.notFound();
 
-  const provider = getPaymentProviderForCurrency(product.currency);
+  const provider = getCreatorSaleProviderForCurrency(product.currency);
   if (!provider.isConfigured()) {
     return err.server();
   }

@@ -53,14 +53,45 @@ export function paymentConfigured(): boolean {
  * rejects or settles in the wrong currency. Refusing here makes every caller
  * emit its existing, correct "not available yet" response instead.
  */
-export function getPaymentProviderForCurrency(currency: string): PaymentProvider {
-  const preferred = getPaymentProvider();
-  if (preferred.isConfigured() && preferred.supportsCurrency(currency)) return preferred;
+/** Every gateway we can route to, resolved in preference order below. */
+const ALL_PROVIDERS = [cashfreeProvider, stripeProvider, dodoProvider];
 
-  for (const candidate of [cashfreeProvider, stripeProvider, dodoProvider]) {
-    if (candidate.isConfigured() && candidate.supportsCurrency(currency)) return candidate;
+/**
+ * Merchant-of-Record gateways. These take on the sale themselves and are the
+ * seller of record, so they must never carry a creator's own store/course
+ * sales — only CreatorOS's own subscription plans (see
+ * `getCreatorSaleProviderForCurrency`).
+ */
+const MOR_PROVIDERS = [dodoProvider];
+
+function pickProvider(currency: string, excluded: PaymentProvider[]): PaymentProvider {
+  const preferred = getPaymentProvider();
+  if (preferred.isConfigured() && preferred.supportsCurrency(currency) && !excluded.includes(preferred)) {
+    return preferred;
+  }
+
+  for (const candidate of ALL_PROVIDERS) {
+    if (candidate.isConfigured() && candidate.supportsCurrency(currency) && !excluded.includes(candidate)) return candidate;
   }
   return unconfiguredProvider;
+}
+
+export function getPaymentProviderForCurrency(currency: string): PaymentProvider {
+  return pickProvider(currency, []);
+}
+
+/**
+ * Resolve the provider for a creator's own store/course sale.
+ *
+ * A creator is the seller of their own goods, so a Merchant-of-Record is
+ * excluded here: Dodo is reserved for CreatorOS's subscription plans and is
+ * never the seller of record for creator sales. Only direct gateways that can
+ * settle the currency are eligible; when none can, this returns the
+ * `unconfigured` stub (the same refusal as the plan path) rather than a
+ * provider that would fail at the gateway.
+ */
+export function getCreatorSaleProviderForCurrency(currency: string): PaymentProvider {
+  return pickProvider(currency, MOR_PROVIDERS);
 }
 
 /** True when some configured provider can actually settle this currency. */

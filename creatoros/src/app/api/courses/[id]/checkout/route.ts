@@ -3,7 +3,7 @@ import { z } from "zod";
 import { ok, err, readJson, getClientIp } from "@/lib/http";
 import { getCourse, enrollmentFor } from "@/lib/courses/engine";
 import { createOrderForCourse, attachCheckoutSession } from "@/lib/store/orders";
-import { getPaymentProviderForCurrency, cashfreeSdkMode } from "@/lib/payments";
+import { getCreatorSaleProviderForCurrency, cashfreeSdkMode } from "@/lib/payments";
 import { row } from "@/lib/db/db";
 import { SITE_URL } from "@/lib/constants";
 import { rateLimit, rateKey } from "@/lib/security/rate-limit";
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return err.conflict("This email is already enrolled");
   }
 
-  const provider = getPaymentProviderForCurrency(course.currency);
+  const provider = getCreatorSaleProviderForCurrency(course.currency);
   if (!provider.isConfigured()) return err.server();
 
   if (!provider.supportsCurrency(course.currency)) {

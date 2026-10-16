@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createHmac } from "node:crypto";
 import { mockProvider } from "./mock";
-import { getPaymentProvider, getPaymentProviderForCurrency, paymentConfiguredForCurrency, providerByName, webhookProviders, cashfreeSdkMode, billingCurrency, planCurrencies, resolvePlanCurrency } from "./index";
+import { getPaymentProvider, getPaymentProviderForCurrency, getCreatorSaleProviderForCurrency, paymentConfiguredForCurrency, providerByName, webhookProviders, cashfreeSdkMode, billingCurrency, planCurrencies, resolvePlanCurrency } from "./index";
 import { cashfreeProvider } from "./cashfree-provider";
 import { planIdFor, subscriptionIdFor, createSubscription, normalisePhone as cfPhone } from "./cashfree-subscriptions";
 
@@ -734,6 +734,82 @@ describe("currency routing guard", () => {
       restoreEnv("CASHFREE_SECRET_KEY", prev.cfSecret);
       restoreEnv("CASHFREE_CURRENCIES", prev.cfCurrencies);
       restoreEnv("STRIPE_SECRET_KEY", prev.stripeKey);
+    }
+  });
+});
+
+describe("creator sale routing excludes the Merchant-of-Record", () => {
+  /**
+   * A creator is the seller of their own store/course goods. Dodo is a
+   * Merchant-of-Record and is declared to CreatorOS's payment provider as being
+   * used only for CreatorOS's own subscription plans, so it must never carry a
+   * creator sale. Direct gateways still handle those.
+   */
+  it("never routes a creator sale to Dodo, even when Dodo is the only USD/GBP gateway", () => {
+    const prev = {
+      provider: process.env.PAYMENT_PROVIDER,
+      dodoKey: process.env.DODO_PAYMENTS_API_KEY,
+      stripeKey: process.env.STRIPE_SECRET_KEY,
+      cfId: process.env.CASHFREE_CLIENT_ID,
+      cfSecret: process.env.CASHFREE_SECRET_KEY,
+    };
+    process.env.PAYMENT_PROVIDER = "dodo";
+    process.env.DODO_PAYMENTS_API_KEY = "dodo_key";
+    delete process.env.STRIPE_SECRET_KEY;
+    delete process.env.CASHFREE_CLIENT_ID;
+    delete process.env.CASHFREE_SECRET_KEY;
+    try {
+      // The platform's own plan path still settles through Dodo...
+      expect(getPaymentProviderForCurrency("usd").name).toBe("dodo");
+      expect(getPaymentProviderForCurrency("gbp").name).toBe("dodo");
+      // ...but a creator's sale must not, and refuses when no direct gateway fits.
+      expect(getCreatorSaleProviderForCurrency("usd").isConfigured()).toBe(false);
+      expect(getCreatorSaleProviderForCurrency("gbp").isConfigured()).toBe(false);
+    } finally {
+      restoreEnv("PAYMENT_PROVIDER", prev.provider);
+      restoreEnv("DODO_PAYMENTS_API_KEY", prev.dodoKey);
+      restoreEnv("STRIPE_SECRET_KEY", prev.stripeKey);
+      restoreEnv("CASHFREE_CLIENT_ID", prev.cfId);
+      restoreEnv("CASHFREE_SECRET_KEY", prev.cfSecret);
+    }
+  });
+
+  it("routes a creator USD sale to a direct gateway when one is available", () => {
+    const prev = {
+      provider: process.env.PAYMENT_PROVIDER,
+      dodoKey: process.env.DODO_PAYMENTS_API_KEY,
+      stripeKey: process.env.STRIPE_SECRET_KEY,
+    };
+    process.env.PAYMENT_PROVIDER = "dodo";
+    process.env.DODO_PAYMENTS_API_KEY = "dodo_key";
+    process.env.STRIPE_SECRET_KEY = "sk_test_x";
+    try {
+      expect(getCreatorSaleProviderForCurrency("usd").name).toBe("stripe");
+    } finally {
+      restoreEnv("PAYMENT_PROVIDER", prev.provider);
+      restoreEnv("DODO_PAYMENTS_API_KEY", prev.dodoKey);
+      restoreEnv("STRIPE_SECRET_KEY", prev.stripeKey);
+    }
+  });
+
+  it("keeps INR creator sales on Cashfree, never on Dodo", () => {
+    const prev = {
+      provider: process.env.PAYMENT_PROVIDER,
+      dodoKey: process.env.DODO_PAYMENTS_API_KEY,
+      cfId: process.env.CASHFREE_CLIENT_ID,
+      cfSecret: process.env.CASHFREE_SECRET_KEY,
+    };
+    process.env.PAYMENT_PROVIDER = "dodo";
+    process.env.DODO_PAYMENTS_API_KEY = "dodo_key";
+    process.env.CASHFREE_CLIENT_ID = "test_id";
+    process.env.CASHFREE_SECRET_KEY = "test_secret";
+    try {
+      expect(getCreatorSaleProviderForCurrency("inr").name).toBe("cashfree");
+    } finally {
+      restoreEnv("PAYMENT_PROVIDER", prev.provider);
+      restoreEnv("DODO_PAYMENTS_API_KEY", prev.dodoKey);
+      restoreEnv("CASHFREE_CLIENT_ID", prev.cfId);
+      restoreEnv("CASHFREE_SECRET_KEY", prev.cfSecret);
     }
   });
 });
