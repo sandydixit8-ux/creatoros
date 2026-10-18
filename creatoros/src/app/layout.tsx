@@ -4,6 +4,7 @@ import "./globals.css";
 import { SITE_URL } from "@/lib/constants";
 import { PLAN_META } from "@/lib/plans-meta";
 import { ConsentBanner } from "@/components/consent/consent-banner";
+import { SiteViewBeacon } from "@/components/site/site-view-beacon";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "optional" });
 
@@ -115,6 +116,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Above the page content, and in normal flow, so the consent prompt is
             immediately visible without ever covering an interactive control. */}
         <ConsentBanner />
+        {/* First-party marketing-site page views for the platform admin dashboard. */}
+        <SiteViewBeacon />
         {children}
       </body>
     </html>

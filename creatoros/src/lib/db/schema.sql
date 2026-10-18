@@ -704,6 +704,28 @@ CREATE TABLE IF NOT EXISTS lesson_progress (
   UNIQUE (enrollment_id, lesson_id)
 );
 
+-- First-party traffic for the product's OWN marketing site (the pages a
+-- prospective customer reads before signing up), shown only to platform admins.
+-- Deliberately its own table: `analytics_events` is tenant-scoped and its
+-- tenant_id cascades on org delete, so it cannot hold platform-level rows.
+-- Country comes from the CDN header, and the visitor id is a salted one-way
+-- hash that rotates daily - no cookie, no cross-site id, nothing that needs a
+-- consent gate. See lib/site/traffic.ts.
+CREATE TABLE IF NOT EXISTS site_visits (
+  id         TEXT PRIMARY KEY,
+  path       TEXT NOT NULL,                 -- normalized path, e.g. / or /pricing
+  country    TEXT NOT NULL DEFAULT '',      -- ISO-3166 alpha-2 from the CDN header
+  device     TEXT NOT NULL DEFAULT '',      -- desktop | mobile
+  ref        TEXT NOT NULL DEFAULT '',      -- external referrer host, '' for direct/self
+  visitor_id TEXT NOT NULL DEFAULT '',      -- daily-rotating salted hash, privacy-safe
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_site_visits_time ON site_visits(created_at);
+CREATE INDEX IF NOT EXISTS idx_site_visits_country ON site_visits(country, created_at);
+CREATE INDEX IF NOT EXISTS idx_site_visits_path ON site_visits(path, created_at);
+CREATE INDEX IF NOT EXISTS idx_site_visits_visitor ON site_visits(visitor_id, created_at);
+
 CREATE INDEX IF NOT EXISTS idx_courses_tenant ON courses(tenant_id, published);
 CREATE INDEX IF NOT EXISTS idx_sections_course ON course_sections(course_id, position);
 CREATE INDEX IF NOT EXISTS idx_lessons_course ON lessons(course_id, position);

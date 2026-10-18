@@ -32,6 +32,7 @@ const PUBLIC_MUTATIONS = new Set([
   "/api/leads/capture",
   "/api/email/unsubscribe",
   "/api/track",
+  "/api/site-view",
 ]);
 
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);

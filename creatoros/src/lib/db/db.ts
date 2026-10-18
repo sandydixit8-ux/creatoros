@@ -400,6 +400,34 @@ const MIGRATIONS: Array<{ id: number; up: (db: DatabaseSync) => void }> = [
       db.exec("CREATE INDEX IF NOT EXISTS idx_email_change_user ON email_change_requests(user_id)");
     },
   },
+  {
+    // First-party traffic for the product's own marketing site, surfaced on the
+    // platform admin dashboard. Deliberately its own table: `analytics_events`
+    // is tenant-scoped and cascades on org delete, so the platform's own pages
+    // have nowhere to live there (the same reasoning as funnel_events).
+    //
+    // No foreign key and no consent gate: the row is an aggregate page view with
+    // a daily-rotating, salted visitor hash, so there is no identifier to attach
+    // to a person. schema.sql declares the same shape for a fresh database.
+    id: 22,
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS site_visits (
+          id         TEXT PRIMARY KEY,
+          path       TEXT NOT NULL,
+          country    TEXT NOT NULL DEFAULT '',
+          device     TEXT NOT NULL DEFAULT '',
+          ref        TEXT NOT NULL DEFAULT '',
+          visitor_id TEXT NOT NULL DEFAULT '',
+          created_at TEXT NOT NULL
+        )
+      `);
+      db.exec("CREATE INDEX IF NOT EXISTS idx_site_visits_time ON site_visits(created_at)");
+      db.exec("CREATE INDEX IF NOT EXISTS idx_site_visits_country ON site_visits(country, created_at)");
+      db.exec("CREATE INDEX IF NOT EXISTS idx_site_visits_path ON site_visits(path, created_at)");
+      db.exec("CREATE INDEX IF NOT EXISTS idx_site_visits_visitor ON site_visits(visitor_id, created_at)");
+    },
+  },
 ];
 
 function addColumn(db: DatabaseSync, table: string, column: string, ddl: string) {

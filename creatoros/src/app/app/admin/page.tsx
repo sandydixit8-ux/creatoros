@@ -3,6 +3,7 @@ import { ShieldAlert } from "lucide-react";
 import { getSession } from "@/lib/auth/get-session";
 import { isVerifiedPlatformAdmin } from "@/lib/admin/access";
 import { listOrgs, planCursor, listFlags, listOpenTickets, VALID_TICKET_STATUSES, platformRevenue, listOrders, listAudit } from "@/lib/admin/engine";
+import { siteTrafficSummary } from "@/lib/site/traffic";
 import { OrgsTable } from "@/components/admin/orgs-table";
 import { FlagsPanel } from "@/components/admin/flags-panel";
 import { TicketsPanel } from "@/components/admin/tickets-panel";
@@ -10,6 +11,7 @@ import { FunnelPanel } from "@/components/admin/funnel-panel";
 import { RevenuePanel } from "@/components/admin/revenue-panel";
 import { OrdersTable } from "@/components/admin/orders-table";
 import { AuditLogPanel } from "@/components/admin/audit-log-panel";
+import { SiteTrafficPanel } from "@/components/admin/site-traffic-panel";
 import { funnelSummary } from "@/lib/funnel";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +38,7 @@ export default async function AdminPage() {
   const revenue = platformRevenue(30);
   const orders = listOrders(200);
   const audit = listAudit({ limit: 100 });
+  const traffic = siteTrafficSummary(30);
 
   return (
     <div className="space-y-8">
@@ -43,6 +46,11 @@ export default async function AdminPage() {
         <h1 className="text-2xl font-bold text-navy-950">Platform admin</h1>
         <p className="mt-1 text-sm text-navy-500">Revenue, orders, acquisition funnel, workspaces, feature flags, support tickets and the audit trail.</p>
       </div>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-navy-400">Website traffic (30d)</h2>
+        <SiteTrafficPanel traffic={traffic} />
+      </section>
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-navy-400">Revenue (30d)</h2>
