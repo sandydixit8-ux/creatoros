@@ -131,3 +131,10 @@ If a probe fails, do not leave the old build half-replaced — see `docs/ROLLBAC
   `/auth/verify-email` page/API, and an admin gate that requires a verified mailbox. Deployed via
   `~/deploy.sh`; health ok, migration 17 confirmed on the live DB, probes green. The owner's
   allow-listed mailbox (`ADMIN_EMAILS`) was marked verified out-of-band to preserve admin access.
+- **US/UK targeting + ad tracking (19 Oct 2026):** archive SHA256
+  `DBEB4AC6F7B58F23DF56B29AC140D1DA3B7EA2A04FEBB956354379C721A554F2`, BUILD_ID `kiT6fLq18tsAsmOTbbXEe`.
+  Marketing-only (no migrations). Adds DST-correct US/UK posting times (calendar `tz`+`utc`),
+  UTM-tagged CTA links, consent-gated Google Ads + Meta conversion tracking (signup + purchase),
+  the Facebook page-id fix + footer link. Built after clearing a corrupt Turbopack cache
+  (`.next/cache` checksum panic). Deployed via `~/deploy.sh`; health ok, BUILD_ID live, canonical
+  + footer social link probes green.
