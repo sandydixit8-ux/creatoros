@@ -1,4 +1,10 @@
 import Link from "next/link";
+import { Facebook, Youtube } from "lucide-react";
+
+export const SOCIALS = [
+  { href: "https://www.facebook.com/profile.php?id=61595342349784", label: "Facebook", icon: Facebook },
+  { href: "https://www.youtube.com/channel/UCmOSwrdJWBbO3ILEZU0Jj1Q", label: "YouTube", icon: Youtube },
+];
 
 export const LEGAL_LINKS = [
   { href: "/terms", label: "Terms" },
@@ -39,6 +45,22 @@ export function SiteFooter() {
               Create. Grow. Sell. Automate. The all-in-one operating system for creator-led businesses.
             </p>
             <p className="mt-6 text-xs text-ink-muted">Technology Partner: Ridhyansh Tech Infra Private Limited</p>
+
+            <ul className="mt-5 flex items-center gap-3">
+              {SOCIALS.map((s) => (
+                <li key={s.label}>
+                  <a
+                    href={s.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`CreatorOS on ${s.label}`}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-ink-secondary transition-colors hover:bg-white/10 hover:text-ink"
+                  >
+                    <s.icon className="h-4 w-4" aria-hidden />
+                  </a>
+                </li>
+              ))}
+            </ul>
           </div>
 
           <nav aria-label="Product">
