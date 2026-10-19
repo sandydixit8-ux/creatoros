@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { trackSignupConversion } from "@/lib/ads/pixels";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 
@@ -58,6 +59,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
         setLoading(false);
         return;
       }
+      if (mode === "register") trackSignupConversion();
       router.push("/app");
       router.refresh();
     } catch {

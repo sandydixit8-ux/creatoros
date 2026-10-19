@@ -2,8 +2,9 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { CreditCard, XCircle } from "lucide-react";
 import { getSession } from "@/lib/auth/get-session";
+import { AdsConversion } from "@/components/analytics/ads-conversion";
 import { row } from "@/lib/db/db";
-import { getLimits, PLAN_PRICES } from "@/lib/plans";
+import { getLimits, PLAN_PRICES, type PriceCurrency } from "@/lib/plans";
 import { allUsage } from "@/lib/usage";
 import { activeSubscription, syncPendingCashfreeSubscription } from "@/lib/billing/subscriptions";
 import { getPaymentProviderForCurrency, cashfreeSdkMode, resolvePlanCurrency } from "@/lib/payments";
@@ -24,6 +25,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
   // into a webhook (dashboard webhook not configured). Only an ACTIVE upstream
   // subscription is applied, so a spoofed ?upgraded= cannot invent a payment.
   await syncPendingCashfreeSubscription(s.org.id, { force: Boolean(sp?.upgraded) });
+  const upgraded = Boolean(sp?.upgraded);
 
   const org = row<{ plan: string; name: string }>("SELECT plan, name FROM organizations WHERE id = ?", s.org.id);
   const currentPlan = org?.plan ?? "free";
@@ -66,6 +68,14 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
 
   return (
     <div className="space-y-6">
+      {upgraded && currentPlan !== "free" && (
+        <AdsConversion
+          type="purchase"
+          value={PLAN_PRICES[currentPlan][currency as PriceCurrency]}
+          currency={currency.toUpperCase()}
+          transactionId={`sub_${s.org.id}_${currentPlan}`}
+        />
+      )}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-navy-950">Billing &amp; plan</h1>

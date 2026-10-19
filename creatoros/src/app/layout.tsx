@@ -5,6 +5,7 @@ import { SITE_URL } from "@/lib/constants";
 import { PLAN_META } from "@/lib/plans-meta";
 import { ConsentBanner } from "@/components/consent/consent-banner";
 import { SiteViewBeacon } from "@/components/site/site-view-beacon";
+import { ThirdPartyTags } from "@/components/analytics/third-party-tags";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "optional" });
 
@@ -118,6 +119,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ConsentBanner />
         {/* First-party marketing-site page views for the platform admin dashboard. */}
         <SiteViewBeacon />
+        {/* Consent-gated ad tags (Google Ads / Meta pixel). No-ops until the
+            visitor opts in to analytics and the IDs are configured. */}
+        <ThirdPartyTags />
         {children}
       </body>
     </html>

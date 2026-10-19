@@ -44,22 +44,33 @@ never starts spending until you review and enable it.
 
 ## Conversion tracking (must-do)
 
-This kit does **not** modify the site. To get conversions into Google Ads, do both:
+The site is **already wired** for consent-gated tags. Set these env vars and the
+signup + purchase conversions fire automatically (nothing loads until the visitor
+accepts "analytics" in the cookie banner):
 
-- **Signup conversion** — after a successful `/signup`, fire a Google Ads
-  conversion (tag on the thank-you step, or import from the backend).
-- **Purchase conversion** — on `/store/receipt/[token]` and on subscription
-  activation, fire a Google Ads purchase conversion with value + currency.
+```
+NEXT_PUBLIC_GOOGLE_ADS_ID=AW-XXXXXXXXX        # the Google Ads tag id
+NEXT_PUBLIC_GOOGLE_ADS_SIGNUP_LABEL=<label>   # from the signup conversion action
+NEXT_PUBLIC_GOOGLE_ADS_PURCHASE_LABEL=<label> # from the purchase conversion action
+NEXT_PUBLIC_META_PIXEL_ID=                    # Meta pixel id (Events Manager)
+```
 
-Two ways to wire it:
+Fired from:
 
-1. **gtag.js** — paste the Google tag in the site `<head>` and fire
-   `gtag('event','conversion',{ send_to: 'AW-XXXXXXX/label' })` on those events.
-   Gate it behind the existing cookie-consent banner (`analytics` category) so
-   nothing fires before opt-in.
-2. **Server-side import** — export signups/purchases and upload to Google Ads via
-   *Conversions → Import → from clicks* (offline conversions). Works without any
-   client script and is consent-safe by default.
+- **Signup** — `src/components/auth/auth-form.tsx` on a successful registration
+  (`CompleteRegistration` for Meta).
+- **Store purchase** — `src/app/store/receipt/[token]/page.tsx` when the order is
+  paid (value + currency + order id as `transaction_id`).
+- **Plan purchase** — `src/app/app/billing/page.tsx` after `?upgraded=1`.
+- Tags load only after analytics consent: `src/components/analytics/third-party-tags.tsx`
+  reads the consent record; `src/lib/ads/pixels.ts` holds the event helpers.
+
+Labels: in Google Ads, create one conversion action per event (Signup, Purchase)
+and copy each `AW-XXXXXXXXX/label` tail into the matching `_LABEL` env var.
+
+Fallback if you prefer no client script: **server-side import** — export
+signups/purchases and upload to Google Ads via *Conversions → Import → from
+clicks* (offline conversions). Consent-safe by default.
 
 Then set each campaign's objective/bid strategy to *Conversions* once you have
 ~15–30 conversions/month.

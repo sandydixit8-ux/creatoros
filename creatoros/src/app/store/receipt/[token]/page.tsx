@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { CheckCircle2, Clock } from "lucide-react";
 import { row, all } from "@/lib/db/db";
 import { formatPrice } from "@/lib/money";
+import { AdsConversion } from "@/components/analytics/ads-conversion";
 import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +37,14 @@ export default async function ReceiptPage({ params }: Props) {
   return (
     <div className="min-h-screen bg-navy-50 px-4 py-12">
       <main className="mx-auto max-w-md">
+        {paid && (
+          <AdsConversion
+            type="purchase"
+            value={order.amount_cents / 100}
+            currency={order.currency.toUpperCase()}
+            transactionId={order.id}
+          />
+        )}
         <div className="card p-6">
           <div className="flex items-center gap-3">
             {paid ? (

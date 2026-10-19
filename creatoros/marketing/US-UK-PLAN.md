@@ -74,8 +74,11 @@ Geo-restrict every campaign to **US + UK**. No India spend on these campaigns.
 - [x] Captions UTM-tagged per platform + market.
 - [x] Facebook scheduled on corrected times (10 posts, 19–30 Oct).
 - [x] YouTube Shorts rescheduled on corrected times (4 private, 1 already public).
+- [x] Site fires consent-gated Google Ads + Meta conversions (signup + purchase);
+      enable by setting `NEXT_PUBLIC_GOOGLE_ADS_ID` / `_LABEL`s / `NEXT_PUBLIC_META_PIXEL_ID`.
+- [ ] Ad accounts + billing + daily budget (owner: create in Google Ads / Meta).
 - [ ] Instagram / TikTok / LinkedIn / X publishers.
-- [ ] Google/Meta ads geo-restricted to US+UK.
+- [ ] Google/Meta ads geo-restricted to US+UK (CSVs + kit ready; launch = owner).
 
 ## 9. Instagram / TikTok / LinkedIn / X note
 
