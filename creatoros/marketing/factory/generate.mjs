@@ -100,6 +100,18 @@ function rand() {
 }
 const pick = (arr) => arr[Math.floor(rand() * arr.length) % arr.length];
 
+const HOOK_ASPECTS = new Set(["9x16", "1x1"]);
+const slugify = (s) =>
+  String(s)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+const videoFile = (cut, aspect, hook) =>
+  cut === "hook" && HOOK_ASPECTS.has(aspect)
+    ? `creatoros-hook-${aspect}-${slugify(hook)}.mp4`
+    : `creatoros-${cut}-${aspect}.mp4`;
+
 function runFfmpeg(args) {
   const r = spawnSync("ffmpeg", args, { encoding: "utf8" });
   if (r.error) throw new Error("ffmpeg not found on PATH: " + r.error.message);
@@ -125,12 +137,12 @@ function buildMusic() {
   ]);
 }
 
-async function renderVideo(page, cutKey, ratio) {
+async function renderVideo(page, cutKey, ratio, hook) {
   const cut = CUTS[cutKey];
   const r = RATIOS[ratio];
-  const name = `creatoros-${cutKey}-${ratio}`;
+  const suffix = hook ? "-" + slugify(hook) : "";
   const frames = Math.round(cut.dur * FPS);
-  const frameDir = path.join(framesRoot, `${cutKey}-${ratio}`);
+  const frameDir = path.join(framesRoot, `${cutKey}-${ratio}${suffix}`);
   rmSync(frameDir, { recursive: true, force: true });
   mkdirSync(frameDir, { recursive: true });
 
@@ -142,27 +154,28 @@ async function renderVideo(page, cutKey, ratio) {
     offset: String(cut.offset),
     speed: String(cut.speed),
   });
+  if (hook) qs.set("hook", hook);
   await page.setViewportSize({ width: r.w, height: r.h });
   await page.goto(pathToFileURL(htmlFile).href + "?" + qs.toString(), { waitUntil: "load" });
   await page.waitForFunction(() => window.__ready === true, null, { timeout: 30000 });
   await page.evaluate(() => (document.fonts ? document.fonts.ready : Promise.resolve()));
 
-  console.log(`  rendering ${cutKey} / ${ratio}  (${cut.dur}s, ${frames} frames)`);
+  console.log(`  rendering ${cutKey} / ${ratio}${suffix}  (${cut.dur}s, ${frames} frames)`);
   for (let i = 0; i < cut.dur * FPS; i++) {
     await page.evaluate((tt) => window.__seek(tt), i / FPS);
     await page.screenshot({
-      path: path.join(framesRoot, `${cutKey}-${ratio}`, `f_${String(i + 1).padStart(4, "0")}.png`),
+      path: path.join(framesRoot, `${cutKey}-${ratio}${suffix}`, `f_${String(i + 1).padStart(4, "0")}.png`),
       type: "png",
     });
   }
 
   const posterAt = Math.round(cut.dur * FPS * 0.7) / FPS;
   await page.evaluate((tt) => window.__seek(tt), posterAt);
-  await page.screenshot({ path: path.join(outDir, `creatoros-${cutKey}-${ratio}-poster.png`), type: "png" });
+  await page.screenshot({ path: path.join(outDir, `creatoros-${cutKey}-${ratio}${suffix}-poster.png`), type: "png" });
 
-  const tmpVideo = path.join(outDir, `.${cutKey}-${ratio}.silent.mp4`);
-  const finalVideo = path.join(outDir, `creatoros-${cutKey}-${ratio}.mp4`);
-  const pattern = path.join(framesRoot, `${cutKey}-${ratio}`, "f_%04d.png");
+  const tmpVideo = path.join(outDir, `.${cutKey}-${ratio}${suffix}.silent.mp4`);
+  const finalVideo = path.join(outDir, `creatoros-${cutKey}-${ratio}${suffix}.mp4`);
+  const pattern = path.join(framesRoot, `${cutKey}-${ratio}${suffix}`, "f_%04d.png");
   runFfmpeg([
     "-y", "-framerate", String(FPS), "-start_number", "1", "-i", pattern,
     "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "20", "-preset", "medium", tmpVideo,
@@ -175,7 +188,7 @@ async function renderVideo(page, cutKey, ratio) {
     "-shortest", "-movflags", "+faststart", finalVideo,
   ]);
   rmSync(tmpVideo, { force: true });
-  return { cut: cutKey, ratio, dur: cut.dur, w: r.w, h: r.h, file: path.basename(finalVideo) };
+  return { cut: cutKey, ratio, hook: hook || undefined, dur: cut.dur, w: r.w, h: r.h, file: path.basename(finalVideo) };
 }
 
 function buildCopy() {
@@ -234,7 +247,7 @@ function buildCalendar(posts, available) {
         platform,
         aspect,
         cut,
-        file: `creatoros-${cut}-${aspect}.mp4`,
+        file: videoFile(cut, aspect, post.hook),
         hook: post.hook,
         caption: post.text,
       });
@@ -283,7 +296,15 @@ async function main() {
     const page = await browser.newPage({ deviceScaleFactor: 1 });
     try {
       for (const [cut, ratio] of matrix) {
-        videos.push(await renderVideo(page, cut, ratio));
+        if (cut === "hook" && HOOK_ASPECTS.has(ratio)) {
+          for (const market of ["us", "uk"]) {
+            for (const hook of HOOKS[market]) {
+              videos.push(await renderVideo(page, cut, ratio, hook));
+            }
+          }
+        } else {
+          videos.push(await renderVideo(page, cut, ratio));
+        }
       }
     } finally {
       await browser.close();

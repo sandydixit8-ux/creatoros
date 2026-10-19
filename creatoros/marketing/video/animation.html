@@ -264,6 +264,26 @@
     var sceneH = dashScale.offsetHeight; // untransformed canvas height
     dashWrap.style.width = (1180 * s) + "px";
     dashWrap.style.height = (sceneH * s) + "px";
+
+    var hook = qs.get("hook");
+    var sub = qs.get("sub");
+    if (sub) headlineSub.textContent = sub;
+    if (hook) {
+      var h1 = el("h1");
+      l1.textContent = hook;
+      l2.textContent = "";
+      l2.style.display = "none";
+      h1.style.maxWidth = Math.round(0.9 * w) + "px";
+      h1.style.margin = "0 auto";
+      h1.style.overflowWrap = "anywhere";
+      var fs = 4.05;
+      var maxH = 0.34 * h;
+      for (var i = 0; i < 60; i++) {
+        h1.style.fontSize = fs + "rem";
+        if (h1.scrollHeight <= maxH) break;
+        fs *= 0.93;
+      }
+    }
   })();
 
   function fmtViews(n) { return (n / 1000).toFixed(1) + "k"; }

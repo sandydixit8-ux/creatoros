@@ -22,6 +22,8 @@
  *   node marketing/publisher/youtube.mjs upload --all --schedule # auto-publish on calendar date/time
  *   node marketing/publisher/youtube.mjs upload --date 2026-10-16 --privacy unlisted
  *   node marketing/publisher/youtube.mjs test --file creatoros-hook-9x16.mp4 --privacy public
+ *   node marketing/publisher/youtube.mjs publish --all --privacy public   # flip already-uploaded videos
+ *   node marketing/publisher/youtube.mjs schedule [--limit 3] [--dry]     # set publishAt on existing uploads
  *   node marketing/publisher/youtube.mjs stats
  *   node marketing/publisher/youtube.mjs monitor              # append a views snapshot + delta
  *   node marketing/publisher/youtube.mjs upload --next --lang en
@@ -426,6 +428,167 @@ async function channelVideos(token) {
   return { channel: ch, videos: vJson.items || [] };
 }
 
+async function setPrivacy(token, id, privacy) {
+  const res = await fetch("https://www.googleapis.com/youtube/v3/videos?part=status", {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ id, status: { privacyStatus: privacy, selfDeclaredMadeForKids: false } }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`Update failed ${res.status}: ${json.error?.message || ""}`);
+  return json;
+}
+
+async function setSchedule(token, id, publishAt) {
+  const res = await fetch("https://www.googleapis.com/youtube/v3/videos?part=status", {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ id, status: { privacyStatus: "private", publishAt, selfDeclaredMadeForKids: false } }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`Schedule failed ${res.status}: ${json.error?.message || ""}`);
+  return json;
+}
+
+const normTitle = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+/**
+ * Schedule videos that are ALREADY uploaded (recorded in .uploads.json) instead
+ * of uploading them again.
+ *
+ * `upload --schedule` re-uploads the file and costs quota; when a video for the
+ * same hook is already on the channel this matches it by title and sets its
+ * `publishAt` from the calendar slot. `--limit N` schedules only the next N
+ * slots; `--dry` previews without touching the channel.
+ */
+async function cmdSchedule() {
+  requireClient();
+  const token = await accessToken();
+  const uploads = loadJson(uploadsFile, {});
+  const ids = Object.values(uploads).map((v) => v.videoId);
+  if (!ids.length) throw new Error("No uploaded videos recorded in .uploads.json");
+  const vJson = await (
+    await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet,status&id=${ids.join(",")}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+  ).json();
+  const byTitle = new Map((vJson.items || []).map((v) => [normTitle(v.snippet.title), v]));
+
+  const rows = parseCsv(readFileSync(calendarFile, "utf8")).filter((r) => r.platform === YOUTUBE_PLATFORM);
+  const limit = Number(valueOf("limit") || 0);
+  const targets = limit > 0 ? rows.slice(0, limit) : rows;
+  const dry = has("dry");
+
+  console.log(`${dry ? "[dry] " : ""}Scheduling ${targets.length} existing video(s):\n`);
+  for (const r of targets) {
+    const v = byTitle.get(normTitle(r.hook));
+    const at = localRfc3339(r.date, r.time);
+    if (!v) {
+      console.log(`  [skip] no uploaded video matches "${r.hook}"`);
+      continue;
+    }
+    if (v.status?.privacyStatus === "public") {
+      console.log(`  [skip] already public, left live: ${v.id}  ${r.hook}`);
+      continue;
+    }
+    if (dry) {
+      console.log(`  ${v.id}  ${r.date} ${r.time}  (${v.status?.privacyStatus} -> private @ ${at})  ${r.hook}`);
+      continue;
+    }
+    const json = await setSchedule(token, v.id, at);
+    console.log(`  ${v.id}  scheduled @ ${json.status?.publishAt || at}  (${json.status?.privacyStatus})  ${r.hook}`);
+  }
+  console.log("\nDone.");
+}
+
+/**
+ * Change the privacy of videos already uploaded (recorded in .uploads.json).
+ *
+ * `upload` only sets privacy at upload time, so a video parked as private could
+ * not be promoted without re-uploading it (costing quota and duplicating it).
+ * This flips the existing video instead. Targets: --all | --date YYYY-MM-DD |
+ * --id <videoId>; with none given, only those not already at --privacy.
+ */
+async function cmdPublish() {
+  requireClient();
+  const privacy = valueOf("privacy") || "public";
+  if (!["public", "unlisted", "private"].includes(privacy)) {
+    throw new Error("--privacy must be public | unlisted | private");
+  }
+  const token = await accessToken();
+  const uploads = loadJson(uploadsFile, {});
+  const entries = Object.entries(uploads);
+  const dry = has("dry");
+  const id = valueOf("id");
+  const date = valueOf("date");
+  let targets;
+  if (id) targets = entries.filter(([, v]) => v.videoId === id);
+  else if (date) targets = entries.filter(([k]) => k.startsWith(date));
+  else if (has("all")) targets = entries;
+  else targets = entries.filter(([, v]) => v.privacy !== privacy);
+  if (!targets.length) {
+    console.log("Nothing to publish.");
+    return;
+  }
+  console.log(`${dry ? "[dry] " : ""}Setting privacy=${privacy} on ${targets.length} video(s):\n`);
+  for (const [key, v] of targets) {
+    if (dry) {
+      console.log(`  ${v.videoId}  ${key}  (${v.privacy} -> ${privacy})`);
+      continue;
+    }
+    const json = await setPrivacy(token, v.videoId, privacy);
+    v.privacy = privacy;
+    v.updatedAt = new Date().toISOString();
+    console.log(`  ${v.videoId}  ${key}  -> ${json.status?.privacyStatus || privacy}`);
+  }
+  if (!dry) writeFileSync(uploadsFile, JSON.stringify(uploads, null, 2) + "\n");
+  console.log("\nDone.");
+}
+
+/**
+ * Delete videos already uploaded (recorded in .uploads.json).
+ *
+ * Used when a video was uploaded from a superseded render (e.g. before the
+ * hook text was burned in) and would otherwise linger as a duplicate. Targets:
+ * --id <videoId> (repeatable via comma) | --all. `--dry` previews.
+ */
+async function cmdDelete() {
+  requireClient();
+  const token = await accessToken();
+  const uploads = loadJson(uploadsFile, {});
+  const dry = has("dry");
+  const idArg = valueOf("id");
+  const ids = idArg
+    ? idArg.split(",").map((s) => s.trim()).filter(Boolean)
+    : has("all")
+      ? Object.values(uploads).map((v) => v.videoId)
+      : [];
+  if (!ids.length) throw new Error("Provide --id <videoId[,videoId]> or --all");
+
+  console.log(`${dry ? "[dry] " : ""}Deleting ${ids.length} video(s):\n`);
+  for (const vid of ids) {
+    const rec = Object.entries(uploads).find(([, v]) => v.videoId === vid);
+    const label = rec ? `${vid}  ${rec[1].title || ""}  (${rec[0]})` : vid;
+    if (dry) {
+      console.log(`  would delete ${label}`);
+      continue;
+    }
+    const res = await fetch(`https://www.googleapis.com/youtube/v3/videos?id=${vid}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      console.log(`  deleted ${label}`);
+      if (rec) delete uploads[rec[0]];
+    } else {
+      const j = await res.json().catch(() => ({}));
+      console.log(`  FAILED ${label}: ${res.status} ${j.error?.message || ""}`);
+    }
+  }
+  if (!dry) writeFileSync(uploadsFile, JSON.stringify(uploads, null, 2) + "\n");
+  console.log("\nDone.");
+}
+
 async function cmdStats() {
   requireClient();
   const token = await accessToken();
@@ -515,6 +678,9 @@ async function main() {
   if (command === "whoami") return cmdWhoami();
   if (command === "plan") return cmdPlan();
   if (command === "upload") return cmdUpload();
+  if (command === "publish") return cmdPublish();
+  if (command === "schedule") return cmdSchedule();
+  if (command === "delete") return cmdDelete();
   if (command === "stats") return cmdStats();
   if (command === "monitor") return cmdMonitor();
   if (command === "backfill-lang") return cmdBackfillLang();
