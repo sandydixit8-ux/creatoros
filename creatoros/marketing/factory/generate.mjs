@@ -90,6 +90,48 @@ const PLATFORMS = {
 
 const VERTICAL = new Set(["Instagram Reels", "TikTok", "YouTube Shorts", "Facebook Reels"]);
 
+const MARKET_TZ = { us: "America/New_York", uk: "Europe/London" };
+const PLATFORM_SLUG = {
+  "Instagram Reels": "instagram",
+  TikTok: "tiktok",
+  "YouTube Shorts": "youtube",
+  "Facebook Reels": "facebook",
+  "Facebook Feed": "facebook",
+  LinkedIn: "linkedin",
+  X: "x",
+};
+
+function tzOffsetMs(utcDate, timeZone) {
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone, hour12: false,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+  });
+  const p = {};
+  for (const part of dtf.formatToParts(utcDate)) p[part.type] = part.value;
+  const asUTC = Date.UTC(+p.year, +p.month - 1, +p.day, p.hour === "24" ? 0 : +p.hour, +p.minute, +p.second);
+  return asUTC - utcDate.getTime();
+}
+
+function localToUtc(dateStr, timeStr, timeZone) {
+  const [y, mo, d] = dateStr.split("-").map(Number);
+  const [h, mi] = timeStr.split(":").map(Number);
+  const wall = Date.UTC(y, mo - 1, d, h, mi, 0);
+  let guess = wall - tzOffsetMs(new Date(wall), timeZone);
+  guess = wall - tzOffsetMs(new Date(guess), timeZone);
+  return new Date(guess);
+}
+
+function utmUrl(market, platform) {
+  const slug = PLATFORM_SLUG[platform] || "social";
+  return `https://usecreatoros.co/?utm_source=${slug}&utm_medium=social&utm_campaign=launch_us_uk&utm_content=${market}`;
+}
+
+function withUtm(text, url) {
+  if (text.includes("utm_source=")) return text;
+  return text.replace(/https?:\/\/(?=usecreatoros\.co)/g, "").replace(/usecreatoros\.co\/?/g, url);
+}
+
 const hasFlag = (f) => process.argv.includes("--" + f);
 const positional = process.argv.slice(2).filter((a) => !a.startsWith("--"));
 
@@ -240,16 +282,19 @@ function buildCalendar(posts, available) {
       }
       const marketPosts = posts.filter((p) => p.market === market);
       const post = marketPosts[perMarket[market]++ % marketPosts.length];
+      const tz = MARKET_TZ[market];
       rows.push({
         date: iso,
         time: times[s],
+        tz,
         market: market.toUpperCase(),
         platform,
         aspect,
         cut,
         file: videoFile(cut, aspect, post.hook),
         hook: post.hook,
-        caption: post.text,
+        caption: withUtm(post.text, utmUrl(market, platform)),
+        utc: localToUtc(iso, times[s], tz).toISOString(),
       });
     }
   }
@@ -261,7 +306,7 @@ function csvCell(v) {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 function toCsv(rows) {
-  const cols = ["date", "time", "market", "platform", "aspect", "cut", "file", "hook", "caption"];
+  const cols = ["date", "time", "tz", "market", "platform", "aspect", "cut", "file", "hook", "caption", "utc"];
   return [cols.join(",")]
     .concat(rows.map((r) => cols.map((c) => csvCell(r[c])).join(",")))
     .join("\n") + "\n";

@@ -7,7 +7,7 @@ the day-to-day commands.
 
 ## What you need
 
-- Admin access to the Facebook Page (`61595342349784` — Ridhyansh Tech Infra).
+- Admin access to the Facebook Page (`1299369053270317` — Ridhyansh Tech Infra).
 - A Meta app (free) at <https://developers.facebook.com/apps>.
 
 ## 1. Create the app
@@ -44,7 +44,7 @@ Short user tokens die in ~1 hour. Do this once in a browser (replace
    ```
    https://graph.facebook.com/v23.0/me/accounts?access_token=<LONG_LIVED_USER_TOKEN>
    ```
-   → find the page with `"id": "61595342349784"` and copy its `access_token`.
+   → find the page with `"id": "1299369053270317"` and copy its `access_token`.
    This Page token does not expire (it only dies if you change the password,
    revoke the app, or the underlying user token is invalidated).
 
@@ -53,7 +53,7 @@ Short user tokens die in ~1 hour. Do this once in a browser (replace
 Put both values in `marketing/publisher/.env` (gitignored):
 
 ```
-FB_PAGE_ID=61595342349784
+FB_PAGE_ID=1299369053270317
 FB_PAGE_TOKEN=EAAG...
 # FB_GRAPH_VERSION=v23.0   (optional)
 ```

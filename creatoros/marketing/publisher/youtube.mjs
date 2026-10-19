@@ -362,7 +362,7 @@ async function cmdUpload() {
   const token = dry ? null : await accessToken();
   for (const r of targets) {
     const file = path.join(factoryOut, r.file);
-    const publishAt = schedule ? localRfc3339(r.date, r.time) : undefined;
+    const publishAt = schedule ? r.utc || localRfc3339(r.date, r.time) : undefined;
     if (!existsSync(file)) {
       console.log(`  SKIP ${r.file} (render it first: node marketing/factory/generate.mjs)`);
       continue;
@@ -482,7 +482,7 @@ async function cmdSchedule() {
   console.log(`${dry ? "[dry] " : ""}Scheduling ${targets.length} existing video(s):\n`);
   for (const r of targets) {
     const v = byTitle.get(normTitle(r.hook));
-    const at = localRfc3339(r.date, r.time);
+    const at = r.utc || localRfc3339(r.date, r.time);
     if (!v) {
       console.log(`  [skip] no uploaded video matches "${r.hook}"`);
       continue;

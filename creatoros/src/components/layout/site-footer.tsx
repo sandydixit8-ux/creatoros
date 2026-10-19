@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Facebook, Youtube } from "lucide-react";
 
 export const SOCIALS = [
-  { href: "https://www.facebook.com/profile.php?id=61595342349784", label: "Facebook", icon: Facebook },
+  { href: "https://www.facebook.com/1299369053270317", label: "Facebook", icon: Facebook },
   { href: "https://www.youtube.com/channel/UCmOSwrdJWBbO3ILEZU0Jj1Q", label: "YouTube", icon: Youtube },
 ];
 

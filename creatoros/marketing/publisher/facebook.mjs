@@ -8,7 +8,7 @@
  *
  * Credentials live in `marketing/publisher/.env` (gitignored):
  *
- *   FB_PAGE_ID=61595342349784
+ *   FB_PAGE_ID=1299369053270317
  *   FB_PAGE_TOKEN=EAAG...            # long-lived Page access token
  *   FB_GRAPH_VERSION=v23.0           # optional, defaults to v23.0
  *
@@ -76,7 +76,7 @@ const valueOf = (f) => {
 function requireCreds() {
   if (!PAGE_ID || !PAGE_TOKEN) {
     console.error(`Missing credentials. Put these in ${path.relative(process.cwd(), envFile)}:\n`);
-    console.error("  FB_PAGE_ID=61595342349784");
+    console.error("  FB_PAGE_ID=1299369053270317");
     console.error("  FB_PAGE_TOKEN=EAAG...   (long-lived Page access token)");
     console.error("  # optional: FB_GRAPH_VERSION=v23.0");
     console.error("\nSee docs/FACEBOOK-SETUP.md.");
@@ -255,6 +255,8 @@ async function cmdUpload() {
   }
 
   console.log(`${dry ? "[dry] " : ""}${targets.length} post(s) as ${state}:\n`);
+  const failures = [];
+  const minSchedule = Math.floor(Date.now() / 1000) + 10 * 60;
   for (const r of targets) {
     const file = path.join(factoryOut, r.file);
     if (!existsSync(file)) {
@@ -262,20 +264,34 @@ async function cmdUpload() {
       continue;
     }
     const isReel = r.platform === "Facebook Reels";
+    const scheduledTime = r.utc ? Math.floor(Date.parse(r.utc) / 1000) : r.date && r.time ? unixFor(r.date, r.time) : undefined;
+    if (state === "SCHEDULED" && scheduledTime && scheduledTime < minSchedule) {
+      console.log(`  SKIP ${r.date} ${r.time} ${r.platform} (slot is in the past; use --state published or --date ${r.date})`);
+      continue;
+    }
     const when = r.date && r.time ? `${r.date} ${r.time}` : "now";
     if (dry) {
       console.log(`  would post ${isReel ? "Reel" : "video"} ${r.file}  state=${state} @ ${when}  "${r.hook}"`);
       continue;
     }
-    const scheduledTime = r.date && r.time ? unixFor(r.date, r.time) : undefined;
-    const id = isReel
-      ? await uploadReel(file, { description: r.caption, state, scheduledTime })
-      : await uploadFeedVideo(file, { description: r.caption, title: r.hook, state, scheduledTime });
-    if (r.date && r.time) {
-      uploads[key(r)] = { id, kind: isReel ? "reel" : "video", state, url: `https://www.facebook.com/${id}`, uploadedAt: new Date().toISOString() };
-      saveUploads(uploads);
+    try {
+      const id = isReel
+        ? await uploadReel(file, { description: r.caption, state, scheduledTime })
+        : await uploadFeedVideo(file, { description: r.caption, title: r.hook, state, scheduledTime });
+      if (r.date && r.time) {
+        uploads[key(r)] = { id, kind: isReel ? "reel" : "video", state, url: `https://www.facebook.com/${id}`, uploadedAt: new Date().toISOString() };
+        saveUploads(uploads);
+      }
+      console.log(`  posted ${isReel ? "Reel" : "video"} ${when} -> https://www.facebook.com/${id} (${state})`);
+    } catch (e) {
+      failures.push(`${r.date} ${r.time} ${r.platform}: ${e.message}`);
+      console.log(`  FAILED ${r.date} ${r.time} ${r.platform}: ${e.message}`);
     }
-    console.log(`  posted ${isReel ? "Reel" : "video"} ${when} -> https://www.facebook.com/${id} (${state})`);
+  }
+  if (failures.length) {
+    console.log(`\n${failures.length} failure(s):`);
+    for (const f of failures) console.log(`  - ${f}`);
+    process.exitCode = 1;
   }
 }
 
