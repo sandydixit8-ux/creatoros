@@ -37,12 +37,12 @@ Short user tokens die in ~1 hour. Do this once in a browser (replace
 
 1. Long-lived user token:
    ```
-   https://graph.facebook.com/v21.0/oauth/access_token?grant_type=fb_exchange_token&client_id=<KEY>&client_secret=<SECRET>&fb_exchange_token=<USER_TOKEN>
+   https://graph.facebook.com/v23.0/oauth/access_token?grant_type=fb_exchange_token&client_id=<KEY>&client_secret=<SECRET>&fb_exchange_token=<USER_TOKEN>
    ```
    → copy `access_token`.
 2. Page token from the long-lived user token:
    ```
-   https://graph.facebook.com/v21.0/me/accounts?access_token=<LONG_LIVED_USER_TOKEN>
+   https://graph.facebook.com/v23.0/me/accounts?access_token=<LONG_LIVED_USER_TOKEN>
    ```
    → find the page with `"id": "61595342349784"` and copy its `access_token`.
    This Page token does not expire (it only dies if you change the password,
@@ -55,7 +55,7 @@ Put both values in `marketing/publisher/.env` (gitignored):
 ```
 FB_PAGE_ID=61595342349784
 FB_PAGE_TOKEN=EAAG...
-# FB_GRAPH_VERSION=v21.0   (optional)
+# FB_GRAPH_VERSION=v23.0   (optional)
 ```
 
 ## 5. Verify

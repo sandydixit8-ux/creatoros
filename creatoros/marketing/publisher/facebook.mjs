@@ -10,7 +10,7 @@
  *
  *   FB_PAGE_ID=61595342349784
  *   FB_PAGE_TOKEN=EAAG...            # long-lived Page access token
- *   FB_GRAPH_VERSION=v21.0           # optional, defaults to v21.0
+ *   FB_GRAPH_VERSION=v23.0           # optional, defaults to v23.0
  *
  * How to get a Page token (see docs/FACEBOOK-SETUP.md for the full walkthrough):
  *   1. Create an app at https://developers.facebook.com/apps (type: Business).
@@ -60,7 +60,7 @@ function loadEnv() {
 const ENV = loadEnv();
 const PAGE_ID = ENV.FB_PAGE_ID;
 const PAGE_TOKEN = ENV.FB_PAGE_TOKEN;
-const VERSION = ENV.FB_GRAPH_VERSION || "v21.0";
+const VERSION = ENV.FB_GRAPH_VERSION || "v23.0";
 const BASE = `https://graph.facebook.com/${VERSION}`;
 
 const FB_PLATFORMS = ["Facebook Reels", "Facebook Feed"];
@@ -78,7 +78,7 @@ function requireCreds() {
     console.error(`Missing credentials. Put these in ${path.relative(process.cwd(), envFile)}:\n`);
     console.error("  FB_PAGE_ID=61595342349784");
     console.error("  FB_PAGE_TOKEN=EAAG...   (long-lived Page access token)");
-    console.error("  # optional: FB_GRAPH_VERSION=v21.0");
+    console.error("  # optional: FB_GRAPH_VERSION=v23.0");
     console.error("\nSee docs/FACEBOOK-SETUP.md.");
     process.exit(1);
   }
