@@ -21,7 +21,7 @@ test.describe("marketing homepage", () => {
 
     await expect(page.getByRole("heading", { level: 1 })).toContainText("One Powerful Workspace.");
     await expect(page.getByRole("link", { name: "Start for Free" }).first()).toHaveAttribute("href", "/auth/register");
-    await expect(page.getByRole("link", { name: "Explore the Platform" })).toHaveAttribute("href", "/#product");
+    await expect(page.getByRole("link", { name: "See Pricing" })).toHaveAttribute("href", "/pricing");
 
     const modules = page.locator("section#product .group");
     await expect(modules).toHaveCount(9);

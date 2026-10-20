@@ -107,6 +107,21 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
+      {mode === "register" && (
+        <div>
+          <label className="label" htmlFor="name">Name</label>
+          <input
+            id="name"
+            name="name"
+            type="text"
+            required
+            maxLength={100}
+            autoComplete="name"
+            className="input"
+            placeholder="Your name or brand"
+          />
+        </div>
+      )}
       <div>
         <label className="label" htmlFor="email">Email</label>
         <input id="email" name="email" type="email" required className="input" placeholder="you@example.com" />

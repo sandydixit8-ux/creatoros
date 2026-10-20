@@ -5,6 +5,7 @@ export type AdsConfig = {
   googleSignupLabel?: string;
   googlePurchaseLabel?: string;
   metaPixelId?: string;
+  gaMeasurementId?: string;
 };
 
 export function adsConfig(): AdsConfig {
@@ -13,12 +14,13 @@ export function adsConfig(): AdsConfig {
     googleSignupLabel: process.env.NEXT_PUBLIC_GOOGLE_ADS_SIGNUP_LABEL || undefined,
     googlePurchaseLabel: process.env.NEXT_PUBLIC_GOOGLE_ADS_PURCHASE_LABEL || undefined,
     metaPixelId: process.env.NEXT_PUBLIC_META_PIXEL_ID || undefined,
+    gaMeasurementId: process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || undefined,
   };
 }
 
 export function adsEnabled(): boolean {
   const c = adsConfig();
-  return Boolean(c.googleAdsId || c.metaPixelId);
+  return Boolean(c.googleAdsId || c.metaPixelId || c.gaMeasurementId);
 }
 
 type AdsWindow = Window & {
@@ -61,10 +63,24 @@ export function trackMetaEvent(event: string, params?: Record<string, unknown>, 
   return true;
 }
 
+/**
+ * GA4 event tracking. Sends a `gtag('event', …)` for the Analytics 4 stream
+ * (NEXT_PUBLIC_GA_MEASUREMENT_ID) so traffic and funnel events are visible in
+ * Google Analytics, independent of the Ads conversion import.
+ */
+export function trackGa4Event(event: string, params: Record<string, unknown> = {}): boolean {
+  if (!adsConfig().gaMeasurementId || !hasAnalyticsConsent()) return false;
+  const w = window as AdsWindow;
+  if (typeof w.gtag !== "function") return false;
+  w.gtag("event", event, params);
+  return true;
+}
+
 export function trackSignupConversion(): boolean {
   const a = trackGoogleAdsConversion(adsConfig().googleSignupLabel);
   const b = trackMetaEvent("CompleteRegistration");
-  return a || b;
+  const c = trackGa4Event("sign_up", { method: "email" });
+  return a || b || c;
 }
 
 export function trackPurchaseConversion(opts: ConversionValue): boolean {
@@ -74,5 +90,10 @@ export function trackPurchaseConversion(opts: ConversionValue): boolean {
     { value: opts.value, currency: opts.currency },
     opts.transactionId
   );
-  return a || b;
+  const c = trackGa4Event("purchase", {
+    value: opts.value,
+    currency: opts.currency,
+    transaction_id: opts.transactionId,
+  });
+  return a || b || c;
 }

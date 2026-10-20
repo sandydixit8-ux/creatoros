@@ -9,7 +9,7 @@ const SHELL_PAGES: Array<[string, string, string]> = [
   ["/app/leads", "Leads", ""],
   ["/app/bio", "Bio Pages", "Demo Page"],
   ["/app/booking", "Booking", ""],
-  ["/app/analytics", "Analytics", ""],
+  ["/app/analytics", "Traffic & click analytics", ""],
   ["/app/coach", "AI Coach", ""],
   ["/app/email", "Email", ""],
   ["/app/courses", "Courses", ""],

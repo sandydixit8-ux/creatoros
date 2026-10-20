@@ -17,8 +17,10 @@ type AdsWindow = Window & {
   _fbq?: unknown;
 };
 
-function loadGtag(id: string) {
+function loadGtag(gadsId?: string, ga4Id?: string) {
   const w = window as AdsWindow;
+  const primaryId = gadsId || ga4Id;
+  if (!primaryId) return;
   w.dataLayer = w.dataLayer || [];
   if (typeof w.gtag !== "function") {
     w.gtag = function gtag(...args: unknown[]) {
@@ -26,12 +28,13 @@ function loadGtag(id: string) {
     };
   }
   w.gtag("js", new Date());
-  w.gtag("config", id, { anonymize_ip: true });
+  if (gadsId) w.gtag("config", gadsId, { anonymize_ip: true });
+  if (ga4Id) w.gtag("config", ga4Id, { anonymize_ip: true });
   if (!document.getElementById("gtag-js")) {
     const s = document.createElement("script");
     s.id = "gtag-js";
     s.async = true;
-    s.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(id)}`;
+    s.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(primaryId)}`;
     document.head.appendChild(s);
   }
 }
@@ -64,13 +67,13 @@ function loadMetaPixel(id: string) {
 
 export function ThirdPartyTags() {
   const { analyticsAllowed } = useConsent();
-  const { googleAdsId, metaPixelId } = adsConfig();
+  const { googleAdsId, metaPixelId, gaMeasurementId } = adsConfig();
 
   useEffect(() => {
     if (!analyticsAllowed) return;
-    if (googleAdsId) loadGtag(googleAdsId);
+    if (googleAdsId || gaMeasurementId) loadGtag(googleAdsId, gaMeasurementId);
     if (metaPixelId) loadMetaPixel(metaPixelId);
-  }, [analyticsAllowed, googleAdsId, metaPixelId]);
+  }, [analyticsAllowed, googleAdsId, gaMeasurementId, metaPixelId]);
 
   return null;
 }
