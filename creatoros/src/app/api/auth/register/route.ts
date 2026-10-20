@@ -15,6 +15,18 @@ const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8).max(128),
   name: z.string().min(1).max(100),
+  utm: z
+    .object({
+      utm_source: z.string().max(256).optional(),
+      utm_medium: z.string().max(256).optional(),
+      utm_campaign: z.string().max(256).optional(),
+      utm_content: z.string().max(256).optional(),
+      utm_term: z.string().max(256).optional(),
+      gclid: z.string().max(256).optional(),
+      fbclid: z.string().max(256).optional(),
+    })
+    .partial()
+    .optional(),
 });
 
 function slugify(name: string): string {
@@ -40,7 +52,7 @@ export async function POST(req: NextRequest) {
   const parsed = registerSchema.safeParse(body);
   if (!parsed.success) return fail("Invalid signup data", 400, "validation");
 
-  const { email, password, name } = parsed.data;
+  const { email, password, name, utm } = parsed.data;
   const existing = row("SELECT id FROM users WHERE email = ?", email.toLowerCase());
   if (existing) return fail("An account with this email already exists", 409, "conflict");
 
@@ -131,17 +143,24 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Acquisition source, read off the query string so the landing page can carry
-    // utm tags through to signup. Recorded after commit so a funnel write can
-    // never roll back the account it is describing.
+    // Acquisition source. Prefer the first-party attribution cookie forwarded in
+    // the body (survives an in-app navigation), falling back to the query string
+    // so a direct landing link still carries utm tags through to signup. Recorded
+    // after commit so a funnel write can never roll back the account it describes.
+    const source =
+      utm?.utm_source || req.nextUrl.searchParams.get("utm_source") || "direct";
     recordFunnelEvent({
       step: "signup_completed",
       tenantId: user.orgId,
       userId: user.uid,
-      source: req.nextUrl.searchParams.get("utm_source") || "direct",
+      source,
       meta: {
-        utm_medium: req.nextUrl.searchParams.get("utm_medium") || "",
-        utm_campaign: req.nextUrl.searchParams.get("utm_campaign") || "",
+        utm_medium: utm?.utm_medium || req.nextUrl.searchParams.get("utm_medium") || "",
+        utm_campaign: utm?.utm_campaign || req.nextUrl.searchParams.get("utm_campaign") || "",
+        utm_content: utm?.utm_content || req.nextUrl.searchParams.get("utm_content") || "",
+        utm_term: utm?.utm_term || req.nextUrl.searchParams.get("utm_term") || "",
+        gclid: utm?.gclid || "",
+        fbclid: utm?.fbclid || "",
       },
     });
 

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { trackSignupConversion } from "@/lib/ads/pixels";
+import { readUtmCookie } from "@/lib/utm";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 
@@ -46,7 +47,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       const res = await fetch(`/api/auth/${mode}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ ...body, utm: readUtmCookie() }),
       });
       const json = await res.json();
       if (!json.ok) {

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
@@ -5,6 +6,7 @@ import { SITE_URL } from "@/lib/constants";
 import { PLAN_META } from "@/lib/plans-meta";
 import { ConsentBanner } from "@/components/consent/consent-banner";
 import { SiteViewBeacon } from "@/components/site/site-view-beacon";
+import { UtmCapture } from "@/components/site/utm-capture";
 import { ThirdPartyTags } from "@/components/analytics/third-party-tags";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "optional" });
@@ -119,6 +121,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ConsentBanner />
         {/* First-party marketing-site page views for the platform admin dashboard. */}
         <SiteViewBeacon />
+        {/* Captures utm_* / gclid / fbclid into a first-party cookie so the
+            campaign that brought a visitor survives into signup and purchase. */}
+        <Suspense fallback={null}>
+          <UtmCapture />
+        </Suspense>
         {/* Consent-gated ad tags (Google Ads / Meta pixel). No-ops until the
             visitor opts in to analytics and the IDs are configured. */}
         <ThirdPartyTags />

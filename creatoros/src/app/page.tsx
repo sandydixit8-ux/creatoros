@@ -141,10 +141,11 @@ export default function HomePage() {
                 Start for Free <ArrowRight className="h-4 w-4" aria-hidden />
               </Link>
               <Link
-                href="/#product"
+                href="/pricing"
                 className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-7 py-3 text-base font-medium text-ink transition-colors hover:bg-white/10"
               >
-                Explore the Platform
+                See Pricing
+                <ArrowRight className="h-4 w-4" aria-hidden />
               </Link>
             </div>
           </div>
