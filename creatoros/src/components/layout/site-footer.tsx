@@ -20,6 +20,10 @@ const PRODUCT_LINKS = [
   { href: "/pricing", label: "Pricing" },
   { href: "/all-in-one-creator-platform", label: "All-in-one platform" },
   { href: "/linktree-alternative", label: "Linktree alternative" },
+  { href: "/kajabi-alternative", label: "Kajabi alternative" },
+  { href: "/sell-digital-products", label: "Sell digital products" },
+  { href: "/creator-booking", label: "Bookings" },
+  { href: "/blog", label: "Blog" },
   { href: "/#faq", label: "FAQ" },
 ];
 
