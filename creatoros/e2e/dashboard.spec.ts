@@ -38,9 +38,9 @@ test.describe("dashboard shell", () => {
   test("settings profile form loads demo values and saves", async ({ page }) => {
     await login(page);
     await page.goto("/app/settings");
-    await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
-    await expect(page.locator('input[placeholder="yourname"]')).toHaveValue("democreator");
-    await expect(page.locator('input[value="Demo Creator"]')).toHaveValue("Demo Creator");
+    await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
+    await expect(page.locator("#profile-username")).toHaveValue("democreator");
+    await expect(page.locator("#profile-display-name")).toHaveValue("Demo Creator");
     await page.getByRole("button", { name: "Save profile" }).click();
     await expect(page.getByText("Profile saved. Check your public page.")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Export your data" })).toBeVisible();

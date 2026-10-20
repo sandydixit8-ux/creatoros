@@ -74,7 +74,7 @@ describe("analytics alerts", () => {
   it("evaluates gt and lt against a rolling window", () => {
     const rule = createAlertRule(TENANT, { name: "Views", metric: "page_views", comparator: "gt", threshold: 3, windowDays: 1, channel: "inapp" });
     if (!rule.ok) throw new Error("setup");
-    for (let i = 0; i < 4; i++) insertEvent("page_view", new Date().toISOString());
+    for (let i = 0; i < 4; i++) insertEvent("page_view", new Date(Date.now() - 60_000).toISOString());
     const ev = evaluateRule(rule.data);
     expect(ev.value).toBe(4);
     expect(ev.triggered).toBe(true);
@@ -100,7 +100,7 @@ describe("analytics alerts", () => {
   it("respects cooldown across repeated evaluation runs", async () => {
     const rule = createAlertRule(TENANT, { name: "Any", metric: "page_views", comparator: "gt", threshold: 0, windowDays: 1, channel: "inapp" });
     if (!rule.ok) throw new Error("setup");
-    insertEvent("page_view", new Date().toISOString());
+    insertEvent("page_view", new Date(Date.now() - 60_000).toISOString());
 
     const first = await evaluateAllAlerts(new Date());
     expect(first.fired).toBe(1);
@@ -114,7 +114,7 @@ describe("analytics alerts", () => {
     run("DELETE FROM memberships");
     const rule = createAlertRule(TENANT, { name: "Email", metric: "page_views", comparator: "gt", threshold: 0, windowDays: 1, channel: "email" });
     if (!rule.ok) throw new Error("setup");
-    insertEvent("page_view", new Date().toISOString());
+    insertEvent("page_view", new Date(Date.now() - 60_000).toISOString());
     const ev = evaluateRule(rule.data);
     const fired = await fireAlert(rule.data, ev);
     expect(fired.emailed).toBe(false);
@@ -145,7 +145,7 @@ describe("analytics alerts", () => {
       expect(upd.data.threshold).toBe(5);
     }
 
-    insertEvent("lead", new Date().toISOString());
+    insertEvent("lead", new Date(Date.now() - 60_000).toISOString());
     const reactivated = updateAlertRule(TENANT, rule.data.id, { active: true });
     if (!reactivated.ok) throw new Error("setup");
     await fireAlert(reactivated.data, evaluateRule(reactivated.data));

@@ -65,8 +65,9 @@ describe("reporting overview", () => {
   });
 
   it("compares against the previous equal-length window", () => {
-    const prev = previousRange(presetRange("7d"));
-    expect(Date.parse(prev.until)).toBe(Date.parse(presetRange("7d").since));
+    const range = presetRange("7d");
+    const prev = previousRange(range);
+    expect(Date.parse(prev.until)).toBe(Date.parse(range.since));
     const p = pair(10, 5);
     expect(p.changePct).toBe(100);
     expect(pair(10, 0).changePct).toBeNull();
