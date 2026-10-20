@@ -23,6 +23,8 @@ const PRODUCT_LINKS = [
   { href: "/kajabi-alternative", label: "Kajabi alternative" },
   { href: "/sell-digital-products", label: "Sell digital products" },
   { href: "/creator-booking", label: "Bookings" },
+  { href: "/podcast-monetization", label: "Podcast monetization" },
+  { href: "/coach-booking", label: "Coach booking" },
   { href: "/blog", label: "Blog" },
   { href: "/#faq", label: "FAQ" },
 ];

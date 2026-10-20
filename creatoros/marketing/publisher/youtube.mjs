@@ -480,14 +480,34 @@ async function channelVideos(token) {
 }
 
 async function setPrivacy(token, id, privacy) {
-  const res = await fetch("https://www.googleapis.com/youtube/v3/videos?part=status", {
-    method: "PUT",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ id, status: { privacyStatus: privacy, selfDeclaredMadeForKids: false } }),
-  });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`Update failed ${res.status}: ${json.error?.message || ""}`);
-  return json;
+  // A video that already carries a future `publishAt` cannot be promoted straight
+  // to public: YouTube treats a public status that still has a scheduling time as
+  // "make it public at that time" and leaves it private until then. It also
+  // rejects an explicit `publishAt: ""` / null as an invalid scheduled time, and
+  // omitting the field simply keeps the old value. The one path that clears the
+  // schedule is cycling through `unlisted`, after which `public` takes effect now.
+  const put = async (status) => {
+    const res = await fetch("https://www.googleapis.com/youtube/v3/videos?part=status", {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ id, status: { ...status, selfDeclaredMadeForKids: false } }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(`Update failed ${res.status}: ${json.error?.message || ""}`);
+    return json;
+  };
+
+  if (privacy === "public") {
+    const current = await fetch("https://www.googleapis.com/youtube/v3/videos?part=status&id=" + id, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .catch(() => ({}));
+    if (current.items?.[0]?.status?.publishAt) {
+      await put({ privacyStatus: "unlisted" });
+    }
+  }
+  return put({ privacyStatus: privacy });
 }
 
 async function setSchedule(token, id, publishAt) {

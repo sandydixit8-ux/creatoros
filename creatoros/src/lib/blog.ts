@@ -159,6 +159,193 @@ export const BLOG_POSTS: BlogPost[] = [
       },
     ],
   },
+  {
+    slug: "how-to-monetize-a-podcast",
+    title: "How to monetize a podcast without waiting for a sponsor",
+    description:
+      "Sponsors are one income stream, not the only one. Here is how podcasters turn listeners into buyers with memberships, products, bookings and a list they own.",
+    date: "2026-10-26",
+    readingMinutes: 6,
+    tag: "Monetization",
+    related: "/podcast-monetization",
+    sections: [
+      {
+        paragraphs: [
+          "Most podcasters chase sponsors first and wait months for a deal that pays less than they hoped. The faster path is to sell something directly to the listeners you already have.",
+          "Your audience is warmed up by your voice every episode. That trust converts far better than a cold ad — you just need somewhere to send them.",
+        ],
+      },
+      {
+        heading: "The income streams that do not need a sponsor",
+        paragraphs: [],
+        bullets: [
+          "A membership or paid bonus feed for superfans",
+          "Digital products: transcripts, guides, presets, templates",
+          "A course built from your best episodes",
+          "Paid booking for coaching or consulting calls",
+          "Affiliate links for the gear and tools you already mention",
+        ],
+      },
+      {
+        heading: "Give every episode a destination",
+        paragraphs: [
+          "A shout-out with no link is a dead end. Send listeners to one page where they can subscribe, buy, book or join your list — and say it out loud in the episode and in the show notes.",
+          "That single destination should carry your brand, not a marketplace that keeps the customer relationship for itself.",
+        ],
+      },
+      {
+        heading: "Own the list, not just the feed",
+        paragraphs: [
+          "Algorithms and platforms change; your email list does not. Offer a free download or bonus episode in exchange for an email, then sell to that list when you launch.",
+        ],
+      },
+      {
+        heading: "Measure what pays",
+        paragraphs: [
+          "Track which episode, which link and which call to action actually produced revenue. Double down on the format that converts instead of guessing.",
+        ],
+      },
+    ],
+  },
+  {
+    slug: "how-to-take-bookings-as-a-coach",
+    title: "How to take bookings as a coach or consultant",
+    description:
+      "A simple system for coaches to show availability, take paid bookings and follow up — without juggling a scheduler, a payment link and a spreadsheet.",
+    date: "2026-10-28",
+    readingMinutes: 5,
+    tag: "Services",
+    related: "/coach-booking",
+    sections: [
+      {
+        paragraphs: [
+          "Coaches lose bookings in the gap between wanting a session and paying for one. Every extra step — a form, a separate payment link, a back-and-forth email — is a place a client drops off.",
+          "The fix is to make booking and paying the same action, on a page that already has your credibility on it.",
+        ],
+      },
+      {
+        heading: "What a booking flow needs",
+        paragraphs: [],
+        bullets: [
+          "Your availability, shown honestly and in the client's time zone",
+          "Payment taken at the moment of booking, not after",
+          "A confirmation and reminder that sends itself",
+          "A record of who booked, what they paid and what is next",
+        ],
+      },
+      {
+        heading: "Put bookings next to everything else",
+        paragraphs: [
+          "Clients often discover you through a product, a podcast or social, then decide to book. If booking lives on a separate tool, you split that journey in two.",
+          "Keep your bio page, products and bookings together so a follower can move from free to paid without leaving your brand.",
+        ],
+      },
+      {
+        heading: "Reduce no-shows",
+        paragraphs: [
+          "Taking payment up front, sending a reminder and asking for a short intake note all raise show-up rates. A paid booking is a committed booking.",
+        ],
+      },
+      {
+        heading: "Turn one session into a relationship",
+        paragraphs: [
+          "After the call, invite the client onto your email list and point them to the next step — a package, a course or a recurring slot. Bookings are the start of revenue, not the end.",
+        ],
+      },
+    ],
+  },
+  {
+    slug: "build-an-email-list-you-own",
+    title: "How to build an email list you actually own",
+    description:
+      "Social followers are rented; an email list is owned. Here is how creators capture leads from their bio page, store and bookings — and keep them in one place.",
+    date: "2026-10-30",
+    readingMinutes: 5,
+    tag: "Audience",
+    related: "/linktree-alternative",
+    sections: [
+      {
+        paragraphs: [
+          "A follower on a social platform can disappear with a policy change or a bad month in the algorithm. An email list is the one audience asset you control.",
+          "The good news is you do not need a separate email tool bolted onto three others — you need to capture the emails your audience already wants to give you.",
+        ],
+      },
+      {
+        heading: "Give people a reason to subscribe",
+        paragraphs: [],
+        bullets: [
+          "A lead magnet: a checklist, a template, a mini-guide",
+          "Early access to a product or a new episode",
+          "A discount on their first purchase",
+          "A heads-up when bookings open",
+        ],
+      },
+      {
+        heading: "Capture everywhere your audience is",
+        paragraphs: [
+          "Your bio page, your store checkout and your booking form are all natural points to grow the list. Someone who already bought or booked is the warmest subscriber you will ever get.",
+          "Collect them into one list rather than scattering contacts across a store tool, a scheduler and a form builder.",
+        ],
+      },
+      {
+        heading: "One list beats five exports",
+        paragraphs: [
+          "When your store, courses, bookings and email share one login, every new buyer and booker joins the same audience. That is what makes the next launch easier than the last.",
+        ],
+      },
+      {
+        heading: "Respect the inbox",
+        paragraphs: [
+          "Send useful, infrequent emails. A small list that trusts you will out-earn a big list that ignores you every time.",
+        ],
+      },
+    ],
+  },
+  {
+    slug: "how-to-price-a-digital-product",
+    title: "How to price your first digital product",
+    description:
+      "Pricing a digital product feels like guesswork. Here is a simple framework for setting, testing and raising prices as a creator without leaving money on the table.",
+    date: "2026-11-01",
+    readingMinutes: 5,
+    tag: "Monetization",
+    related: "/sell-digital-products",
+    sections: [
+      {
+        paragraphs: [
+          "The most common pricing mistake is not charging too much — it is charging too little and never testing. A price you can change is a hypothesis; a price you never touch is a guess.",
+          "Here is how to set a first price, then let real buyers tell you what to do next.",
+        ],
+      },
+      {
+        heading: "Start from the outcome, not the effort",
+        paragraphs: [
+          "Buyers pay for a result, not for how long you spent making the file. A one-page template that saves a freelancer five hours is worth more than a 40-page ebook that saves them nothing.",
+        ],
+      },
+      {
+        heading: "Use tiers when you can",
+        paragraphs: [],
+        bullets: [
+          "Entry price: removes hesitation, gets you testimonials",
+          "Standard price: your main offer once proof exists",
+          "Premium price: adds coaching, a template pack or a community",
+        ],
+      },
+      {
+        heading: "Test in steps, not leaps",
+        paragraphs: [
+          "Raise the price by a modest amount and watch conversion. If sales hold, raise again. If they collapse, you found your ceiling — and you still learned something useful.",
+        ],
+      },
+      {
+        heading: "Watch which channel converts",
+        paragraphs: [
+          "The same product can sell at different rates from a podcast, an email and social. First-party analytics tell you where a price works and where the audience is simply wrong for it.",
+        ],
+      },
+    ],
+  },
 ];
 
 export function getPost(slug: string): BlogPost | undefined {

@@ -1,7 +1,7 @@
 export const LEGAL_INFO = {
-  entityName: "[Registered legal entity name]",
-  companyNumber: "[Company registration number]",
-  address: "[Registered business address]",
+  entityName: "Ridhyansh Tech Infra Private Limited",
+  companyNumber: "U70200MP2025PTC076279",
+  address: "Indore, Madhya Pradesh, India",
   governingLaw: "England and Wales",
   supportEmail: "support@usecreatoros.co",
   privacyEmail: "privacy@usecreatoros.co",
