@@ -272,11 +272,62 @@ function tagsFrom(hashtags) {
     .filter(Boolean);
 }
 
+// YouTube search is keyword-driven, so tags lean on what US/UK creators actually
+// type ("link in bio", "sell digital products", "creator tools"), not just the
+// brand's own hook words.
 function buildTags(hashtags) {
-  const base = ["shorts", "creatoros", "linkinbio", "creatortools", "creatoreconomy"];
+  const base = [
+    "shorts",
+    "creatoros",
+    "link in bio",
+    "linkinbio",
+    "creator tools",
+    "creatortools",
+    "creator economy",
+    "creatoreconomy",
+    "how to sell digital products",
+    "sell digital products",
+    "content creator tips",
+    "creator business",
+    "all in one creator platform",
+    "make money as a creator",
+    "online business tools",
+  ];
   return [...new Set([...tagsFrom(hashtags), ...base])]
     .map((t) => t.slice(0, 30))
     .slice(0, 15);
+}
+
+// A brand suffix on the title keeps the hook readable while adding the one
+// keyword a US/UK viewer is most likely to search.
+function buildTitle(hook) {
+  const clean = String(hook || "").replace(/\s+/g, " ").trim();
+  return `${clean} | CreatorOS`.slice(0, 100);
+}
+
+// Description leads with the hook, adds a searchable keyword line, then the
+// caption, a clear CTA and the campaign link. Hashtags help Shorts discovery.
+function buildDescription(row, link) {
+  const caption = String(row.caption || "").replace(/\s+/g, " ").trim();
+  const hook = String(row.hook || "").trim();
+  const keywords = "CreatorOS is the all-in-one creator platform for bio pages, digital products, courses, bookings, email and analytics.";
+  return [
+    hook,
+    "",
+    keywords,
+    "",
+    caption,
+    "",
+    `Start free — no card required: ${link}`,
+  ]
+    .filter((line) => line !== undefined)
+    .join("\n")
+    .slice(0, 5000);
+}
+
+function campaignLink(market) {
+  const content = (market || "").toLowerCase() === "uk" ? "uk" : "us";
+  return `https://usecreatoros.co/?utm_source=youtube&utm_medium=social&utm_campaign=launch_us_uk&utm_content=${content}`;
 }
 
 /** RFC3339 timestamp in the machine's local timezone, e.g. 2026-10-16T09:00:00+05:30.
@@ -372,8 +423,8 @@ async function cmdUpload() {
       continue;
     }
     const created = await uploadVideo(token, file, {
-      title: r.hook,
-      description: r.caption,
+      title: buildTitle(r.hook),
+      description: buildDescription(r, campaignLink(r.market)),
       tags: buildTags(r.caption),
       privacy,
       publishAt,
@@ -448,6 +499,60 @@ async function setSchedule(token, id, publishAt) {
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(`Schedule failed ${res.status}: ${json.error?.message || ""}`);
   return json;
+}
+
+/** Replace a video's snippet (title, description, tags) without re-uploading. */
+async function setSnippet(token, id, { title, description, tags, lang }) {
+  const res = await fetch("https://www.googleapis.com/youtube/v3/videos?part=snippet", {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      id,
+      snippet: {
+        title: title.slice(0, 100),
+        description,
+        tags,
+        categoryId: "22",
+        ...(lang && lang !== "none" ? { defaultLanguage: lang, defaultAudioLanguage: lang } : {}),
+      },
+    }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`Snippet update failed ${res.status}: ${json.error?.message || ""}`);
+  return json;
+}
+
+/**
+ * Refresh title/description/tags on videos ALREADY on the channel so the new
+ * search-optimised metadata reaches existing Shorts too. Matches calendar rows
+ * to channel videos by normalised title (with or without the brand suffix).
+ */
+async function cmdUpdate() {
+  requireClient();
+  const token = await accessToken();
+  const rows = parseCsv(readFileSync(calendarFile, "utf8")).filter((r) => r.platform === YOUTUBE_PLATFORM);
+  const { videos } = await channelVideos(token);
+  const byTitle = new Map((videos || []).map((v) => [normTitle(v.snippet.title), v]));
+  const dry = has("dry");
+  const lang = valueOf("lang") || "en";
+
+  console.log(`${dry ? "[dry] " : ""}Updating metadata for ${rows.length} calendar slot(s):\n`);
+  for (const r of rows) {
+    const v = byTitle.get(normTitle(r.hook)) || byTitle.get(normTitle(buildTitle(r.hook)));
+    if (!v) {
+      console.log(`  [skip] no channel video matches "${r.hook}"`);
+      continue;
+    }
+    const title = buildTitle(r.hook);
+    const description = buildDescription(r, campaignLink(r.market));
+    const tags = buildTags(r.caption);
+    if (dry) {
+      console.log(`  would update ${v.id}  title="${title}"`);
+      continue;
+    }
+    await setSnippet(token, v.id, { title, description, tags, lang });
+    console.log(`  updated ${v.id}  title="${title}"  (${v.status?.privacyStatus})`);
+  }
 }
 
 const normTitle = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -684,6 +789,7 @@ async function main() {
   if (command === "stats") return cmdStats();
   if (command === "monitor") return cmdMonitor();
   if (command === "backfill-lang") return cmdBackfillLang();
+  if (command === "update") return cmdUpdate();
   if (command === "test") return cmdTest();
   console.error("Unknown command: " + command);
   process.exit(1);
