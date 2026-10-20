@@ -17,7 +17,9 @@ export const LEGAL_LINKS = [
 const PRODUCT_LINKS = [
   { href: "/#features", label: "Features" },
   { href: "/#product", label: "Product" },
-  { href: "/#pricing", label: "Pricing" },
+  { href: "/pricing", label: "Pricing" },
+  { href: "/all-in-one-creator-platform", label: "All-in-one platform" },
+  { href: "/linktree-alternative", label: "Linktree alternative" },
   { href: "/#faq", label: "FAQ" },
 ];
 
