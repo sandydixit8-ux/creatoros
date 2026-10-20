@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { Facebook, Youtube } from "lucide-react";
+import { Facebook, Youtube, Linkedin } from "lucide-react";
 
 export const SOCIALS = [
   { href: "https://www.facebook.com/1299369053270317", label: "Facebook", icon: Facebook },
   { href: "https://www.youtube.com/channel/UCmOSwrdJWBbO3ILEZU0Jj1Q", label: "YouTube", icon: Youtube },
+  { href: "https://www.linkedin.com/company/creatoros-os", label: "LinkedIn", icon: Linkedin },
 ];
 
 export const LEGAL_LINKS = [
@@ -62,9 +63,9 @@ export function SiteFooter() {
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label={`CreatorOS on ${s.label}`}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-ink-secondary transition-colors hover:bg-white/10 hover:text-ink"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-gradient-to-b from-white/15 to-white/5 text-ink-secondary shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_2px_4px_rgba(0,0,0,0.45)] transition-all duration-200 hover:-translate-y-0.5 hover:from-white/25 hover:to-white/10 hover:text-ink hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_6px_12px_rgba(0,0,0,0.55)] active:translate-y-0 active:shadow-[inset_0_2px_4px_rgba(0,0,0,0.5)]"
                   >
-                    <s.icon className="h-4 w-4" aria-hidden />
+                    <s.icon className="h-4 w-4 drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]" aria-hidden />
                   </a>
                 </li>
               ))}
