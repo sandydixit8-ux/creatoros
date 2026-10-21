@@ -6,6 +6,7 @@ export type AdsConfig = {
   googlePurchaseLabel?: string;
   metaPixelId?: string;
   gaMeasurementId?: string;
+  clarityProjectId?: string;
 };
 
 export function adsConfig(): AdsConfig {
@@ -15,12 +16,13 @@ export function adsConfig(): AdsConfig {
     googlePurchaseLabel: process.env.NEXT_PUBLIC_GOOGLE_ADS_PURCHASE_LABEL || undefined,
     metaPixelId: process.env.NEXT_PUBLIC_META_PIXEL_ID || undefined,
     gaMeasurementId: process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || undefined,
+    clarityProjectId: process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID || undefined,
   };
 }
 
 export function adsEnabled(): boolean {
   const c = adsConfig();
-  return Boolean(c.googleAdsId || c.metaPixelId || c.gaMeasurementId);
+  return Boolean(c.googleAdsId || c.metaPixelId || c.gaMeasurementId || c.clarityProjectId);
 }
 
 type AdsWindow = Window & {

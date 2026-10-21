@@ -15,6 +15,7 @@ type AdsWindow = Window & {
     version: string;
   };
   _fbq?: unknown;
+  clarity?: ((...args: unknown[]) => void) & { q?: unknown[] };
 };
 
 function loadGtag(gadsId?: string, ga4Id?: string) {
@@ -65,15 +66,34 @@ function loadMetaPixel(id: string) {
   w.fbq("track", "PageView");
 }
 
+function loadClarity(projectId: string) {
+  const w = window as AdsWindow;
+  if (!w.clarity) {
+    const clarity = function (...args: unknown[]) {
+      const c = clarity as unknown as { q?: unknown[] };
+      (c.q = c.q || []).push(args);
+    } as unknown as NonNullable<AdsWindow["clarity"]>;
+    w.clarity = clarity;
+  }
+  if (!document.getElementById("clarity-js")) {
+    const s = document.createElement("script");
+    s.id = "clarity-js";
+    s.async = true;
+    s.src = `https://www.clarity.ms/tag/${encodeURIComponent(projectId)}`;
+    document.head.appendChild(s);
+  }
+}
+
 export function ThirdPartyTags() {
   const { analyticsAllowed } = useConsent();
-  const { googleAdsId, metaPixelId, gaMeasurementId } = adsConfig();
+  const { googleAdsId, metaPixelId, gaMeasurementId, clarityProjectId } = adsConfig();
 
   useEffect(() => {
     if (!analyticsAllowed) return;
     if (googleAdsId || gaMeasurementId) loadGtag(googleAdsId, gaMeasurementId);
     if (metaPixelId) loadMetaPixel(metaPixelId);
-  }, [analyticsAllowed, googleAdsId, gaMeasurementId, metaPixelId]);
+    if (clarityProjectId) loadClarity(clarityProjectId);
+  }, [analyticsAllowed, googleAdsId, gaMeasurementId, metaPixelId, clarityProjectId]);
 
   return null;
 }

@@ -11,12 +11,12 @@ const CSP = [
   // scriptable; Cloudflare auto-injects its RUM beacon at
   // static.cloudflareinsights.com. Both were blocked, which left the buy button
   // hanging on the SDK's "Redirecting…" state.
-  `script-src 'self' 'unsafe-inline' https://sdk.cashfree.com https://static.cloudflareinsights.com${isProd ? "" : " 'unsafe-eval'"}`,
+  `script-src 'self' 'unsafe-inline' https://sdk.cashfree.com https://static.cloudflareinsights.com https://www.googletagmanager.com https://www.google-analytics.com https://www.clarity.ms https://*.clarity.ms${isProd ? "" : " 'unsafe-eval'"}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https: http:",
   "media-src 'self' data: blob: https: http:",
   "frame-src 'self' https: http:",
-  "connect-src 'self' https://api.stripe.com https://js.stripe.com https://checkout.stripe.com https://sdk.cashfree.com https://api.cashfree.com ws: wss:",
+  "connect-src 'self' https://api.stripe.com https://js.stripe.com https://checkout.stripe.com https://sdk.cashfree.com https://api.cashfree.com https://www.googletagmanager.com https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://*.clarity.ms https://c.bing.com ws: wss:",
   "font-src 'self' data:",
   "object-src 'none'",
   "base-uri 'self'",

@@ -47,3 +47,6 @@ publish/
 /toolpilotpro/
 /youtube-automation-agent/
 /ridhyansh/
+
+# Playwright MCP artifacts
+/.playwright-mcp/
