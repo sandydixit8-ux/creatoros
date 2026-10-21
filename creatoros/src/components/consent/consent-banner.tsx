@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useConsent } from "@/lib/use-consent";
 
@@ -26,16 +26,39 @@ export function ConsentBanner() {
   // Held locally until "Save preferences" so that toggling the checkbox does not
   // persist mid-interaction and dismiss the banner.
   const [draft, setDraft] = useState(false);
+  const barRef = useRef<HTMLElement | null>(null);
+
+  const visible = ready && record === null;
+
+  // The bar is fixed to the viewport bottom so it cannot shift the page (CLS).
+  // Reserve matching space at the end of the body while it is shown, otherwise
+  // it covers whatever real control happens to sit at the bottom of the screen.
+  useEffect(() => {
+    if (!visible) return;
+    const el = barRef.current;
+    if (!el) return;
+    const apply = () => {
+      document.body.style.paddingBottom = `${el.offsetHeight}px`;
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      document.body.style.paddingBottom = "";
+    };
+  }, [visible]);
 
   // `ready` false means we have not read storage yet; showing the banner then
   // would flash it at visitors who already decided.
-  if (!ready || record !== null) return null;
+  if (!visible) return null;
 
   return (
     <section
+      ref={barRef}
       aria-label="Cookie preferences"
       data-testid="consent-banner"
-      className="border-b border-navy-100 bg-navy-50"
+      className="fixed inset-x-0 bottom-0 z-50 border-t border-navy-100 bg-navy-50 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]"
     >
       <div className="mx-auto max-w-6xl px-4 py-3 sm:px-6">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">

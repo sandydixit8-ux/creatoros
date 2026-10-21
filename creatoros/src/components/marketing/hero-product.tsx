@@ -82,7 +82,7 @@ export function HeroProduct() {
   return (
     <div
       ref={frame}
-      className="relative"
+      className="relative min-h-[420px] sm:min-h-[460px]"
       style={{ perspective: 1400 }}
       onPointerMove={handleMove}
       onPointerLeave={handleLeave}

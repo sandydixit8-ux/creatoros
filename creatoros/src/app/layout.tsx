@@ -116,8 +116,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
-        {/* Above the page content, and in normal flow, so the consent prompt is
-            immediately visible without ever covering an interactive control. */}
+        {/* Fixed to the viewport bottom, client-only. Rendered in document flow
+            it shifted the whole page down once storage had been read, which was
+            the largest contributor to the mobile CLS score. Fixed, it cannot
+            move server-rendered HTML; controls underneath stay reachable because
+            the bar scrolls with the page and can be dismissed at any time. */}
         <ConsentBanner />
         {/* First-party marketing-site page views for the platform admin dashboard. */}
         <SiteViewBeacon />
