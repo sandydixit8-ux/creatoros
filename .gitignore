@@ -50,3 +50,7 @@ publish/
 
 # Playwright MCP artifacts
 /.playwright-mcp/
+
+# Deploy tarballs
+creatoros/creatoros-*.tar.gz
+creatoros/*.tar.gz

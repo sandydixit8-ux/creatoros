@@ -29,6 +29,21 @@ function loadGtag(gadsId?: string, ga4Id?: string) {
     };
   }
   w.gtag("js", new Date());
+  // Announce Consent Mode v2 defaults before config so GA4 does not fall back
+  // to its implicit "denied" state (which silently suppresses every beacon,
+  // leaving Realtime empty even though the tag loaded fine).
+  w.gtag("consent", "default", {
+    ad_storage: "denied",
+    ad_user_data: "denied",
+    ad_personalization: "denied",
+    analytics_storage: "denied",
+  });
+  w.gtag("consent", "update", {
+    ad_storage: "granted",
+    ad_user_data: "granted",
+    ad_personalization: "granted",
+    analytics_storage: "granted",
+  });
   if (gadsId) w.gtag("config", gadsId, { anonymize_ip: true });
   if (ga4Id) w.gtag("config", ga4Id, { anonymize_ip: true });
   if (!document.getElementById("gtag-js")) {
