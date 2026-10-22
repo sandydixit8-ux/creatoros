@@ -16,7 +16,10 @@ const CSP = [
   "img-src 'self' data: blob: https: http:",
   "media-src 'self' data: blob: https: http:",
   "frame-src 'self' https: http:",
-  "connect-src 'self' https://api.stripe.com https://js.stripe.com https://checkout.stripe.com https://sdk.cashfree.com https://api.cashfree.com https://www.googletagmanager.com https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://*.clarity.ms https://c.bing.com ws: wss:",
+  // GA4 beacons go to analytics.google.com / www.google.com / stats.g.doubleclick.net.
+  // A `*.analytics.google.com` wildcard does NOT match the apex host, so the
+  // collect requests were blocked and Realtime stayed empty.
+  "connect-src 'self' https://api.stripe.com https://js.stripe.com https://checkout.stripe.com https://sdk.cashfree.com https://api.cashfree.com https://www.googletagmanager.com https://www.google-analytics.com https://*.google-analytics.com https://analytics.google.com https://*.analytics.google.com https://www.google.com https://stats.g.doubleclick.net https://*.doubleclick.net https://*.clarity.ms https://c.bing.com ws: wss:",
   "font-src 'self' data:",
   "object-src 'none'",
   "base-uri 'self'",
