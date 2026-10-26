@@ -58,9 +58,12 @@ app7.tar.gz
 # marketing content factory generated assets (regenerate with marketing/factory/generate.mjs)
 /marketing/factory/out/
 
+# shorts render output (frames and mp4 are regenerable with marketing/shorts/record.mjs)
+/marketing/shorts/build/
+
 # marketing publisher secrets (never commit)
 /marketing/publisher/.env
-/marketing/publisher/.youtube-token.json
+/marketing/publisher/.youtube-token*.json
 /marketing/publisher/.uploads.json
 /marketing/publisher/.stats-history.jsonl
 /marketing/publisher/.monitor.log

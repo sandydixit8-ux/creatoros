@@ -125,6 +125,11 @@ async function cmdAuth() {
   url.searchParams.set("scope", SCOPES.join(" "));
   url.searchParams.set("access_type", "offline");
   url.searchParams.set("prompt", "select_account consent");
+  // A Google account can own several channels (a personal one plus brand
+  // channels). The chooser defaults to the personal channel and brand channels
+  // are only picked by hand, so pin the account when it is known.
+  const loginHint = valueOf("login-hint") || ENV.YOUTUBE_LOGIN_HINT;
+  if (loginHint) url.searchParams.set("login_hint", loginHint);
 
   console.log("Opening Google consent in your browser. If it does not open, visit:\n\n" + url.toString() + "\n");
 
@@ -167,6 +172,29 @@ async function cmdAuth() {
     scope: token.scope,
   });
   console.log("Saved credentials to " + path.relative(process.cwd(), tokenFile));
+
+  // Google's account chooser lists Google accounts; a brand channel has to be
+  // selected explicitly. That mismatch is silent, and every subsequent upload
+  // lands on the personal channel, so verify and say so loudly.
+  const expected = ENV.YOUTUBE_CHANNEL_ID || valueOf("channel");
+  try {
+    const res = await fetch("https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true", {
+      headers: { Authorization: "Bearer " + token.access_token },
+    });
+    const json = await res.json().catch(() => ({}));
+    const item = json.items?.[0];
+    if (item) {
+      console.log(`Connected channel: ${item.snippet?.title} (${item.id})`);
+      if (expected && item.id !== expected) {
+        console.error(`\nWARNING: wrong channel. Expected ${expected}, authorised ${item.snippet?.title} (${item.id}).`);
+        console.error("Every upload would go to that channel. Re-run auth and pick the brand channel,");
+        console.error("or set YOUTUBE_LOGIN_HINT to the Google account that owns the intended one.");
+      }
+    }
+  } catch (e) {
+    console.error("Could not verify the connected channel:", e instanceof Error ? e.message : e);
+  }
+
   console.log("Verify with: node marketing/publisher/youtube.mjs whoami");
 }
 
