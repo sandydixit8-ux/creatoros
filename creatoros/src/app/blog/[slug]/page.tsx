@@ -101,6 +101,21 @@ export default async function BlogPostPage({ params }: Props) {
                   ))}
                 </ul>
               )}
+              {section.links && (
+                <ul className="mt-4 space-y-2.5">
+                  {section.links.map((link) => (
+                    <li key={link.href}>
+                      <Link
+                        href={link.href}
+                        className="inline-flex items-center gap-2 rounded-lg text-brand-300 underline-offset-4 transition-colors hover:text-brand-200 hover:underline"
+                      >
+                        {link.label}
+                        <ArrowRight className="h-4 w-4 shrink-0" aria-hidden />
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </section>
           ))}
         </article>
