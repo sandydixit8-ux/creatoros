@@ -70,17 +70,38 @@ stale build).
    ```
    tar -czf ~/app-pre-redesign-20261011.tar.gz -C /home/ubuntu app
    ```
-3. Upload the archive: `scp creatoros-new.tar.gz ubuntu@130.210.7.48:~/`
+3. Upload the archive with the **legacy** SCP protocol (`-O`): this box has no SFTP subsystem,
+   and OpenSSH 9+ makes plain `scp` use SFTP, which fails with
+   `client_loop: send disconnect: Connection reset`.
+   ```
+   scp -O creatoros-new.tar.gz ubuntu@130.210.7.48:creatoros-new.tar.gz
+   ```
 4. Verify the upload on the box: `sha256sum ~/creatoros-new.tar.gz` — must equal
    `4AF605459347212D60464EB53DFA32A53E55F5D646EE1144C09F6F1244CDBE95`.
 5. Run the box's deploy script with the archive as `$1` (it validates the archive, unpacks,
    restarts the service, and prints sha256 + BUILD_ID):
    ```
-   ~/deploy.sh ~/creatoros-new.tar.gz
+   sudo /home/ubuntu/deploy.sh /home/ubuntu/creatoros-new.tar.gz
    ```
    If the service is managed outside `deploy.sh`, confirm the unit name before restarting —
    the repo does not record the systemd unit; discover with `systemctl list-units | rg -i creatoros`
    or `pm2 ls`, then `sudo systemctl restart <unit>` / `pm2 restart creatoros`.
+
+### 3a. Gotchas verified on this box (26 Oct 2026)
+
+- **`deploy.sh` must run as root.** `/home/ubuntu/app/.env` is `root:root 0600`, so the
+  script's `cp .env /tmp/env.bak` fails for the `ubuntu` user and the run aborts at
+  "save env" - before it touches `app/`, so nothing breaks, but nothing deploys either.
+  The service itself runs as `ubuntu`; root is only needed for the script.
+- **Pass the archive by absolute path under sudo.** `~/` in the argument is expanded by
+  the shell that invokes `deploy.sh` (as root), not your login shell, so
+  `sudo ~/deploy.sh ~/archive.tar.gz` looks for `/root/archive.tar.gz` and exits
+  "archive not found".
+- **Snapshotting the app dir needs `--exclude='app/.env'`.** `/home/ubuntu/app` is
+  `root:root 0777` and `.env` is `root:root 0600`, so `tar -czf ... -C /home/ubuntu app`
+  as `ubuntu` dies partway with `Cannot open: Permission denied`. The env is preserved by
+  `deploy.sh` anyway; for an out-of-band restore point take
+  `sudo cp /home/ubuntu/app/.env ~/env-backup-<date>` and `sudo chown ubuntu: ~/env-backup-<date>`.
 
 ## 4. Post-deploy verification (mandatory, never skip)
 
@@ -138,3 +159,12 @@ If a probe fails, do not leave the old build half-replaced — see `docs/ROLLBAC
   the Facebook page-id fix + footer link. Built after clearing a corrupt Turbopack cache
   (`.next/cache` checksum panic). Deployed via `~/deploy.sh`; health ok, BUILD_ID live, canonical
   + footer social link probes green.
+- **UK blog release (26 Oct 2026):** archive SHA256
+  `18BA639A10C7C3BCFC1E7BDFB1BF83828D3DFBB1186B077680C68B09557DE577`, BUILD_ID
+  `ITpi1O1m2DDF49-y8axHc`. Four UK commercial-intent posts (Etsy fees, Etsy alternative,
+  Payhip vs Gumroad fees, UK selling guide) plus `next` 16.4.3 / `zod` 4.6.7. No migrations.
+  Deployed with `sudo /home/ubuntu/deploy.sh` (see 3a); DB snapshot
+  `creatoros.db.snapshot-2026-10-26T09-53-48`, app snapshot `~/app-pre-20261026.tar.gz`,
+  env backup `~/env-backup-20261026`. Health ok, BUILD_ID live, all four post URLs 200 with
+  correct canonicals, sitemap lists 13 blog URLs. Live DB at snapshot time: contacts=2,
+  orders=0 - checkout is provisioned but has never taken an order.
