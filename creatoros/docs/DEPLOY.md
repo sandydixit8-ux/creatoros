@@ -168,3 +168,9 @@ If a probe fails, do not leave the old build half-replaced — see `docs/ROLLBAC
   env backup `~/env-backup-20261026`. Health ok, BUILD_ID live, all four post URLs 200 with
   correct canonicals, sitemap lists 13 blog URLs. Live DB at snapshot time: contacts=2,
   orders=0 - checkout is provisioned but has never taken an order.
+- **Sitemap date fix (26 Oct 2026, follow-up):** BUILD_ID `FIxzCONvb19s-zMG8UnmD`, sha256
+  `1BB862C8F3D9AF8EDF29F4A8E233BFBA053598911E0913435141F828E7A61FAA`. Nine of the thirteen
+  posts were future-dated (28 Oct - 7 Nov), so `/sitemap.xml` advertised `lastmod` values
+  ahead of the crawl date. Re-dated every post to 16-26 Oct, keeping newest-first order.
+  Sitemap now has zero future `lastmod`. App snapshot `~/app-pre-20261026b.tar.gz`, DB
+  snapshot `creatoros.db.snapshot-2026-10-26T12-48-20`.

@@ -225,7 +225,7 @@ export const BLOG_POSTS: BlogPost[] = [
     title: "How to take bookings as a coach or consultant",
     description:
       "A simple system for coaches to show availability, take paid bookings and follow up — without juggling a scheduler, a payment link and a spreadsheet.",
-    date: "2026-10-28",
+    date: "2026-10-16",
     readingMinutes: 5,
     tag: "Services",
     related: "/coach-booking",
@@ -272,7 +272,7 @@ export const BLOG_POSTS: BlogPost[] = [
     title: "How to build an email list you actually own",
     description:
       "Social followers are rented; an email list is owned. Here is how creators capture leads from their bio page, store and bookings — and keep them in one place.",
-    date: "2026-10-30",
+    date: "2026-10-17",
     readingMinutes: 5,
     tag: "Audience",
     related: "/linktree-alternative",
@@ -319,7 +319,7 @@ export const BLOG_POSTS: BlogPost[] = [
     title: "How to price your first digital product",
     description:
       "Pricing a digital product feels like guesswork. Here is a simple framework for setting, testing and raising prices as a creator without leaving money on the table.",
-    date: "2026-11-01",
+    date: "2026-10-18",
     readingMinutes: 5,
     tag: "Monetization",
     related: "/sell-digital-products",
@@ -364,7 +364,7 @@ export const BLOG_POSTS: BlogPost[] = [
     title: "Best Platforms to Sell Digital Products in the UK (2026)",
     description:
       "Comparing the best platforms for UK creators to sell digital products in 2026. Fees, features, pros & cons, and which one is right for you.",
-    date: "2026-11-02",
+    date: "2026-10-19",
     readingMinutes: 8,
     tag: "Monetization",
     related: "/sell-digital-products",
@@ -443,7 +443,7 @@ export const BLOG_POSTS: BlogPost[] = [
     title: "Payhip vs Gumroad vs Beacons vs CreatorOS: Which is Best for UK Creators?",
     description:
       "Direct comparison of Payhip, Gumroad, Beacons and CreatorOS for UK creators selling digital products. Fees, ownership, features, and which one wins.",
-    date: "2026-11-03",
+    date: "2026-10-23",
     readingMinutes: 7,
     tag: "Tools",
     related: "/all-in-one-creator-platform",
@@ -507,7 +507,7 @@ export const BLOG_POSTS: BlogPost[] = [
     title: "How Much Does Etsy Take From a UK Sale? (2026 Fees Breakdown)",
     description:
       "Exactly what Etsy takes from a UK sale in 2026 - listing fee, transaction fee and payment processing - with a worked example on a £20 digital download.",
-    date: "2026-11-04",
+    date: "2026-10-24",
     readingMinutes: 7,
     tag: "Monetization",
     related: "/sell-digital-products",
@@ -625,7 +625,7 @@ export const BLOG_POSTS: BlogPost[] = [
     title: "The Best Etsy Alternative for UK Creators in 2026 (and When to Stay)",
     description:
       "When leaving Etsy actually pays, what you lose when you go, and a 90-day migration plan that does not cost you sales along the way.",
-    date: "2026-11-05",
+    date: "2026-10-25",
     readingMinutes: 8,
     tag: "Strategy",
     related: "/all-in-one-creator-platform",
@@ -763,7 +763,7 @@ export const BLOG_POSTS: BlogPost[] = [
     title: "Payhip vs Gumroad Fees: What UK Creators Actually Keep in 2026",
     description:
       "Payhip charges 5% on its free plan, Gumroad charges 10% + 50¢ per sale. Here is what that means on a real £20 sale, and when a monthly plan pays for itself.",
-    date: "2026-11-06",
+    date: "2026-10-25",
     readingMinutes: 7,
     tag: "Tools",
     related: "/sell-digital-products",
@@ -884,7 +884,7 @@ export const BLOG_POSTS: BlogPost[] = [
     title: "How to Sell Digital Products in the UK (2026 Step-by-Step)",
     description:
       "A practical six-step path for UK creators: what to sell, how to price in pounds, the VAT question, delivery and refunds, and how to get the first ten buyers.",
-    date: "2026-11-07",
+    date: "2026-10-26",
     readingMinutes: 9,
     tag: "Strategy",
     related: "/sell-digital-products",
