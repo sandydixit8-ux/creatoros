@@ -22,7 +22,8 @@ import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/marketing/site-header";
 import { HeroProduct } from "@/components/marketing/hero-product";
 import { Faq } from "@/components/marketing/faq";
-import { PLAN_META, formatInr } from "@/lib/plans-meta";
+import { PLAN_META, planPriceDisplay } from "@/lib/plans-meta";
+import { visitorCountry } from "@/lib/geo";
 
 export const metadata = {
   alternates: { canonical: "/" },
@@ -107,7 +108,9 @@ function SectionHeading({ eyebrow, title, sub }: { eyebrow?: string; title: stri
   );
 }
 
-export default function HomePage() {
+export default async function HomePage() {
+  const country = await visitorCountry();
+
   return (
     <div className="min-h-screen bg-night-950 text-ink">
       <SiteHeader />
@@ -263,7 +266,9 @@ export default function HomePage() {
               sub="Start free. Upgrade when you grow. Cancel anytime."
             />
             <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-5">
-              {PLAN_META.map((p) => (
+              {PLAN_META.map((p) => {
+                const price = planPriceDisplay(p, country);
+                return (
                 <div
                   key={p.id}
                   className={`flex flex-col rounded-2xl border ${
@@ -274,12 +279,13 @@ export default function HomePage() {
                 >
                   <div className="text-sm font-semibold text-ink">{p.name}</div>
                   <div className="mt-3 flex items-baseline gap-1">
-                    <span className="text-3xl font-bold tabular-nums text-ink">${p.usd}</span>
+                    <span className="text-3xl font-bold tabular-nums text-ink">
+                      {price.symbol}
+                      {price.amount}
+                    </span>
                     <span className="text-sm text-ink-muted">/mo</span>
                   </div>
-                  <div className="mt-1 text-xs font-medium text-ink-muted">
-                    {p.usd === 0 ? "Free forever" : `£${p.gbp} in the UK · ${formatInr(p.inr)} in India`}
-                  </div>
+                  <div className="mt-1 text-xs font-medium text-ink-muted">{price.secondary}</div>
                   <p className={`mt-2 text-xs font-semibold ${p.highlight ? "text-brand-300" : "text-ink-secondary"}`}>
                     {p.tag}
                   </p>
@@ -302,7 +308,8 @@ export default function HomePage() {
                     {p.cta}
                   </Link>
                 </div>
-              ))}
+                );
+              })}
             </div>
             <p className="mx-auto mt-8 max-w-2xl text-center text-xs leading-relaxed text-ink-muted">
               Plan prices are billed monthly and include applicable taxes, so the amount shown at checkout is the

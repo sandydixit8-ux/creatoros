@@ -303,6 +303,10 @@ Notes for future changes:
 - The public copy must match: `/pricing`, the landing page and the billing FAQ now say prices
   include applicable taxes and quote the GBP price. If the Dodo settings change again,
   change those strings in the same release.
+- UK visitors get the GBP price as the headline on `/pricing` and the landing page: the proxy
+  forwards Cloudflare's `cf-ipcountry` as `x-cr-country`, and `planPriceDisplay()` in
+  `src/lib/plans-meta.ts` picks the currency. The price shown is the pinned GBP amount, i.e.
+  exactly what the checkout charges.
 - Tax is still calculated by the buyer's location. An Indian buyer legitimately sees 18% GST;
   UK buyers see 20% VAT inside the £ price; US buyers pay the dollar list price.
 

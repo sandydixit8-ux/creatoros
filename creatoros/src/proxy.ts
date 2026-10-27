@@ -60,7 +60,17 @@ export function proxy(request: NextRequest) {
     }
   }
 
-  const response = NextResponse.next();
+  // Pricing pages render the UK price for UK visitors. Cloudflare geolocates
+  // every proxied request and stamps `cf-ipcountry`; copy it to our own header
+  // so the app never depends on provider-specific names. Absent header (local
+  // dev, direct origin probe) means "unknown", which falls back to USD.
+  const country = (request.headers.get("cf-ipcountry") || "").trim().toUpperCase();
+  const requestHeaders = new Headers(request.headers);
+  if (/^[A-Z]{2}$/.test(country)) {
+    requestHeaders.set("x-cr-country", country);
+  }
+
+  const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("Content-Security-Policy", CSP);
   response.headers.set("X-Frame-Options", "DENY");
   response.headers.set("X-Content-Type-Options", "nosniff");

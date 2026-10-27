@@ -105,3 +105,38 @@ export function formatByCurrency(currency: string, price: number): string {
       return price === 0 ? "$0" : `$${price.toLocaleString("en-US")}`;
   }
 }
+
+export interface PlanPriceDisplay {
+  currency: "usd" | "gbp";
+  symbol: "$" | "£";
+  amount: number;
+  /** The same plan in the other currencies, shown under the headline price. */
+  secondary: string;
+}
+
+/**
+ * Headline price for a visitor. UK visitors see the pinned GBP price they will
+ * actually be charged at checkout (the products are tax-inclusive and carry a
+ * local GBP price); everyone else sees the USD list price. Free stays free.
+ */
+export function planPriceDisplay(plan: PlanMeta, country?: string | null): PlanPriceDisplay {
+  if (plan.usd === 0) {
+    return { currency: "usd", symbol: "$", amount: 0, secondary: "Free forever" };
+  }
+
+  if ((country || "").toUpperCase() === "GB") {
+    return {
+      currency: "gbp",
+      symbol: "£",
+      amount: plan.gbp,
+      secondary: `$${plan.usd} in the US · ${formatInr(plan.inr)} in India`,
+    };
+  }
+
+  return {
+    currency: "usd",
+    symbol: "$",
+    amount: plan.usd,
+    secondary: `£${plan.gbp} in the UK · ${formatInr(plan.inr)} in India`,
+  };
+}

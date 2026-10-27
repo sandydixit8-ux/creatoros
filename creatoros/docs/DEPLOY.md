@@ -208,3 +208,16 @@ If a probe fails, do not leave the old build half-replaced — see `docs/ROLLBAC
   "CreatorOS | Checkout" with the mark. No migrations. DB snapshot
   `creatoros.db.snapshot-2026-10-27T17-23-14`, app snapshot `~/app-pre-20261027c.tar.gz`;
   DB unchanged at contacts=2, users=4, orders=0.
+- **UK headline price (27 Oct 2026, follow-up):** archive SHA256
+  `598927EBE0C7DACE22234BC41DD056200DDF9CA0C1E04121EDC3A8048AB070F0`, BUILD_ID
+  `FDfoG86dLAEl739mP1pa6`. `/pricing` and the landing pricing grid now lead with the pinned
+  GBP price for UK visitors (`cf-ipcountry: GB`), with "$19 in the US · ₹1,599 in India" as
+  the sub-line; every other country keeps the USD headline. `src/proxy.ts` copies
+  Cloudflare's `cf-ipcountry` to `x-cr-country` and `src/lib/geo.ts` reads it, so the pages
+  no longer trust an edge-provider header name directly. Both routes render per request now
+  (`Cache-Control: private, no-cache, no-store`), which also prevents a CDN from serving one
+  country's price to another. 4 new tests pin the mapping (462 total). No migrations. DB
+  snapshot `creatoros.db.snapshot-2026-10-27T17-38-16`, app snapshot
+  `~/app-pre-20261027d.tar.gz`; DB unchanged at contacts=2, users=4, orders=0.
+  Verified on the box: origin with `cf-ipcountry: GB` renders `£ 15`, with `US` renders
+  `$ 19`, and the public URL from an Indian IP still renders `$ 19`.
