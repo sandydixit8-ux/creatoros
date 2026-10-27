@@ -196,3 +196,48 @@ for every tenant, so a broken checkout there is customer-visible.
    `PAYMENT_PROVIDER` stays `cashfree`; routing is per-currency.
 4. Live smoke test: one real purchase at the cheapest plan, confirm the plan is
    applied, then refund it from the admin refund route. Keep the receipt.
+
+## 8. Live checkout audit (2026-10-27)
+
+The code path is correct end to end on production: `POST /api/auth/register` (200),
+`POST /api/auth/login` (200, `creatoros_session` cookie), `GET /api/auth/me` (200)
+and `POST /api/billing/checkout` with `{plan:"creator"}` returns
+
+```json
+{"provider":"dodo","sessionId":"cks_…","url":"https://checkout.dodopayments.com/session/cks_…"}
+```
+
+That hosted page loads (200) and the amount matches the plan, but it exposes two
+problems that no amount of traffic will fix:
+
+- **18% GST is added on top of the advertised price.** For a USD order the page
+  showed `Creator $19.00/mo` → `Subtotal $19.00` → `GST $3.42` → `Total $22.42`
+  plus a US country selector. A US or UK buyer should not be paying Indian GST:
+  under OIDAR rules the export of these services to a non-Indian customer is
+  zero-rated (a LUT covers it). Either Dodo's tax profile for the account is set
+  to apply GST regardless of the buyer's country, or the products are marked
+  taxable. Fix in the Dodo dashboard → Tax: enable tax only where the buyer's
+  location actually demands it, and decide whether prices are tax-inclusive.
+  Until that is fixed every UK/US visitor sees a price 18% higher than the one
+  the marketing site advertises.
+- **The merchant name shown at checkout is the legal entity**, not the product.
+  The page title renders "Ridhyansh Tech Infra Private Limited | Checkout", so a
+  creator who clicked "CreatorOS Creator" lands on a payment page for a company
+  they have never heard of. Set the business display name / statement descriptor
+  to CreatorOS in the Dodo dashboard, and keep the legal entity name in the
+  footer of the checkout terms only.
+
+Both are dashboard settings, not code. Re-run the audit after changing them:
+
+```bash
+curl -s -c /tmp/ck -H "content-type: application/json" \
+  -d '{"email":"you@example.com","password":"…"}' https://usecreatoros.co/api/auth/login
+curl -s -b /tmp/ck -H "content-type: application/json" \
+  -d '{"plan":"creator"}' https://usecreatoros.co/api/billing/checkout
+# open the returned url and confirm: total == plan price, merchant name == CreatorOS
+```
+
+Delete any throwaway account created for the audit
+(`users`, `organizations`, `memberships`, `profiles` rows for that email) so it
+never shows up in signup or funnel reporting.
+

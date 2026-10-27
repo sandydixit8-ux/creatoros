@@ -58,6 +58,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.7,
     },
     {
+      // Free tool, deliberately above the blog: it is the page most likely to
+      // earn links, and it feeds the UK fee posts.
+      url: `${SITE_URL}/etsy-fee-calculator`,
+      lastModified: now,
+      changeFrequency: "monthly",
+      priority: 0.9,
+    },
+    {
       url: `${SITE_URL}/blog`,
       lastModified: now,
       changeFrequency: "weekly",

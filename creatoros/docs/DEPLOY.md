@@ -174,3 +174,17 @@ If a probe fails, do not leave the old build half-replaced — see `docs/ROLLBAC
   ahead of the crawl date. Re-dated every post to 16-26 Oct, keeping newest-first order.
   Sitemap now has zero future `lastmod`. App snapshot `~/app-pre-20261026b.tar.gz`, DB
   snapshot `creatoros.db.snapshot-2026-10-26T12-48-20`.
+- **Etsy fee calculator + IndexNow (27 Oct 2026):** archive SHA256
+  `87EAB32C5F4B828095547242FD1FEC97C686B881830554BFD8DF9C5C227F91EA`, BUILD_ID
+  `f1oxpep4lukiz7C2l0HD0`. Adds `/etsy-fee-calculator` (static, GBP/USD, FAQPage +
+  WebApplication JSON-LD, linked from the UK fee post and listed in the sitemap at
+  priority 0.9), the IndexNow key file at `/<key>.txt` served from `src/lib/indexnow.ts`,
+  and `marketing/seo/indexnow.mjs`, which submitted all 24 sitemap URLs (202 Accepted).
+  Also fixed a 17.7%/17.8% inconsistency in the £5 fee row. No migrations. DB snapshot
+  `creatoros.db.snapshot-2026-10-27T09-06-47`, app snapshot `~/app-pre-20261027.tar.gz`.
+  Live DB unchanged: contacts=2, orders=0.
+  A throwaway signup was created to smoke-test the paid path and deleted afterwards
+  (users/orgs/memberships/profiles/subscriptions/audit/funnel rows); the audit itself is
+  written up in `docs/PAYMENTS-DODO.md` §8 - the hosting works, but the Dodo checkout page
+  adds 18% GST to a USD order ($19 -> $22.42) and shows the legal entity name rather than
+  CreatorOS. Both are dashboard settings, not code.

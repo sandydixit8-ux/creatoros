@@ -62,3 +62,25 @@ curl -s https://usecreatoros.co/robots.txt
 curl -s https://usecreatoros.co/sitemap.xml
 curl -s https://usecreatoros.co/api/health
 ```
+
+## 6. Free tool + IndexNow (2026-10-27)
+
+**`/etsy-fee-calculator`** is the first link-earning asset: a static page with a
+client-side calculator (GBP/USD), `FAQPage` + `WebApplication` JSON-LD, and an
+internal link from `/blog/how-much-does-etsy-take-uk`. Rates live in
+`src/lib/etsy-fees.ts` and `etsy-fees.test.ts` asserts the same numbers the blog
+post quotes, so the tool and the article cannot drift apart. A rate change on
+Etsy's side must update `ETSY_RATES`, the blog post and the tests together.
+
+**IndexNow** pushes every sitemap URL to Bing, Yandex, Naver and Seznam without
+waiting for a crawl (Bing also feeds several AI answer engines). The key file is
+served by `src/app/<key>.txt/route.ts` from `src/lib/indexnow.ts`.
+
+```bash
+node marketing/seo/indexnow.mjs --dry   # list the URLs that would go
+node marketing/seo/indexnow.mjs         # submit (200 or 202 = accepted)
+curl -s https://usecreatoros.co/c7f1a4e9b28d43a6b9e0f1d2a3c4b5e6.txt   # must echo the key
+```
+
+Run IndexNow after every content deploy. It is not a ranking lever on its own —
+it only shortens time-to-crawl on Bing/Yandex, which Google does not control.

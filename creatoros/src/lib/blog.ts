@@ -555,12 +555,18 @@ export const BLOG_POSTS: BlogPost[] = [
           "The percentage you lose depends on the price. Here is the same maths across the range UK digital sellers use most, with no shipping and no ads.",
         ],
         bullets: [
-          "£5: £0.89 in fees, you keep £4.11 (17.7%)",
+          "£5: £0.89 in fees, you keep £4.11 (17.8%)",
           "£12: £1.62 in fees, you keep £10.38 (13.5%)",
           "£20: £2.46 in fees, you keep £17.54 (12.3%)",
           "£35: £4.04 in fees, you keep £30.96 (11.5%)",
           "£50: £5.61 in fees, you keep £44.39 (11.2%)",
           "£100: £10.86 in fees, you keep £89.14 (10.9%)",
+        ],
+        links: [
+          {
+            label: "Run your own price through the Etsy fee calculator",
+            href: "/etsy-fee-calculator",
+          },
         ],
       },
       {
