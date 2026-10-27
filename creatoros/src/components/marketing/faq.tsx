@@ -14,7 +14,7 @@ export const DEFAULT_FAQ = [
   },
   {
     q: "How does billing work?",
-    a: "Start free forever. Paid plans (Starter $9, Creator $19, Pro $49, Business $99 per month) are shown in USD and billed via Cashfree; INR pricing is available in-app. Upgrade, downgrade or cancel anytime from Settings → Billing.",
+    a: "Start free forever. Paid plans (Starter $9 / £7, Creator $19 / £15, Pro $49 / £39, Business $99 / £79 per month) include applicable taxes, so the price at checkout is the price charged. INR pricing is available in-app. Upgrade, downgrade or cancel anytime from Settings → Billing.",
   },
   {
     q: "Who owns my data?",

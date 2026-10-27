@@ -254,3 +254,56 @@ Delete any throwaway account created for the audit
 (`users`, `organizations`, `memberships`, `profiles` rows for that email) so it
 never shows up in signup or funnel reporting.
 
+### 8.1 Fix applied through the API (2026-10-27, same day)
+
+The three product-level findings and the brand were fixed with the live key, not by hand in
+the dashboard, so the state is reproducible from the commands in this section.
+
+| What | Call | Result |
+|---|---|---|
+| Tax-inclusive prices | `PATCH /products/{id}` with the product's own `price` object plus `tax_inclusive: true` | all four products `tax_inclusive=true` |
+| Per-currency pricing | `PATCH /products/{id}` with `pricing_mode: "by_currency"` | all four products `by_currency` |
+| Pinned GBP price | `POST /products/{id}/localized-prices` `{currency:"GBP", amount:<minor units>}` | one rule per product |
+| Brand | `POST /brands` → `PATCH /products/{id}` `{brand_id}` | products point at `brnd_0Nqf35kRcMdoAWlQVJ1GE` |
+| Brand logo | `PUT /brands/{id}/images` → `PUT` the PNG to the presigned S3 URL → `PATCH /brands/{id}` `{image_id}` | brand `image` set; checkout renders the mark |
+
+Product settings after the change:
+
+| Plan | USD | GBP (tax-inclusive) | Net GBP after 20% VAT | Localized-price id |
+|---|---|---|---|---|
+| Starter | $9.00 | £7.00 | £5.83 | `lcp_0Nqf2j6RGhFNZQ9Nm2jcG` |
+| Creator | $19.00 | £15.00 | £12.50 | `lcp_0Nqf2p2wCk8D4f3PoH5oV` |
+| Pro | $49.00 | £39.00 | £32.50 | `lcp_0Nqf2pG5NTi50qMehZa59` |
+| Business | $99.00 | £79.00 | £65.83 | `lcp_0Nqf2pU1cdGLOyPxCjSpB` |
+
+Verified afterwards by creating one live session per plan per address and reading the totals
+off the hosted page (8/8 correct):
+
+```
+STARTER  US  Subtotal $9.00  | Tax $0.00   | Total $9.00   | CreatorOS | Checkout
+STARTER  GB  Subtotal £5.83  | VAT £1.17   | Total £7.00   | CreatorOS | Checkout
+CREATOR  US  Subtotal $19.00 | Tax $0.00   | Total $19.00  | CreatorOS | Checkout
+CREATOR  GB  Subtotal £12.50 | VAT £2.50   | Total £15.00  | CreatorOS | Checkout
+PRO      US  Subtotal $49.00 | Tax $0.00   | Total $49.00  | CreatorOS | Checkout
+PRO      GB  Subtotal £32.50 | VAT £6.50   | Total £39.00  | CreatorOS | Checkout
+BUSINESS US  Subtotal $99.00 | Tax $0.00   | Total $99.00  | CreatorOS | Checkout
+BUSINESS GB  Subtotal £65.83 | VAT £13.17  | Total £79.00  | CreatorOS | Checkout
+```
+
+Notes for future changes:
+
+- `PATCH /products/{id}` replaces the `price` object, so read the product first and send its
+  own `price` back with only `tax_inclusive` changed. Sending `{price:{price:…,currency:…}}`
+  alone would drop the billing period fields.
+- Localized-price `amount` is in minor units (`1500` = £15.00), and `country_code` must be
+  omitted in `by_currency` mode.
+- The primary brand **cannot** be renamed: `PATCH /brands/{business_id}` returns 403
+  ("Primary brand cannot be updated via this API endpoint"). That is why CreatorOS is a
+  second brand; the legal entity stays on invoices for compliance.
+- The public copy must match: `/pricing`, the landing page and the billing FAQ now say prices
+  include applicable taxes and quote the GBP price. If the Dodo settings change again,
+  change those strings in the same release.
+- Tax is still calculated by the buyer's location. An Indian buyer legitimately sees 18% GST;
+  UK buyers see 20% VAT inside the £ price; US buyers pay the dollar list price.
+
+

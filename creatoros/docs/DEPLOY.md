@@ -184,10 +184,11 @@ If a probe fails, do not leave the old build half-replaced — see `docs/ROLLBAC
   `creatoros.db.snapshot-2026-10-27T09-06-47`, app snapshot `~/app-pre-20261027.tar.gz`.
   Live DB unchanged: contacts=2, orders=0.
   A throwaway signup was created to smoke-test the paid path and deleted afterwards
-  (users/orgs/memberships/profiles/subscriptions/audit/funnel rows); the audit itself is
-  written up in `docs/PAYMENTS-DODO.md` §8 - the hosting works, but the Dodo checkout page
-  adds 18% GST to a USD order ($19 -> $22.42) and shows the legal entity name rather than
-  CreatorOS. Both are dashboard settings, not code.
+  (users/orgs/memberships/profiles/subscriptions/audit/funnel rows). The audit itself is
+  written up in `docs/PAYMENTS-DODO.md` §8; the initial write-up misread an Indian-IP test as
+  a global bug and was corrected there on 27 Oct (a US buyer pays exactly $19). The real
+  findings were USD-only products, tax added on top of the advertised price, and the legal
+  entity in the checkout header - all fixed via the Dodo API later the same day (see below).
 - **Calculator copy fix (27 Oct 2026, follow-up):** archive SHA256
   `8773192A3DCE8938F0A178EC7FD131DBA5FB24C9C82223E64E6353BEB9FDF079`, BUILD_ID
   `HtKRSqneempxzyy5qxJco`. The "on your own store" line rendered the net payout
@@ -195,3 +196,15 @@ If a probe fails, do not leave the old build half-replaced — see `docs/ROLLBAC
   of £701.60, about £63.20 a month more) and the input card no longer stretches to
   the height of the results column. DB snapshot
   `creatoros.db.snapshot-2026-10-27T09-13-03`; still contacts=2, orders=0.
+- **Tax-inclusive pricing copy (27 Oct 2026):** archive SHA256
+  `672403BB183F800E2EF42CACFFD76BFC34C93FD8B3A4CC40C7FFD0724D921A12`, BUILD_ID
+  `NzbQ5zr1hx_e0zbtdEjAz`. The Dodo store was switched to tax-inclusive pricing with pinned
+  GBP prices and a CreatorOS brand (details and the verified totals in
+  `docs/PAYMENTS-DODO.md` §8), so the public copy that said "Prices exclude ... applicable
+  taxes" was wrong. `/pricing` and the landing pricing block now say prices include
+  applicable taxes, list the US/UK/IN ranges, show each plan's UK price in pounds, and link
+  the Refund Policy; the billing FAQ answer was corrected to drop "billed via Cashfree" and
+  quote both USD and GBP. The brand logo was uploaded the same day, so checkout now renders
+  "CreatorOS | Checkout" with the mark. No migrations. DB snapshot
+  `creatoros.db.snapshot-2026-10-27T17-23-14`, app snapshot `~/app-pre-20261027c.tar.gz`;
+  DB unchanged at contacts=2, users=4, orders=0.
