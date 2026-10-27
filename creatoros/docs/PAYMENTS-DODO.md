@@ -207,34 +207,47 @@ and `POST /api/billing/checkout` with `{plan:"creator"}` returns
 {"provider":"dodo","sessionId":"cks_…","url":"https://checkout.dodopayments.com/session/cks_…"}
 ```
 
-That hosted page loads (200) and the amount matches the plan, but it exposes two
-problems that no amount of traffic will fix:
+That hosted page loads (200) and the amount matches the plan, but it exposed two
+real problems — and one earlier misreading, corrected here on 27 Oct by testing
+three billing addresses through `POST /checkouts` and reading the totals off the
+returned page:
 
-- **18% GST is added on top of the advertised price.** For a USD order the page
-  showed `Creator $19.00/mo` → `Subtotal $19.00` → `GST $3.42` → `Total $22.42`
-  plus a US country selector. A US or UK buyer should not be paying Indian GST:
-  under OIDAR rules the export of these services to a non-Indian customer is
-  zero-rated (a LUT covers it). Either Dodo's tax profile for the account is set
-  to apply GST regardless of the buyer's country, or the products are marked
-  taxable. Fix in the Dodo dashboard → Tax: enable tax only where the buyer's
-  location actually demands it, and decide whether prices are tax-inclusive.
-  Until that is fixed every UK/US visitor sees a price 18% higher than the one
-  the marketing site advertises.
-- **The merchant name shown at checkout is the legal entity**, not the product.
-  The page title renders "Ridhyansh Tech Infra Private Limited | Checkout", so a
-  creator who clicked "CreatorOS Creator" lands on a payment page for a company
-  they have never heard of. Set the business display name / statement descriptor
-  to CreatorOS in the Dodo dashboard, and keep the legal entity name in the
-  footer of the checkout terms only.
+| Buyer address | Subtotal | Tax line | Total |
+|---|---|---|---|
+| US (San Francisco, CA) | $19.00 | Tax $0.00 | **$19.00** |
+| UK (London) | £14.26 | VAT £2.85 (20%) | **£17.11** |
+| IN (Bengaluru) | ₹1,879.76 | GST ₹338.35 (18%) | **₹2,218.12** |
 
-Both are dashboard settings, not code. Re-run the audit after changing them:
+- **The 18% "GST" is not a bug.** An earlier audit fetch came from an Indian IP,
+  so Dodo correctly applied Indian GST to that session. A US buyer pays exactly
+  $19.00 with no tax. Do not change the Indian tax rules.
+- **The GBP price is a currency conversion, not our list price.** All four
+  products are USD-only (`price.currency = USD`, `tax_inclusive = false`,
+  `tax_category = saas`, `brand_id` = the business id). Dodo's checkout takes the
+  price from the product, and the provider call only sends `product_cart`, so the
+  `amountCents` our route computes is not used for Dodo. UK buyers therefore see
+  £14.26 (a live FX conversion of $19) plus 20% VAT, while the pricing page
+  advertises £15.
+- **Tax is added on top of the advertised price** because `tax_inclusive` is
+  false. For a UK buyer that means £17.11 against a £15 headline. Turning
+  `price.tax_inclusive` on makes the displayed price the charged price (the
+  seller then nets £12.50 of a £15 sale before Dodo's fee).
+- **The merchant name shown at checkout is the legal entity** ("Ridhyansh Tech
+  Infra Private Limited"), because `brand_id` points at the business rather than
+  a brand. Create a CreatorOS brand and assign the four products to it so the
+  checkout header matches what the visitor clicked.
+
+The first three are product settings (dashboard → Products → edit → Pricing:
+per-currency price and the Tax Inclusive Pricing toggle); the last is dashboard →
+Brands. Verify any change by creating one session per address and reading
+`Subtotal` / `Tax` / `Total` off the page:
 
 ```bash
 curl -s -c /tmp/ck -H "content-type: application/json" \
   -d '{"email":"you@example.com","password":"…"}' https://usecreatoros.co/api/auth/login
 curl -s -b /tmp/ck -H "content-type: application/json" \
   -d '{"plan":"creator"}' https://usecreatoros.co/api/billing/checkout
-# open the returned url and confirm: total == plan price, merchant name == CreatorOS
+# open the returned url with a configured billing address and check the totals
 ```
 
 Delete any throwaway account created for the audit
