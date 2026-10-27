@@ -188,3 +188,10 @@ If a probe fails, do not leave the old build half-replaced — see `docs/ROLLBAC
   written up in `docs/PAYMENTS-DODO.md` §8 - the hosting works, but the Dodo checkout page
   adds 18% GST to a USD order ($19 -> $22.42) and shows the legal entity name rather than
   CreatorOS. Both are dashboard settings, not code.
+- **Calculator copy fix (27 Oct 2026, follow-up):** archive SHA256
+  `8773192A3DCE8938F0A178EC7FD131DBA5FB24C9C82223E64E6353BEB9FDF079`, BUILD_ID
+  `HtKRSqneempxzyy5qxJco`. The "on your own store" line rendered the net payout
+  (£764.80) as if it were the card fees; it now reads net vs net (£764.80 instead
+  of £701.60, about £63.20 a month more) and the input card no longer stretches to
+  the height of the results column. DB snapshot
+  `creatoros.db.snapshot-2026-10-27T09-13-03`; still contacts=2, orders=0.

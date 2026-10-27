@@ -102,7 +102,7 @@ export default function EtsyFeeCalculator() {
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_1.1fr]">
       {/* Inputs */}
-      <div className="rounded-2xl border border-white/10 bg-night-800/60 p-6 sm:p-7">
+      <div className="self-start rounded-2xl border border-white/10 bg-night-800/60 p-6 sm:p-7">
         <fieldset>
           <legend className="text-sm font-medium text-ink">Where are you selling?</legend>
           <div className="mt-3 grid grid-cols-2 gap-2">
@@ -240,8 +240,8 @@ export default function EtsyFeeCalculator() {
             </div>
           </dl>
           <p className="mt-4 rounded-xl border border-white/10 bg-night-900 p-4 text-xs leading-relaxed text-ink-muted">
-            On your own store, the same {month.orders} orders would pay roughly {money(month.ownStoreNet)} in card fees
-            instead of {money(month.fees)} — about{" "}
+            On your own store, the same {month.orders} orders would leave you with roughly{" "}
+            {money(month.ownStoreNet)} instead of {money(month.net)} — about{" "}
             <span className="font-semibold text-ink-secondary">{money(Math.abs(month.delta))} a month more</span>. That
             only counts if you can bring the buyers yourself: Etsy&apos;s cut buys discovery.
           </p>
