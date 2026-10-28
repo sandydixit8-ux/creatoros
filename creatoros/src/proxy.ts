@@ -44,6 +44,15 @@ export function proxy(request: NextRequest) {
   // Alias legacy @username URLs (creator.os/@user) to the /u/user routes so
   // old shared links keep working and the public surface matches the canonical form.
   const { pathname } = request.nextUrl;
+
+  // Browsers and link checkers still ask for /favicon.ico even when the page
+  // declares /icon, so serve the generated icon there instead of a 404.
+  if (pathname === "/favicon.ico") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/icon";
+    return NextResponse.redirect(url, 308);
+  }
+
   if (pathname.startsWith("/@")) {
     const rest = pathname.slice(2) || "";
     let rewritten: string | null = null;
@@ -96,5 +105,7 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|public).*)"],
+  // `favicon.ico` must NOT be excluded here: the redirect to /icon lives in the
+  // proxy, and an excluded path never reaches it (it would 404 instead).
+  matcher: ["/((?!_next/static|_next/image|public).*)"],
 };

@@ -84,3 +84,19 @@ curl -s https://usecreatoros.co/c7f1a4e9b28d43a6b9e0f1d2a3c4b5e6.txt   # must ec
 
 Run IndexNow after every content deploy. It is not a ranking lever on its own —
 it only shortens time-to-crawl on Bing/Yandex, which Google does not control.
+
+## 7. llms.txt (2026-10-28)
+
+AI crawlers and answer engines ask for `/llms.txt` before they ask for a sitemap; the
+server log showed ten 404s a week for it. It is now a prerendered route handler at
+`src/app/llms.txt/route.ts` that lists the product pages, the calculator, every blog
+post (generated from `BLOG_POSTS`, so it cannot go stale) and the contact/legal pages.
+
+```bash
+curl -s https://usecreatoros.co/llms.txt | head -20
+curl -s -o /dev/null -w "%{http_code} %{content_type}\n" https://usecreatoros.co/llms.txt   # 200 text/plain
+```
+
+The same deploy fixed `/favicon.ico`, which 404'd for clients that ignore the declared
+`<link rel="icon">`: `src/proxy.ts` redirects it 308 to `/icon`. Keep `favicon.ico` out
+of the proxy `matcher` exclusions or the redirect never runs.

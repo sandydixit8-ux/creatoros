@@ -221,3 +221,12 @@ If a probe fails, do not leave the old build half-replaced — see `docs/ROLLBAC
   `~/app-pre-20261027d.tar.gz`; DB unchanged at contacts=2, users=4, orders=0.
   Verified on the box: origin with `cf-ipcountry: GB` renders `£ 15`, with `US` renders
   `$ 19`, and the public URL from an Indian IP still renders `$ 19`.
+- **llms.txt + favicon (28 Oct 2026):** archive SHA256
+  `F71C1D35FAA3623E8B7BE30EDF08D913CB923CA98ECF053B27E530A55BD114AA`, BUILD_ID
+  `NpGoVv6QnlkaPsQIBXBJ3`. `/llms.txt` now returns 200 `text/plain` (prerendered route
+  handler in `src/app/llms.txt/route.ts`; no `public/` directory exists, so this ships
+  without extra packaging). It lists product pages, the calculator, every blog post and the
+  legal/contact pages, and all 28 links were probed 200 after deploy. `/favicon.ico` used to
+  404 twenty times a week; `src/proxy.ts` now 308-redirects it to `/icon`. The `favicon.ico`
+  exclusion had to be removed from the proxy `matcher` — an excluded path never reaches the
+  redirect. No migrations; DB unchanged at contacts=2, users=4, orders=0.
