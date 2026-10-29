@@ -165,6 +165,32 @@ async function cmdAuth() {
     console.error("No refresh token returned. Revoke prior access at https://myaccount.google.com/permissions and retry.");
     process.exit(1);
   }
+
+  // Verify BEFORE saving. A token bound to the personal channel silently sends
+  // every upload and every statistic to the wrong place, and overwriting a good
+  // token with a wrong one costs another full consent round to undo.
+  const expected = ENV.YOUTUBE_CHANNEL_ID || valueOf("channel");
+  let connected = null;
+  try {
+    const res = await fetch("https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true", {
+      headers: { Authorization: "Bearer " + token.access_token },
+    });
+    const json = await res.json().catch(() => ({}));
+    connected = json.items?.[0] ?? null;
+  } catch (e) {
+    console.error("Could not verify the connected channel:", e instanceof Error ? e.message : e);
+  }
+
+  if (connected) console.log(`Connected channel: ${connected.snippet?.title} (${connected.id})`);
+  if (expected && connected && connected.id !== expected) {
+    console.error(`\nWARNING: wrong channel. Expected ${expected}, authorised ${connected.snippet?.title} (${connected.id}).`);
+    console.error("Nothing was saved — the previous token is untouched.");
+    console.error("Re-run auth and, on Google's second screen (the channel picker that follows the");
+    console.error("account chooser), pick the CreatorOS channel instead of the personal one.");
+    process.exitCode = 1;
+    return;
+  }
+
   saveToken({
     refresh_token: token.refresh_token,
     access_token: token.access_token,
@@ -172,28 +198,6 @@ async function cmdAuth() {
     scope: token.scope,
   });
   console.log("Saved credentials to " + path.relative(process.cwd(), tokenFile));
-
-  // Google's account chooser lists Google accounts; a brand channel has to be
-  // selected explicitly. That mismatch is silent, and every subsequent upload
-  // lands on the personal channel, so verify and say so loudly.
-  const expected = ENV.YOUTUBE_CHANNEL_ID || valueOf("channel");
-  try {
-    const res = await fetch("https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true", {
-      headers: { Authorization: "Bearer " + token.access_token },
-    });
-    const json = await res.json().catch(() => ({}));
-    const item = json.items?.[0];
-    if (item) {
-      console.log(`Connected channel: ${item.snippet?.title} (${item.id})`);
-      if (expected && item.id !== expected) {
-        console.error(`\nWARNING: wrong channel. Expected ${expected}, authorised ${item.snippet?.title} (${item.id}).`);
-        console.error("Every upload would go to that channel. Re-run auth and pick the brand channel,");
-        console.error("or set YOUTUBE_LOGIN_HINT to the Google account that owns the intended one.");
-      }
-    }
-  } catch (e) {
-    console.error("Could not verify the connected channel:", e instanceof Error ? e.message : e);
-  }
 
   console.log("Verify with: node marketing/publisher/youtube.mjs whoami");
 }
@@ -494,6 +498,18 @@ async function channelVideos(token) {
   const h = { Authorization: `Bearer ${token}` };
   const chJson = await (await fetch("https://www.googleapis.com/youtube/v3/channels?part=snippet,contentDetails&mine=true", { headers: h })).json();
   const ch = chJson.items?.[0];
+  if (!ch) throw new Error("No YouTube channel on this Google account.");
+  // The OAuth token belongs to whichever channel was selected in Google's
+  // account chooser, and a brand channel is easy to miss there. A token bound to
+  // the personal channel makes every number look like zero and sends uploads to
+  // the wrong place, silently, so refuse to report anything from it.
+  const expected = ENV.YOUTUBE_CHANNEL_ID || valueOf("channel");
+  if (expected && ch.id !== expected) {
+    throw new Error(
+      `Wrong channel: authorised for "${ch.snippet.title}" (${ch.id}), expected ${expected}.\n` +
+        "Run: node marketing/publisher/youtube.mjs auth — then pick the CreatorOS channel in the account chooser.",
+    );
+  }
   const uploads = ch?.contentDetails?.relatedPlaylists?.uploads;
   if (!uploads) throw new Error("No uploads playlist found for this channel.");
   const plJson = await (
@@ -845,5 +861,7 @@ async function main() {
 
 main().catch((e) => {
   console.error(e.message);
-  process.exit(1);
+  // process.exit() during in-flight fetch sockets trips a libuv assertion on
+  // Windows (0xC0000409), which reads as a crash rather than a clean failure.
+  process.exitCode = 1;
 });

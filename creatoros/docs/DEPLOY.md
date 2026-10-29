@@ -230,3 +230,11 @@ If a probe fails, do not leave the old build half-replaced — see `docs/ROLLBAC
   404 twenty times a week; `src/proxy.ts` now 308-redirects it to `/icon`. The `favicon.ico`
   exclusion had to be removed from the proxy `matcher` — an excluded path never reaches the
   redirect. No migrations; DB unchanged at contacts=2, users=4, orders=0.
+- **Organization `sameAs` (29 Oct 2026):** archive SHA256
+  `657C81072908C1EEBE9E23879DA69DE45F3898BF9DCED4E88ED7E377A9348B52`, BUILD_ID
+  `Ba3GHZfMo0nwfAM-a8P04`. The `Organization` node in `src/app/layout.tsx` now carries
+  `sameAs` built from `SOCIALS` in `site-footer.tsx`, so the footer icons and the structured
+  data cannot drift apart. Reason: the channel (`UCmOSwr…`) holds a video with 7,978 views
+  and nothing on the site described that relationship in machine-readable form. Footer was
+  already linking to it; only the JSON-LD was missing. No migrations, no copy changes, DB
+  unchanged at users=5, contacts=3, orders=0.

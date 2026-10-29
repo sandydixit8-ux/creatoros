@@ -4,6 +4,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { SITE_URL } from "@/lib/constants";
 import { PLAN_META } from "@/lib/plans-meta";
+import { SOCIALS } from "@/components/layout/site-footer";
 import { ConsentBanner } from "@/components/consent/consent-banner";
 import { SiteViewBeacon } from "@/components/site/site-view-beacon";
 import { UtmCapture } from "@/components/site/utm-capture";
@@ -80,6 +81,11 @@ const jsonLd = {
       url: SITE_URL,
       logo: `${SITE_URL}/icon`,
       description,
+      // Ties the site and the YouTube channel to one entity for search engines.
+      // The channel carries a video with 7,978 views; before this, nothing on
+      // the site pointed at it in machine-readable form. Keep the list in
+      // `SOCIALS` so the footer and the structured data cannot drift apart.
+      sameAs: SOCIALS.map((s) => s.href),
     },
     {
       "@type": "WebSite",
