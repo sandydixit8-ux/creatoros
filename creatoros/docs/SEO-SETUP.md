@@ -100,3 +100,42 @@ curl -s -o /dev/null -w "%{http_code} %{content_type}\n" https://usecreatoros.co
 The same deploy fixed `/favicon.ico`, which 404'd for clients that ignore the declared
 `<link rel="icon">`: `src/proxy.ts` redirects it 308 to `/icon`. Keep `favicon.ico` out
 of the proxy `matcher` exclusions or the redirect never runs.
+
+## 8. Reading traffic without lying to yourself (2026-10-29)
+
+Two sources, two different questions:
+
+- **`site_visits`** (first-party beacon) proves a browser actually ran JavaScript. It is
+  the only acceptable source for "how many humans visited". 24h example: 85 India, 4 US,
+  2 ID, 1 PK, **0 GB**.
+- **Caddy `access.log`** answers "what hit the server". It is dominated by crawlers and
+  scanners, and until now it reported the wrong countries.
+
+The trap: the site is behind Cloudflare, so every request arrives from a Cloudflare edge
+IP. Both `request.remote_ip` and `request.client_ip` in the JSON log are that edge
+(`162.159.x`, `172.70.x`). Counting them invents visitors and countries — a naive pass put
+24 "GB visitors" in a week while the beacon had recorded zero GB visitors, ever. The real
+address is in the `Cf-Connecting-Ip` header, the real country in `Cf-Ipcountry`.
+
+Use the script instead of ad-hoc greps (log files are root-only):
+
+```bash
+sudo python3 /home/ubuntu/traffic.py --days 7
+sudo python3 /home/ubuntu/traffic.py --days 1 --json
+```
+
+It resolves the client IP from `Cf-Connecting-Ip`, separates bot user agents from page
+views, and reports countries, paths and referrers per unique IP. Copied from
+`marketing/analytics/traffic.py` in the repo — update that file, not the copy on the box.
+
+What the 29 Oct run showed, and why the split matters:
+
+- 4,038 requests in 24h, but only ~85 beacon page views. A browser-like UA is not proof of
+  a person: one Google Cloud host made 274 requests in a single minute against
+  `/.git/config`, `/.env`, `/.env.local` (all 404), and an Azure address made 220 requests
+  in one minute walking every link including `/cookie-policy`.
+- Treat `/icon`, `/manifest.webmanifest` and `/cookie-policy` as crawler tells when they
+  appear near the top of a path list; humans rarely load them.
+- The beacon is the denominator for conversion. 85 real visits with 0 orders is a
+  positioning problem, not a traffic problem.
+
