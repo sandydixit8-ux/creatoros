@@ -3,13 +3,27 @@ import { row } from "@/lib/db/db";
 import { webhookProviders, type PaymentProvider, type ProviderWebhookEvent } from "@/lib/payments";
 import { claimWebhookEvent, markWebhookProcessed, markWebhookFailed } from "@/lib/payments/webhook-events";
 import { fulfillOrder, fulfillOrderBySession, markOrderFailed, type FulfillResult } from "@/lib/store/orders";
-import { applySubscription } from "@/lib/billing/subscriptions";
+import { applySubscription, ACTIVE_STATUSES, GRACE_STATUSES } from "@/lib/billing/subscriptions";
+import { notifyPaymentFailed, notifyPaymentRecovered, notifySubscriptionCanceled } from "@/lib/billing/notify";
 import { recordFunnelEvent } from "@/lib/funnel";
 import { ok, fail } from "@/lib/http";
 import { audit } from "@/lib/audit";
 
 function str(v: unknown): string {
   return typeof v === "string" ? v : "";
+}
+
+/**
+ * Lifecycle email is queued, never sent here. A mail provider outage must not
+ * turn a payment webhook into a 502 that the gateway retries — and re-sends.
+ * A failure to even queue is logged rather than thrown for the same reason.
+ */
+function enqueueLifecycle(fn: () => unknown): void {
+  try {
+    fn();
+  } catch (e) {
+    console.error("[webhook] lifecycle email enqueue failed:", e);
+  }
 }
 
 /**
@@ -153,6 +167,15 @@ export async function POST(req: NextRequest) {
           // event that omitted metadata (D-12).
           const plan = str(metadata.plan) || null;
           const status = str(sub.status);
+          const periodEnd = str(sub.current_period_end) || str(sub.currentPeriodEnd) || null;
+          const currency = str(sub.currency) || null;
+          // Read the state this event is replacing, so a `past_due` -> `active`
+          // transition can be recognised as a recovery rather than a routine ping.
+          const prior = row<{ status: string; plan: string }>(
+            "SELECT status, plan FROM subscriptions WHERE tenant_id = ? AND provider_id = ?",
+            tenantId,
+            str(sub.id)
+          );
           const applied = applySubscription({
             tenantId,
             plan,
@@ -160,12 +183,44 @@ export async function POST(req: NextRequest) {
             providerId: str(sub.id),
             customerId: str(sub.customer),
             status: status || "active",
-            currentPeriodEnd: str(sub.current_period_end) || str(sub.currentPeriodEnd) || null,
+            currentPeriodEnd: periodEnd,
             // Stripe sends the subscription's own currency at the top level, not
             // in metadata. Recorded so MRR is not computed at a guessed rate.
-            currency: str(sub.currency) || undefined,
+            currency: currency || undefined,
           });
           result = applied ? "subscription_applied" : "tenant_not_found";
+
+          if (applied) {
+            const effective = status || "active";
+            const emailPlan = plan || prior?.plan || "";
+            if (GRACE_STATUSES.includes(effective as (typeof GRACE_STATUSES)[number])) {
+              // Dunning: the renewal failed but the grace window is open. This
+              // is transactional, so it ignores marketing consent, and it is
+              // idempotent on (subscription, failed period).
+              enqueueLifecycle(() =>
+                notifyPaymentFailed({
+                  tenantId,
+                  plan: emailPlan,
+                  providerId: str(sub.id),
+                  currency,
+                  periodEnd,
+                })
+              );
+            } else if (
+              ACTIVE_STATUSES.includes(effective as (typeof ACTIVE_STATUSES)[number]) &&
+              (prior?.status === "past_due" || prior?.status === "on_hold")
+            ) {
+              enqueueLifecycle(() =>
+                notifyPaymentRecovered({
+                  tenantId,
+                  plan: emailPlan,
+                  providerId: str(sub.id),
+                  currency,
+                  periodEnd,
+                })
+              );
+            }
+          }
         }
         break;
       }
@@ -195,6 +250,18 @@ export async function POST(req: NextRequest) {
               source: provider.name,
               meta: { event: event.id },
             });
+            const stored = row<{ plan: string }>(
+              "SELECT plan FROM subscriptions WHERE tenant_id = ? AND provider_id = ?",
+              tenantId,
+              str(sub.id)
+            );
+            enqueueLifecycle(() =>
+              notifySubscriptionCanceled({
+                tenantId,
+                plan: str(metadata.plan) || stored?.plan || "",
+                providerId: str(sub.id),
+              })
+            );
           }
         }
         break;

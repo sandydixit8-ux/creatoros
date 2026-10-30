@@ -125,6 +125,28 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   updated_at      TEXT NOT NULL
 );
 
+-- Subscription state history.
+--
+-- `subscriptions` only holds the current row, so MRR movement (new, expansion,
+-- contraction, churn) cannot be derived from it: by the time you ask, last
+-- month's plan is gone. Every applySubscription() that actually changes a plan
+-- or status appends one row here. Unchanged renewal pings write nothing, which
+-- keeps this small enough that a window query stays cheap.
+CREATE TABLE IF NOT EXISTS subscription_events (
+  id              TEXT PRIMARY KEY,
+  tenant_id       TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  subscription_id TEXT NOT NULL DEFAULT '',
+  provider        TEXT NOT NULL DEFAULT '',
+  from_plan       TEXT NOT NULL DEFAULT '',   -- '' means the subscription did not exist
+  to_plan         TEXT NOT NULL DEFAULT '',
+  from_status     TEXT NOT NULL DEFAULT '',
+  to_status       TEXT NOT NULL DEFAULT '',
+  currency        TEXT NOT NULL DEFAULT 'usd',
+  created_at      TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_sub_events_tenant_time ON subscription_events(tenant_id, created_at);
+
 CREATE TABLE IF NOT EXISTS plans_usage (
   id         TEXT PRIMARY KEY,
   tenant_id  TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
@@ -419,6 +441,39 @@ CREATE TABLE IF NOT EXISTS email_sends (
   sent_at     TEXT,
   created_at  TEXT NOT NULL
 );
+
+-- Durable outbox for lifecycle/transactional email (Gap 4).
+--
+-- Campaign email already had a synchronous send loop and a per-recipient
+-- `email_sends` log, but lifecycle mail (dunning, receipts, reminders) needs two
+-- properties the request path cannot give it: it must not block a payment
+-- webhook, and a failed send must be retried rather than lost. This table is the
+-- queue; `email_sends` stays the campaign audit trail.
+--
+-- `idempotency_key` is UNIQUE so a re-delivered webhook enqueues the same
+-- reminder once. Retries use `next_attempt_at` with exponential backoff, and
+-- `status = 'dead'` is the terminal state after `max_attempts` so a permanently
+-- failing address cannot spin forever.
+CREATE TABLE IF NOT EXISTS email_jobs (
+  id              TEXT PRIMARY KEY,
+  tenant_id       TEXT NOT NULL DEFAULT '',
+  to_email        TEXT NOT NULL,
+  to_name         TEXT NOT NULL DEFAULT '',
+  template        TEXT NOT NULL DEFAULT '',
+  subject         TEXT NOT NULL,
+  html            TEXT NOT NULL,
+  idempotency_key TEXT NOT NULL UNIQUE,
+  status          TEXT NOT NULL DEFAULT 'queued',  -- queued | sending | sent | dead
+  attempts        INTEGER NOT NULL DEFAULT 0,
+  max_attempts    INTEGER NOT NULL DEFAULT 5,
+  next_attempt_at TEXT NOT NULL,
+  last_error      TEXT NOT NULL DEFAULT '',
+  sent_at         TEXT,
+  created_at      TEXT NOT NULL,
+  updated_at      TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_jobs_due ON email_jobs(status, next_attempt_at);
 
 CREATE TABLE IF NOT EXISTS unsubscribes (
   id         TEXT PRIMARY KEY,

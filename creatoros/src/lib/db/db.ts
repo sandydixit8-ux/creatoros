@@ -428,6 +428,61 @@ const MIGRATIONS: Array<{ id: number; up: (db: DatabaseSync) => void }> = [
       db.exec("CREATE INDEX IF NOT EXISTS idx_site_visits_visitor ON site_visits(visitor_id, created_at)");
     },
   },
+  {
+    // Durable lifecycle-email outbox (Gap 4). A payment webhook must acknowledge
+    // quickly and must never lose a dunning reminder because the mail provider
+    // was briefly down, so sends are queued here and drained by a cron job with
+    // bounded exponential retries. `idempotency_key` is UNIQUE: a re-delivered
+    // webhook enqueues the reminder once, not once per delivery.
+    id: 23,
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS email_jobs (
+          id              TEXT PRIMARY KEY,
+          tenant_id       TEXT NOT NULL DEFAULT '',
+          to_email        TEXT NOT NULL,
+          to_name         TEXT NOT NULL DEFAULT '',
+          template        TEXT NOT NULL DEFAULT '',
+          subject         TEXT NOT NULL,
+          html            TEXT NOT NULL,
+          idempotency_key TEXT NOT NULL UNIQUE,
+          status          TEXT NOT NULL DEFAULT 'queued',
+          attempts        INTEGER NOT NULL DEFAULT 0,
+          max_attempts    INTEGER NOT NULL DEFAULT 5,
+          next_attempt_at TEXT NOT NULL,
+          last_error      TEXT NOT NULL DEFAULT '',
+          sent_at         TEXT,
+          created_at      TEXT NOT NULL,
+          updated_at      TEXT NOT NULL
+        )
+      `);
+      db.exec("CREATE INDEX IF NOT EXISTS idx_email_jobs_due ON email_jobs(status, next_attempt_at)");
+    },
+  },
+  {
+    // Subscription state history (Gap 3). `subscriptions` stores only the current
+    // state, so new/expansion/contraction/churned MRR could not be computed after
+    // the fact. applySubscription writes one row per real transition. Indexed by
+    // (tenant_id, created_at) because every movement query filters on the window.
+    id: 24,
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS subscription_events (
+          id              TEXT PRIMARY KEY,
+          tenant_id       TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          subscription_id TEXT NOT NULL DEFAULT '',
+          provider        TEXT NOT NULL DEFAULT '',
+          from_plan       TEXT NOT NULL DEFAULT '',
+          to_plan         TEXT NOT NULL DEFAULT '',
+          from_status     TEXT NOT NULL DEFAULT '',
+          to_status       TEXT NOT NULL DEFAULT '',
+          currency        TEXT NOT NULL DEFAULT 'usd',
+          created_at      TEXT NOT NULL
+        )
+      `);
+      db.exec("CREATE INDEX IF NOT EXISTS idx_sub_events_tenant_time ON subscription_events(tenant_id, created_at)");
+    },
+  },
 ];
 
 function addColumn(db: DatabaseSync, table: string, column: string, ddl: string) {

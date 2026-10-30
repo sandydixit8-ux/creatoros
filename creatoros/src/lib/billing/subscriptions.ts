@@ -3,6 +3,7 @@ import { planRank } from "@/lib/plans";
 import { normalizeCurrency } from "@/lib/money-format";
 import { audit } from "@/lib/audit";
 import { fetchSubscription, type CfSubscription } from "@/lib/payments/cashfree-subscriptions";
+import { fetchDodoCheckoutSubscription, type DodoSubscriptionInfo } from "@/lib/payments/dodo-provider";
 
 export interface SubscriptionRow {
   id: string;
@@ -20,6 +21,53 @@ export interface SubscriptionRow {
 }
 
 export const ACTIVE_STATUSES = ["active", "trialing"] as const;
+
+/**
+ * Statuses that mean "the money did not arrive this period, but the customer has
+ * not left". A provider that retries a failed renewal reports one of these while
+ * it is still trying, and the account is expected to keep working until the
+ * retry window closes.
+ *
+ * Treating them as instantly inactive — which is what the old code did, because
+ * only `active`/`trialing` were in `ACTIVE_STATUSES` — threw a paying customer
+ * off their paid plan the moment a card expired, before they had any chance to
+ * update it. The comment in `dodo-provider.ts` already promised a grace window;
+ * this is where that promise is kept.
+ */
+export const GRACE_STATUSES = ["past_due", "on_hold"] as const;
+
+/** Clamp the operator setting to something a human could defend to a customer. */
+export function graceDays(): number {
+  const raw = Number(process.env.BILLING_GRACE_DAYS ?? "3");
+  if (!Number.isFinite(raw)) return 3;
+  return Math.min(30, Math.max(0, Math.floor(raw)));
+}
+
+/**
+ * Is this subscription granting paid features right now?
+ *
+ * `active`/`trialing` always are. A grace status is entitled only until
+ * `graceDays()` after the period that failed, so a permanently broken card
+ * cannot keep a paid plan forever. The anchor is `current_period_end` when the
+ * gateway supplied one (stable across redeliveries — the same `past_due` event
+ * cannot silently extend the window); only when there is no period at all do we
+ * fall back to the row's `updated_at`, because there is nothing better to use.
+ */
+export function isEntitled(
+  sub: Pick<SubscriptionRow, "status" | "current_period_end" | "updated_at">,
+  nowMs: number = Date.now()
+): boolean {
+  if (ACTIVE_STATUSES.includes(sub.status as (typeof ACTIVE_STATUSES)[number])) return true;
+  if (!GRACE_STATUSES.includes(sub.status as (typeof GRACE_STATUSES)[number])) return false;
+
+  const anchor = sub.current_period_end || sub.updated_at;
+  const anchorMs = new Date(anchor).getTime();
+  if (!Number.isFinite(anchorMs)) return false;
+
+  const days = graceDays();
+  if (days === 0) return false;
+  return nowMs - anchorMs <= days * 24 * 60 * 60 * 1000;
+}
 
 /**
  * Idempotent upsert of a subscription and apply its plan to the org.
@@ -75,6 +123,11 @@ export function applySubscription(input: {
   );
 
   let sub: SubscriptionRow | undefined = existing;
+  // Snapshot the prior state before the upsert: `subscriptions` is overwritten in
+  // place, so this is the last moment the old plan/status can be read for MRR
+  // movement. `''` means no prior subscription existed.
+  const priorPlan = existing?.plan ?? "";
+  const priorStatus = existing?.status ?? "";
   if (existing) {
     run(
       `UPDATE subscriptions SET
@@ -114,6 +167,38 @@ export function applySubscription(input: {
 
   const isActive = ACTIVE_STATUSES.includes(input.status as (typeof ACTIVE_STATUSES)[number]);
 
+  // Append history only for real transitions. A renewal webhook that restates
+  // `active/creator` must not add a row, or every gateway retry would look like
+  // a new subscription and inflate MRR movement.
+  if (priorPlan !== resolvedPlan || priorStatus !== input.status) {
+    run(
+      `INSERT INTO subscription_events
+         (id, tenant_id, subscription_id, provider, from_plan, to_plan,
+          from_status, to_status, currency, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      newId("sev"),
+      input.tenantId,
+      sub!.id,
+      input.provider,
+      priorPlan,
+      resolvedPlan,
+      priorStatus,
+      input.status,
+      knownCurrency,
+      nowIso()
+    );
+  }
+
+  // Grace is anchored to the failed period, not to the moment this particular
+  // event arrived: redelivering the same `past_due` must not reset the clock.
+  const graceAnchor = {
+    status: input.status,
+    current_period_end: sub!.current_period_end,
+    updated_at: existing?.updated_at ?? sub!.updated_at,
+  };
+  const entitledByGrace =
+    GRACE_STATUSES.includes(input.status as (typeof GRACE_STATUSES)[number]) && isEntitled(graceAnchor);
+
   if (isActive) {
     if (input.plan) {
       run("UPDATE organizations SET plan = ?, updated_at = ? WHERE id = ?", resolvedPlan, nowIso(), input.tenantId);
@@ -123,15 +208,33 @@ export function applySubscription(input: {
       // nothing away - guessing either way would be inventing billing state.
       audit({ tenantId: input.tenantId, action: "billing.subscription_plan_unknown", resource: resolvedPlan, meta: { provider: input.provider, providerId: input.providerId, status: input.status } });
     }
+  } else if (entitledByGrace) {
+    // Payment failed but the retry window is still open. Keep the plan; the
+    // customer has been emailed a way to fix the card (see billing/notify.ts)
+    // and dropping them here would punish an expired card, not a churn decision.
+    run("UPDATE organizations SET plan = ?, updated_at = ? WHERE id = ?", resolvedPlan, nowIso(), input.tenantId);
+    audit({
+      tenantId: input.tenantId,
+      action: "billing.subscription_grace",
+      resource: resolvedPlan,
+      meta: {
+        provider: input.provider,
+        providerId: input.providerId,
+        status: input.status,
+        graceDays: graceDays(),
+        anchor: graceAnchor.current_period_end,
+      },
+    });
   } else {
     // This subscription no longer grants anything, but that is not the same as the
     // tenant having nothing. Recompute what is still live rather than blanket-setting
     // `free`: a tenant holding a second, better subscription must not be evicted
-    // because an unrelated one ended.
-    const remaining = all<SubscriptionRow>(
-      "SELECT * FROM subscriptions WHERE tenant_id = ? AND status IN ('active', 'trialing') ORDER BY created_at DESC",
+    // because an unrelated one ended. Grace-period rows count as live.
+    const candidates = all<SubscriptionRow>(
+      "SELECT * FROM subscriptions WHERE tenant_id = ? AND status NOT IN ('canceled', 'pending') ORDER BY created_at DESC",
       input.tenantId
     );
+    const remaining = candidates.filter((s) => isEntitled(s));
     const best = remaining.reduce<SubscriptionRow | null>((top, s) => (!top || planRank(s.plan) > planRank(top.plan) ? s : top), null);
     const entitled = best?.plan ?? "free";
     run("UPDATE organizations SET plan = ?, updated_at = ? WHERE id = ?", entitled, nowIso(), input.tenantId);
@@ -165,11 +268,26 @@ export function cancelSubscriptionTracking(tenantId: string, providerId?: string
   audit({ tenantId, action: "billing.subscription_canceled", resource: providerId ?? "" });
 }
 
+/**
+ * The subscription currently granting access, if any.
+ *
+ * This includes a `past_due`/`on_hold` row while its grace window is open: the
+ * customer is still on the paid plan, still sees it on the billing page, and must
+ * still be able to cancel it. An expired grace row grants nothing and is skipped.
+ */
 export function activeSubscription(tenantId: string): SubscriptionRow | undefined {
-  return row<SubscriptionRow>(
-    `SELECT * FROM subscriptions WHERE tenant_id = ? AND status IN ('active', 'trialing') ORDER BY created_at DESC LIMIT 1`,
+  const candidates = all<SubscriptionRow>(
+    "SELECT * FROM subscriptions WHERE tenant_id = ? AND status NOT IN ('canceled', 'pending') ORDER BY created_at DESC",
     tenantId
   );
+  const entitled = candidates.filter((s) => isEntitled(s));
+  entitled.sort((a, b) => {
+    const aStrict = ACTIVE_STATUSES.includes(a.status as (typeof ACTIVE_STATUSES)[number]) ? 0 : 1;
+    const bStrict = ACTIVE_STATUSES.includes(b.status as (typeof ACTIVE_STATUSES)[number]) ? 0 : 1;
+    if (aStrict !== bStrict) return aStrict - bStrict;
+    return planRank(b.plan) - planRank(a.plan);
+  });
+  return entitled[0];
 }
 
 export function subscriptionsFor(tenantId: string): SubscriptionRow[] {
@@ -260,4 +378,87 @@ export async function syncPendingCashfreeSubscription(tenantId: string, opts: { 
   }
   // INITIALIZED / BANK_APPROVAL_PENDING / ON_HOLD are not collecting yet; the
   // subscription webhook (when configured) or a later sync promotes them.
+}
+
+/**
+ * Reconcile an open Dodo checkout against the live API.
+ *
+ * Same fallback shape as the Cashfree sync, with one extra step that Cashfree
+ * does not need: the pending row is keyed on the *checkout session* id because
+ * that is all `createSubscriptionSession` can return, while webhooks and the
+ * subscription API speak in `sub_...` ids. If the webhook is missing or lost,
+ * the row would otherwise stay `pending` forever and a paying customer would
+ * never receive the plan.
+ *
+ * So this resolves session -> subscription id, rebinds the row to the real id
+ * (or closes the placeholder if the webhook already created the real row), and
+ * then applies the upstream status. Only an upstream `active`/`past_due` grants
+ * anything; an unpaid or authorising session still grants nothing.
+ */
+export async function syncPendingDodoSubscription(tenantId: string, opts: { force?: boolean } = {}): Promise<void> {
+  const pending = row<SubscriptionRow>(
+    "SELECT * FROM subscriptions WHERE tenant_id = ? AND provider = 'dodo' AND status = 'pending' ORDER BY created_at DESC LIMIT 1",
+    tenantId
+  );
+  if (!pending?.provider_id) return;
+
+  if (!opts.force) {
+    const ageMs = Date.now() - new Date(pending.updated_at).getTime();
+    if (!Number.isFinite(ageMs) || ageMs < 60_000) return;
+  }
+
+  let info: DodoSubscriptionInfo | null;
+  try {
+    info = await fetchDodoCheckoutSubscription(pending.provider_id);
+  } catch (e) {
+    console.error("[billing.sync] dodo status fetch failed:", e instanceof Error ? e.message : e);
+    return;
+  }
+  if (!info) return; // Session exists but has no subscription yet: nothing to grant.
+
+  const realId = info.subscriptionId;
+  if (realId !== pending.provider_id) {
+    const clash = row<SubscriptionRow>(
+      "SELECT * FROM subscriptions WHERE provider = 'dodo' AND provider_id = ? AND id != ?",
+      realId,
+      pending.id
+    );
+    if (clash) {
+      // The webhook beat us to it and already owns the real id. The placeholder
+      // has no further purpose; close it rather than leaving two live rows.
+      run("UPDATE subscriptions SET status = 'canceled', updated_at = ? WHERE id = ?", nowIso(), pending.id);
+      audit({ tenantId, action: "billing.subscription_placeholder_closed", resource: pending.provider_id, meta: { realId } });
+    } else {
+      run("UPDATE subscriptions SET provider_id = ?, updated_at = ? WHERE id = ?", realId, nowIso(), pending.id);
+      audit({ tenantId, action: "billing.subscription_rebound", resource: realId, meta: { from: pending.provider_id } });
+    }
+  }
+
+  if (info.status === "canceled") {
+    cancelSubscriptionTracking(tenantId, realId);
+    return;
+  }
+  if (info.status === "pending") return;
+
+  applySubscription({
+    tenantId,
+    plan: pending.plan,
+    provider: "dodo",
+    providerId: realId,
+    status: info.status,
+    currentPeriodEnd: info.currentPeriodEnd,
+    currency: info.currency || pending.currency,
+  });
+}
+
+/**
+ * Reconcile whatever gateway has an open pending row for this tenant. Callers
+ * should not have to know which provider the visitor picked, so the billing page
+ * uses this instead of the provider-specific functions.
+ */
+export async function syncPendingSubscription(tenantId: string, opts: { force?: boolean } = {}): Promise<void> {
+  await Promise.all([
+    syncPendingCashfreeSubscription(tenantId, opts),
+    syncPendingDodoSubscription(tenantId, opts),
+  ]);
 }

@@ -14,9 +14,37 @@ export interface RevenueSnapshot {
   /** Monthly recurring revenue, split by currency. Never a single blended figure. */
   mrr: MoneyAmount[];
   lifeTime: MoneyAmount[];
+  /** Net revenue for the window (`net`). Kept for existing callers. */
   period: MoneyAmount[];
+  /** Money collected in the window, before refunds. */
+  gross: MoneyAmount[];
+  /** Money returned to customers in the window. Always a positive figure. */
+  refunds: MoneyAmount[];
+  /**
+   * Money retained: collected minus refunds. This is the only figure that may be
+   * labelled "revenue". `gross` and `refunds` are shown separately because a
+   * refund that silently shrinks the headline number hides how much was sold.
+   */
+  net: MoneyAmount[];
   subscriptionsActive: number;
   sources: RevenueSource[];
+}
+
+/**
+ * Per-currency MRR movement over a window.
+ *
+ * Every bucket is a positive magnitude in its own currency; `net` applies the
+ * signs. Expansion and contraction are only defined for a plan change that keeps
+ * the subscription paid — a move to `free` is churn, not contraction, even
+ * though both reduce MRR.
+ */
+export interface MrrMovement {
+  new: MoneyAmount[];
+  expansion: MoneyAmount[];
+  contraction: MoneyAmount[];
+  churned: MoneyAmount[];
+  /** new + expansion - contraction - churned, per currency. */
+  net: MoneyAmount[];
 }
 
 export interface RevenueMonthPoint {
@@ -80,13 +108,29 @@ export function mrrByCurrency(tenantId: string): MoneyAmount[] {
 // Each query filters in the WHERE clause. Appending a condition to a finished
 // query would land it after GROUP BY, where SQLite reads it as an extra join
 // predicate on the grouping column rather than a date filter.
-const paymentsQuery = (clause = ""): string =>
+//
+// A store sale writes BOTH an order and the payment row that settles it
+// (store/orders.ts). Summing both tables therefore counted every store sale
+// twice. Payments are now restricted to rows not attached to an order, and the
+// order table is the single source of truth for store revenue.
+const paymentsQuery = (clause = "", statuses = "('succeeded')"): string =>
   `SELECT currency, COALESCE(SUM(amount_cents), 0) AS c
-   FROM payments WHERE tenant_id = ? AND status = 'succeeded' ${clause}
+   FROM payments WHERE tenant_id = ? AND status IN ${statuses} AND COALESCE(order_id, '') = '' ${clause}
    GROUP BY currency`;
+/** Net of refunds: a partially refunded order keeps status `paid`. */
 const ordersQuery = (clause = ""): string =>
-  `SELECT currency, COALESCE(SUM(amount_cents), 0) AS c
+  `SELECT currency, COALESCE(SUM(amount_cents - COALESCE(refunded_cents, 0)), 0) AS c
    FROM orders WHERE tenant_id = ? AND status = 'paid' ${clause}
+   GROUP BY currency`;
+/** Everything ever collected, including orders that were later fully refunded. */
+const ordersGrossQuery = (clause = ""): string =>
+  `SELECT currency, COALESCE(SUM(amount_cents), 0) AS c
+   FROM orders WHERE tenant_id = ? AND status IN ('paid', 'refunded') ${clause}
+   GROUP BY currency`;
+/** The authoritative refund ledger. */
+const refundsQuery = (clause = ""): string =>
+  `SELECT currency, COALESCE(SUM(amount_cents), 0) AS c
+   FROM refunds WHERE tenant_id = ? AND status = 'succeeded' ${clause}
    GROUP BY currency`;
 const bookingsQuery = (clause = ""): string =>
   `SELECT s.currency AS currency, COALESCE(SUM(s.price_cents), 0) AS c
@@ -97,10 +141,15 @@ const bookingsQuery = (clause = ""): string =>
 export function revenueSnapshot(tenantId: string, days = 30): RevenueSnapshot {
   const since = `AND created_at >= '${new Date(Date.now() - days * 86400000).toISOString()}'`;
 
-  const period = mergeAmounts(
+  const net = mergeAmounts(
     groupByCurrency(paymentsQuery(since), tenantId),
     groupByCurrency(ordersQuery(since), tenantId)
   );
+  const gross = mergeAmounts(
+    groupByCurrency(paymentsQuery(since, "('succeeded', 'refunded')"), tenantId),
+    groupByCurrency(ordersGrossQuery(since), tenantId)
+  );
+  const refunds = groupByCurrency(refundsQuery(since), tenantId);
   const lifeTime = mergeAmounts(
     groupByCurrency(paymentsQuery(), tenantId),
     groupByCurrency(ordersQuery(), tenantId)
@@ -127,12 +176,15 @@ export function revenueSnapshot(tenantId: string, days = 30): RevenueSnapshot {
   return {
     mrr: mrrByCurrency(tenantId),
     lifeTime,
-    period,
+    period: net,
+    gross,
+    refunds,
+    net,
     subscriptionsActive,
     sources: [
       { label: "Recurring (subscriptions)", count: subscriptionsActive, byCurrency: mrrByCurrency(tenantId) },
-    { label: "One-time (orders)", count: ordersPaid, byCurrency: groupByCurrency(ordersQuery(), tenantId) },
-    { label: "Bookings", count: bookingsConfirmed, byCurrency: groupByCurrency(bookingsQuery(), tenantId) },
+      { label: "One-time (orders)", count: ordersPaid, byCurrency: groupByCurrency(ordersQuery(), tenantId) },
+      { label: "Bookings", count: bookingsConfirmed, byCurrency: groupByCurrency(bookingsQuery(), tenantId) },
     ],
   };
 }
@@ -154,7 +206,19 @@ export function revenueMonthlySeries(tenantId: string, months = 6): RevenueMonth
   collect(
     all<MonthRow>(
       `SELECT substr(created_at, 1, 7) AS month, currency, SUM(amount_cents) AS cents
-       FROM payments WHERE tenant_id = ? AND status = 'succeeded' AND created_at >= ?
+       FROM payments WHERE tenant_id = ? AND status IN ('succeeded', 'refunded')
+         AND COALESCE(order_id, '') = '' AND created_at >= ?
+       GROUP BY month, currency ORDER BY month`,
+      tenantId,
+      since
+    )
+  );
+  // Orders stay in the month they were sold. A later refund lands in the month
+  // the money went back, which is what an accounting view should show.
+  collect(
+    all<MonthRow>(
+      `SELECT substr(created_at, 1, 7) AS month, currency, SUM(amount_cents) AS cents
+       FROM orders WHERE tenant_id = ? AND status IN ('paid', 'refunded') AND created_at >= ?
        GROUP BY month, currency ORDER BY month`,
       tenantId,
       since
@@ -162,8 +226,8 @@ export function revenueMonthlySeries(tenantId: string, months = 6): RevenueMonth
   );
   collect(
     all<MonthRow>(
-      `SELECT substr(created_at, 1, 7) AS month, currency, SUM(amount_cents) AS cents
-       FROM orders WHERE tenant_id = ? AND status = 'paid' AND created_at >= ?
+      `SELECT substr(created_at, 1, 7) AS month, currency, -SUM(amount_cents) AS cents
+       FROM refunds WHERE tenant_id = ? AND status = 'succeeded' AND created_at >= ?
        GROUP BY month, currency ORDER BY month`,
       tenantId,
       since
@@ -179,10 +243,89 @@ export function revenueMonthlySeries(tenantId: string, months = 6): RevenueMonth
     out.push({
       month: key,
       byCurrency,
-      scale: byCurrency.reduce((s, a) => s + a.cents, 0),
+      // Bars cannot be drawn from a negative month (more refunded than sold), so
+      // the scale floor is zero while the real figure stays visible in `byCurrency`.
+      scale: Math.max(0, byCurrency.reduce((s, a) => s + a.cents, 0)),
     });
   }
   return out;
+}
+
+/** Statuses that still represent a paid (or grace-paid) mandate when costing MRR. */
+const MRR_PAID_STATUSES = new Set(["active", "trialing", "past_due", "on_hold"]);
+
+function planMonthlyCents(plan: string, currency: string): number {
+  if (!plan || plan === "free") return 0;
+  const price = PLAN_PRICES[plan]?.[normalizeCurrency(currency) as PriceCurrency];
+  return typeof price === "number" ? price * 100 : 0;
+}
+
+/**
+ * New, expansion, contraction and churned MRR over a window, from the
+ * `subscription_events` history that `applySubscription` appends.
+ *
+ * Rules, stated so the numbers can be defended:
+ *  - value is the plan's list price in the mandate's own currency; no FX guess
+ *  - a status that still entitles (active/trialing/past_due/on_hold) counts as
+ *    paid, so a grace-period account is not reported as churn
+ *  - 0 -> paid is `new`; paid -> higher paid is `expansion`; paid -> lower paid
+ *    is `contraction`; paid -> 0 is `churned`
+ *  - buckets are positive magnitudes; `net` applies the signs
+ */
+export function mrrMovement(opts: { tenantId?: string; days?: number } = {}): MrrMovement {
+  const days = Math.max(1, Math.floor(opts.days ?? 30));
+  const since = new Date(Date.now() - days * 86400000).toISOString();
+  const rows = opts.tenantId
+    ? all<{ from_plan: string; to_plan: string; from_status: string; to_status: string; currency: string }>(
+        `SELECT from_plan, to_plan, from_status, to_status, currency
+         FROM subscription_events WHERE tenant_id = ? AND created_at >= ?`,
+        opts.tenantId,
+        since
+      )
+    : all<{ from_plan: string; to_plan: string; from_status: string; to_status: string; currency: string }>(
+        `SELECT from_plan, to_plan, from_status, to_status, currency
+         FROM subscription_events WHERE created_at >= ?`,
+        since
+      );
+
+  const buckets = {
+    new: new Map<string, number>(),
+    expansion: new Map<string, number>(),
+    contraction: new Map<string, number>(),
+    churned: new Map<string, number>(),
+  };
+
+  for (const e of rows) {
+    const currency = normalizeCurrency(e.currency);
+    const before = MRR_PAID_STATUSES.has(e.from_status) ? planMonthlyCents(e.from_plan, currency) : 0;
+    const after = MRR_PAID_STATUSES.has(e.to_status) ? planMonthlyCents(e.to_plan, currency) : 0;
+    const delta = after - before;
+    if (delta === 0) continue;
+
+    const kind = delta > 0 ? (before === 0 ? "new" : "expansion") : after === 0 ? "churned" : "contraction";
+    buckets[kind].set(currency, (buckets[kind].get(currency) ?? 0) + Math.abs(delta));
+  }
+
+  const net = new Map<string, number>();
+  const signed: Array<[keyof typeof buckets, number]> = [
+    ["new", 1],
+    ["expansion", 1],
+    ["contraction", -1],
+    ["churned", -1],
+  ];
+  for (const [kind, sign] of signed) {
+    for (const [currency, cents] of buckets[kind]) {
+      net.set(currency, (net.get(currency) ?? 0) + sign * cents);
+    }
+  }
+
+  return {
+    new: finalize(buckets.new),
+    expansion: finalize(buckets.expansion),
+    contraction: finalize(buckets.contraction),
+    churned: finalize(buckets.churned),
+    net: finalize(net),
+  };
 }
 
 export function lastChargeAt(tenantId: string): string | null {

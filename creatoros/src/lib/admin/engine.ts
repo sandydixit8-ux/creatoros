@@ -1,7 +1,7 @@
 import { all, row, run, newId, nowIso, type SQLParam } from "@/lib/db/db";
 import { audit } from "@/lib/audit";
 import { PLANS, PLAN_PRICES, type PriceCurrency } from "@/lib/plans";
-import { mergeAmounts } from "@/lib/analytics/money";
+import { mergeAmounts, mrrMovement, type MrrMovement } from "@/lib/analytics/money";
 import { normalizeCurrency, type MoneyAmount } from "@/lib/money-format";
 
 export interface AdminOrg {
@@ -116,8 +116,17 @@ function countOf(sql: string): number {
 
 export interface AdminRevenue {
   mrr: MoneyAmount[];
+  /** Net revenue for the window (`net`). Kept for existing callers. */
   period: MoneyAmount[];
   lifeTime: MoneyAmount[];
+  /** Collected before refunds. */
+  gross: MoneyAmount[];
+  /** Returned to customers in the window (positive magnitude). */
+  refunds: MoneyAmount[];
+  /** Collected minus refunds. */
+  net: MoneyAmount[];
+  /** New / expansion / contraction / churned MRR for the same window. */
+  movement: MrrMovement;
   activeSubscriptions: number;
   paidOrders: number;
 }
@@ -138,16 +147,44 @@ export function platformMrr(): MoneyAmount[] {
 
 export function platformRevenue(days = 30): AdminRevenue {
   const since = new Date(Date.now() - days * 86400000).toISOString();
+  // Payments attached to an order are already represented by that order row;
+  // counting both is what doubled every store sale in this report.
+  const standalonePayments = (clause: string, ...params: string[]) =>
+    groupCurrency(
+      `SELECT currency, COALESCE(SUM(amount_cents), 0) AS c FROM payments
+       WHERE status IN ('succeeded', 'refunded') AND COALESCE(order_id, '') = '' ${clause}
+       GROUP BY currency`,
+      ...params
+    );
+  const net = mergeAmounts(
+    groupCurrency(
+      "SELECT currency, COALESCE(SUM(amount_cents - COALESCE(refunded_cents, 0)), 0) AS c FROM orders WHERE status = 'paid' AND created_at >= ? GROUP BY currency",
+      since
+    ),
+    standalonePayments("AND status = 'succeeded' AND created_at >= ?", since)
+  );
   return {
     mrr: platformMrr(),
-    period: mergeAmounts(
-      groupCurrency("SELECT currency, COALESCE(SUM(amount_cents), 0) AS c FROM payments WHERE status = 'succeeded' AND created_at >= ? GROUP BY currency", since),
-      groupCurrency("SELECT currency, COALESCE(SUM(amount_cents), 0) AS c FROM orders WHERE status = 'paid' AND created_at >= ? GROUP BY currency", since)
-    ),
+    period: net,
     lifeTime: mergeAmounts(
-      groupCurrency("SELECT currency, COALESCE(SUM(amount_cents), 0) AS c FROM payments WHERE status = 'succeeded' GROUP BY currency"),
-      groupCurrency("SELECT currency, COALESCE(SUM(amount_cents), 0) AS c FROM orders WHERE status = 'paid' GROUP BY currency")
+      groupCurrency(
+        "SELECT currency, COALESCE(SUM(amount_cents - COALESCE(refunded_cents, 0)), 0) AS c FROM orders WHERE status = 'paid' GROUP BY currency"
+      ),
+      standalonePayments("AND status = 'succeeded'")
     ),
+    gross: mergeAmounts(
+      groupCurrency(
+        "SELECT currency, COALESCE(SUM(amount_cents), 0) AS c FROM orders WHERE status IN ('paid', 'refunded') AND created_at >= ? GROUP BY currency",
+        since
+      ),
+      standalonePayments("AND created_at >= ?", since)
+    ),
+    refunds: groupCurrency(
+      "SELECT currency, COALESCE(SUM(amount_cents), 0) AS c FROM refunds WHERE status = 'succeeded' AND created_at >= ? GROUP BY currency",
+      since
+    ),
+    net,
+    movement: mrrMovement({ days }),
     activeSubscriptions: countOf("SELECT COUNT(*) AS c FROM subscriptions WHERE status = 'active' AND plan != 'free'"),
     paidOrders: countOf("SELECT COUNT(*) AS c FROM orders WHERE status = 'paid'"),
   };

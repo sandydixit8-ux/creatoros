@@ -198,10 +198,15 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
           <h2 className="mb-3 font-semibold text-white">Revenue</h2>
           <div className="text-xs text-night-400">MRR</div>
           <div className="text-xl font-bold text-white">{revenue.mrr.length ? formatMoneyBreakdown(revenue.mrr) : formatMoneyCents(0)}</div>
-          <div className="mt-3 text-xs text-night-400">This period</div>
+          <div className="mt-3 text-xs text-night-400">This period (net of refunds)</div>
           <div className="text-lg font-semibold text-white">
-            {revenue.period.some((a) => a.cents !== 0) ? formatMoneyBreakdown(revenue.period) : "—"}
+            {revenue.net.some((a) => a.cents !== 0) ? formatMoneyBreakdown(revenue.net) : "—"}
           </div>
+          {revenue.refunds.some((a) => a.cents !== 0) && (
+            <div className="mt-1 text-xs text-night-500">
+              {formatMoneyBreakdown(revenue.gross)} collected · {formatMoneyBreakdown(revenue.refunds)} refunded
+            </div>
+          )}
           <div className="mt-3 text-xs text-night-400">
             {revenue.subscriptionsActive} active subscription{revenue.subscriptionsActive === 1 ? "" : "s"} ·{" "}
             {lastCharge ? `last charge ${new Date(lastCharge).toLocaleDateString()}` : "no charges yet"}

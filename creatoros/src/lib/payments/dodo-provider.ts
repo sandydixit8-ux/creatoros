@@ -75,6 +75,8 @@ interface DodoResponse {
   status?: string;
   refund_id?: string;
   customer_id?: string;
+  currency?: string;
+  next_billing_date?: string;
   message?: string;
   detail?: string;
   error?: { message?: string } | string;
@@ -196,6 +198,54 @@ function safeEqual(a: string, b: string): boolean {
   const bb = Buffer.from(b);
   if (ab.length !== bb.length) return false;
   return crypto.timingSafeEqual(ab, bb);
+}
+
+export interface DodoSubscriptionInfo {
+  /** The real subscription id, not the checkout session id. */
+  subscriptionId: string;
+  status: "active" | "past_due" | "canceled" | "pending";
+  currentPeriodEnd: string | null;
+  currency: string;
+}
+
+/** Map Dodo's subscription vocabulary onto the app's four-way state machine. */
+function mapDodoSubscriptionStatus(raw: string): DodoSubscriptionInfo["status"] {
+  const s = raw.trim().toLowerCase();
+  if (s === "active" || s === "trialing") return "active";
+  if (s === "on_hold" || s === "past_due") return "past_due";
+  if (s === "pending" || s === "initiated") return "pending";
+  // cancelled | expired | failed: the mandate will never collect again.
+  return "canceled";
+}
+
+/**
+ * Reconcile a Dodo checkout/session against the live API.
+ *
+ * `createSubscriptionSession` only has the checkout session id at creation time,
+ * so the pending row is keyed on that. The webhook later rebinds it to the real
+ * subscription id (`sub_...`), but if the dashboard webhook is missing or the
+ * event is lost the row would sit at `pending` forever and the customer would
+ * pay without ever receiving the plan. This walks the same path Dodo documents:
+ * session -> subscription_id -> subscription, and returns the truth.
+ *
+ * Throws on transport/API errors so the caller can decide whether to retry; a
+ * missing subscription on an unpaid session returns null, which is not an error.
+ */
+export async function fetchDodoCheckoutSubscription(checkoutSessionId: string): Promise<DodoSubscriptionInfo | null> {
+  if (!configured()) throw new Error("Dodo is not configured (DODO_PAYMENTS_API_KEY)");
+
+  const checkout = await call<DodoResponse>(`/checkouts/${encodeURIComponent(checkoutSessionId)}`, { method: "GET" });
+  const subscriptionId = str(checkout.subscription_id);
+  if (!subscriptionId) return null;
+
+  const sub = await call<DodoResponse>(`/subscriptions/${encodeURIComponent(subscriptionId)}`, { method: "GET" });
+  const raw = str(sub.status) || str(checkout.status);
+  return {
+    subscriptionId,
+    status: mapDodoSubscriptionStatus(raw),
+    currentPeriodEnd: str(sub.next_billing_date) || null,
+    currency: str(sub.currency) || str(checkout.currency),
+  };
 }
 
 export const dodoProvider: PaymentProvider = {

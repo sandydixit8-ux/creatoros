@@ -6,7 +6,7 @@ import { AdsConversion } from "@/components/analytics/ads-conversion";
 import { row } from "@/lib/db/db";
 import { getLimits, PLAN_PRICES, type PriceCurrency } from "@/lib/plans";
 import { allUsage } from "@/lib/usage";
-import { activeSubscription, syncPendingCashfreeSubscription } from "@/lib/billing/subscriptions";
+import { activeSubscription, syncPendingSubscription } from "@/lib/billing/subscriptions";
 import { getPaymentProviderForCurrency, cashfreeSdkMode, resolvePlanCurrency } from "@/lib/payments";
 import { CURRENCY_COOKIE } from "@/lib/currency";
 import CurrencySelect from "@/components/currency-select";
@@ -21,10 +21,11 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
   if (!s) redirect("/auth/login");
 
   const sp = await searchParams;
-  // Post-checkout reconciliation: promote a mandate that Cashfree never turned
-  // into a webhook (dashboard webhook not configured). Only an ACTIVE upstream
-  // subscription is applied, so a spoofed ?upgraded= cannot invent a payment.
-  await syncPendingCashfreeSubscription(s.org.id, { force: Boolean(sp?.upgraded) });
+  // Post-checkout reconciliation: promote a mandate whose webhook never arrived
+  // (dashboard webhook not configured, or the event was lost). Only an upstream
+  // active (or grace-period) subscription is applied, so a spoofed ?upgraded=
+  // cannot invent a payment.
+  await syncPendingSubscription(s.org.id, { force: Boolean(sp?.upgraded) });
   const upgraded = Boolean(sp?.upgraded);
 
   const org = row<{ plan: string; name: string }>("SELECT plan, name FROM organizations WHERE id = ?", s.org.id);
