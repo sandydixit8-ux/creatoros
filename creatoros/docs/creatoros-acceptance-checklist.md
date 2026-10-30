@@ -118,7 +118,7 @@ Legend:
 | 5.4 | Typecheck | Verified |
 | 5.5 | Lint | Verified (0 errors) |
 | 5.6 | Production build | Verified |
-| 5.7 | CI enforcement | Verified — root `.github/workflows/ci.yml` runs lint, typecheck, tests, build and Playwright E2E; `npm audit --omit=dev` added 2026-10-30 |
+| 5.7 | CI enforcement | Verified — root `.github/workflows/ci.yml` runs lint, typecheck, tests, build, Playwright E2E and `npm audit --omit=dev`. First run after the change: **success**, both jobs, audit `found 0 vulnerabilities` (run `41051797883`, 2026-10-30) |
 | 5.8 | Dependency audit | Verified — production deps 0 vulnerabilities; 3 dev-only advisories in the vitest runner (needs a major upgrade, tracked separately) |
 | 5.9 | Deployment | Blocked (not authorized in this pass) |
 | 5.10 | Docs and runbooks | Verified (this doc set) |
