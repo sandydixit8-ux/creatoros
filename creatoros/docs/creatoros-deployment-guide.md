@@ -158,6 +158,7 @@ indexes.
 | Geo pricing | GB renders `£7 / mo` with “$9 in the US · ₹749 in India”; US renders `$9 / mo` with “£7 in the UK · ₹749 in India”; tax-inclusive copy present |
 | Cron auth | `POST /api/cron/email` → 200 with the secret, 403 without |
 | Scheduler | Installed under user `ubuntu`; first automatic run 12:08:01 UTC returned 200 |
+| Server env additions | `CRON_SECRET` (64 hex chars, generated on the host) and `BILLING_GRACE_DAYS=3`, both appended to `/home/ubuntu/app/.env`; `deploy.sh` keeps the file across deploys |
 | Service | `creatoros` active, `NRestarts=0`, no error-level log entries in the 5 minutes after deploy |
 
 Not done here because it needs a dashboard or DNS: Dodo webhook registration, SPF/DKIM/DMARC, the
