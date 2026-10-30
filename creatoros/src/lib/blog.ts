@@ -1020,6 +1020,142 @@ export const BLOG_POSTS: BlogPost[] = [
       },
     ],
   },
+  {
+    slug: "how-to-sell-digital-products-us",
+    title: "How to Sell Digital Products in the US (2026 Step-by-Step)",
+    description:
+      "A practical path for US creators: what to sell, how to price in dollars, the state sales-tax question, delivery and refunds, and how to get the first ten buyers without ads.",
+    date: "2026-10-30",
+    readingMinutes: 9,
+    tag: "Strategy",
+    related: "/sell-digital-products",
+    sections: [
+      {
+        paragraphs: [
+          "Selling a digital product in the US is simple to start and easy to get wrong in the details - pricing, sales tax, delivery, refunds.",
+          "This is the whole process in the order you should do it. Nothing here needs a developer, a designer or an accountant on day one. It is written for a solo creator selling in dollars, not for a company with a finance team.",
+        ],
+      },
+      {
+        heading: "1. Pick something US buyers already pay for",
+        paragraphs: [
+          "Your first product should solve one specific problem for one specific person. Broad ebooks sell badly; narrow tools sell well.",
+        ],
+        bullets: [
+          "Templates: resumes, pitch decks, invoices, social media kits.",
+          "Spreadsheets and Notion systems: freelance tracking, budgeting, small business bookkeeping.",
+          "Presets, fonts and design assets for other creators.",
+          "Short practical guides and checklists - under 30 pages, one outcome.",
+          "A recorded mini-course if you already teach this thing for free.",
+        ],
+      },
+      {
+        heading: "2. Price in dollars and know your fee floor",
+        paragraphs: [
+          "Price in USD so buyers see the currency they think in, and work out your fees before you set the number - not after.",
+          "A $5 download is rarely worth selling once fixed fees land on it. A $19 to $39 product gives you room to absorb fees, run the occasional discount and still make the sale worthwhile.",
+        ],
+        links: [
+          { label: "How to price your first digital product", href: "/blog/how-to-price-a-digital-product" },
+        ],
+      },
+      {
+        heading: "Pricing benchmarks for US digital products",
+        paragraphs: [
+          "If you have no idea where to start, these ranges reflect what US creators charge for common formats. Treat them as a starting point, not a rule.",
+        ],
+        bullets: [
+          "Single template or checklist: $7 to $15.",
+          "Template pack or system of 5 to 20 files: $19 to $39.",
+          "Recorded mini-course: $49 to $99.",
+          "Live workshop with a recording: $29 to $79.",
+          "Monthly membership: $9 to $29.",
+        ],
+      },
+      {
+        heading: "3. The state sales-tax question",
+        paragraphs: [
+          "The US has no single national rule for digital goods. Whether a download, a course or a membership is taxable depends on the state, and states apply their own thresholds before an out-of-state seller has to register and collect.",
+          "Two things make this manageable rather than scary. First, thresholds differ by state and change often, so check yours before you cross it rather than guessing. Second, if you sell through a merchant of record - a platform that is legally the seller of record - that platform collects and remits the tax on its sales, which removes most of the admin for a solo seller.",
+          "Selling direct to buyers through your own Stripe or PayPal account keeps more of each sale, but the registration and filing become yours once you pass a state's threshold. This is the one step worth a short conversation with a US accountant rather than a blog post. Nothing here is tax advice.",
+        ],
+      },
+      {
+        heading: "4. Set up checkout and delivery",
+        paragraphs: [
+          "Instant delivery is the whole appeal of a digital product, so the buying path has to be short: land on the page, pay, get the file.",
+        ],
+        bullets: [
+          "Use a hosted checkout so you never touch card data.",
+          "Deliver the file automatically by email and from an account area, so buyers can re-download.",
+          "State the licence clearly: personal use, commercial use, or both.",
+          "Write a refund policy that fits digital goods. There is no single national cooling-off window for digital purchases in the US; state consumer-protection rules and card-network chargeback rules still apply, so say what you will and will not refund.",
+        ],
+      },
+      {
+        heading: "5. Get the first ten buyers without ads",
+        paragraphs: [
+          "Ten sales teach you more than a month of planning. None of them need a budget.",
+        ],
+        bullets: [
+          "Answer the question your product solves in public - Reddit, Facebook groups, forums - and link your store only where it is welcome.",
+          "Post one short video a day showing the product in use, not the product page.",
+          "Write the blog post that matches what buyers search, such as how much a marketplace takes from each sale.",
+          "Email or message the ten people most likely to need it, personally.",
+          "Offer a launch price to the first twenty buyers and say so honestly.",
+        ],
+      },
+      {
+        heading: "6. Turn buyers into a list you own",
+        paragraphs: [
+          "The first sale is a transaction. The list is the business. Every buyer and every free-download subscriber should land in the same audience, so your second launch costs nothing to announce.",
+          "Keep your store, courses, bookings and email on one platform where possible. Five tools means five exports and a list that never fully matches.",
+        ],
+        links: [
+          { label: "The 2026 creator tool stack: what you actually need", href: "/blog/creator-tool-stack-2026" },
+          { label: "How to build an email list you actually own", href: "/blog/build-an-email-list-you-own" },
+          { label: "Start selling on CreatorOS", href: "/sell-digital-products" },
+        ],
+      },
+      {
+        heading: "A realistic first 90 days",
+        paragraphs: [
+          "This is the pace that produces sales without an existing audience. It assumes you already have a product and a store link.",
+        ],
+        bullets: [
+          "Week 1: build the product and the page. One product, one checkout link, one email capture.",
+          "Week 2: sell to warm contacts - your own followers, past clients, anyone who has asked you about this problem.",
+          "Weeks 3 to 4: publish two short videos a week showing the product in use, plus one blog post answering the question it solves.",
+          "Weeks 5 to 8: post in three communities a week where the problem is discussed, and add a free lead magnet to grow the list.",
+          "Weeks 9 to 12: email the list, run one genuine launch window, then raise the price and keep selling.",
+        ],
+      },
+      {
+        heading: "Five mistakes that kill a first launch",
+        paragraphs: [
+          "None of these are technical. They are the reasons good products sell nothing.",
+        ],
+        bullets: [
+          "Building for months and launching once. Ship something small in the first two weeks.",
+          "Hiding the price. Buyers who cannot see it assume it is expensive.",
+          "No email capture on the product page. Most visitors will not buy today, and you need a way back to them.",
+          "Selling only to strangers. Your first ten buyers are usually people who already know you.",
+          "Changing nothing after launch. The first ten sales are research - read the questions buyers ask before they pay.",
+        ],
+      },
+      {
+        heading: "FAQ",
+        paragraphs: [
+          "The three questions that come up before every first launch.",
+        ],
+        bullets: [
+          "Do I need an LLC to sell digital products in the US? No. A sole proprietor can sell from day one. An LLC is a liability and tax decision, not a permission slip - ask an accountant if you are unsure.",
+          "Can I sell digital products on Etsy or Gumroad? Yes, and they can bring buyers - but fees stack up and you do not own the customer relationship.",
+          "How much does it cost to start? A domain is about $10 to $15 a year, plus whatever platform you choose. CreatorOS is free to start with no card required.",
+        ],
+      },
+    ],
+  },
 ];
 
 export function getPost(slug: string): BlogPost | undefined {
