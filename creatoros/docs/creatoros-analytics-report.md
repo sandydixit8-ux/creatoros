@@ -99,3 +99,44 @@ append-only and are read by distinct entity where a count must not double.
 | Bot traffic that runs JS inflates visits | Traffic reports are directionally useful, not audited |
 | Provider-side bounces not ingested | Email delivery metrics stop at "provider accepted" |
 | Bookings have no collected amount | Booking value is shown as a separate figure, never added to revenue |
+
+## 9. Traffic snapshot — 2026-10-30 (read from the production DB)
+
+First-party numbers from `site_visits` (server-side beacon, no cookie) plus the Caddy access log.
+Read at 19:17 UTC, so 30 Oct is a partial day.
+
+| Metric | Value |
+| --- | --- |
+| 30 Oct so far | 135 page views, 96 visitor-days |
+| Last 7 days | 568 page views, 396 visitor-days |
+| Previous 7 days | 345 page views, 242 visitor-days |
+| Since tracking began (2026-10-19) | 1,048 page views, 734 visitor-days, 1.43 views per visitor |
+| Countries, 30 days | IN 889, US 115, NL 24, ID 8, JP 4, FR 2, ES 2, PK/IE/DE/CN 1 each, **GB 0** |
+| Referrers, 7 days | youtube.com 384, direct 298, l.instagram.com 6, reddit 5, google 4, facebook 3, brevo 1 |
+| Devices, 7 days | mobile 536 (76%), desktop 167 |
+| Pages, 7 days | `/` 516, `/auth/login` 69, `/pricing` 50, `/blog` 25, `/auth/register` 24, `/etsy-fee-calculator` 3 |
+| Funnel, 30 days | 4 signups, 2 activations, 5 `checkout_started` (last one 2026-10-20) |
+| Accounts | 5 users (2 test, 1 owner, 1 verification, 1 real on 2026-10-28), 3 contacts, 0 orders, 0 payments |
+
+Two things this snapshot does not show, both checked directly:
+
+- **A monitoring service inflates the dashboard.** On 30 Oct, 36 of 68 `/api/site-view` beacons came
+  from nine Azure addresses (`20.25.10.64`, `52.225.78.140`, `20.106.231.193`, `20.171.125.128`,
+  `20.171.4.213`, `20.161.47.116`, `4.155.196.102`, `132.196.38.98`, `172.185.167.41`) sending a
+  macOS Chrome 136 user agent and walking `/` → `/pricing` → `/blog`. The same addresses call
+  `/api/health` about twice a minute. `isLikelyBot` only inspects the user agent, so these are
+  recorded as US desktop visitors. Real human page views on 30 Oct were closer to 99 than 135, and
+  the `/pricing` figure (21 today) is roughly a third machine traffic.
+- **The UK has no traffic at all.** Zero requests with `cf-ipcountry: GB` in the access log, and no
+  `GB` row in `site_visits` in 30 days. What traffic exists is 89% India, referred by YouTube.
+  The US/UK positioning has not reached its own audience yet.
+
+Also seen in the same window: 40 `404`s, almost all a WordPress scanner from one NL address probing
+`/wp`, `/wordpress`, `/cms`, `/press`, `/wp-json`; four `403`s on `/api/cron/email` at 12:06–12:12,
+which are the pre-rotation `CRON_SECRET` calls already documented in the security report. No action
+needed on either.
+
+Attribution gap worth knowing before the outreach links go out: `site_visits` has no UTM columns, so
+campaign tags are not visible in the marketing-site traffic panel. Signup attribution does work —
+`UtmCapture` stores the tags in a first-party cookie and `/api/auth/register` forwards them — so a
+signup from `utm_source=outreach` will be attributable even though the page views are not.
