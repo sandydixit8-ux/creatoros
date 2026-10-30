@@ -123,6 +123,8 @@ Legend:
 | 5.9 | Deployment | Verified — deployed 2026-10-30 from `c83a4c7`, BUILD_ID `xbb432yMnsmZcyhdOdhOl`, migrations 23/24 applied, health `{"ok":true,"db":"ok"}`, snapshot + previous artifact kept (deployment guide §10) |
 | 5.10 | Docs and runbooks | Verified (this doc set) |
 | 5.11 | No fabricated results/claims | Verified — every number above came from an executed command |
+| 5.12 | Brand mark | Verified — the supplied artwork is the single mark (header, footer, sidebar, mobile nav, six auth/account screens), served as a 5.7 KB webp; `/icon.png` 200 (88,923 B), `/apple-icon.png` 200, `/favicon.ico` 308 → `/icon.png`, manifest and JSON-LD `logo` point at `/icon.png`; deployed as BUILD_ID `Wi0fkp5eaT_U5Z8jASSdJ` (deployment guide §10.2) |
+| 5.13 | Typecheck on a fresh clone | Verified — `*.webp` imports are declared in `src/types/static-assets.d.ts`, because `next-env.d.ts` is gitignored and CI typechecks before it is generated. `tsc` exits 0 with and without `next-env.d.ts`; CI run `41084793654` green (both jobs) |
 
 ## Open items requiring a human
 
