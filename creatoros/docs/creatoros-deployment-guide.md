@@ -176,3 +176,20 @@ server `.env` and were preserved by `deploy.sh`.
 | Change | Adds the US blog post only; no migrations, no schema, no config |
 | Rollback artifact | `/home/ubuntu/app-pre-20261030b.tar.gz` (8.2 MB) |
 | Verification | `/blog/how-to-sell-digital-products-us` → 200, title and `datePublished 2026-10-30` present, all four internal links rendered as anchors, no literal markdown links, present in `/sitemap.xml` and `/blog`, service active with `NRestarts=0`, no error logs |
+
+### 10.2 Brand mark deploy — 2026-10-30 (evening)
+
+| Item | Value |
+| --- | --- |
+| Commit | `4fe900d` (this commit) |
+| Archive | `creatoros-logo.tar.gz`, sha256 `3fc6b98c3d313ffac47468f19ef6d503452318da5e706fca217a03a9b78a64b5` |
+| Previous build | `N4n_xXCNiQbv0VMmr7Se7` |
+| New build | `Wi0fkp5eaT_U5Z8jASSdJ` |
+| Change | Replaces the letter "C" tiles with one shared `BrandMark`; new app icons. No migrations, schema or env changes |
+| Rollback artifact | `/home/ubuntu/app-pre-logo.tar.gz` (8.3 MB) |
+| Assets | `src/assets/brand/logo-mark.webp` (128px, 5,738 B) bundled through the module graph; `src/app/icon.png` (512px, 88,923 B) and `src/app/apple-icon.png` (180px) served as metadata routes; deleted `src/app/icon.tsx` so the generated icon no longer wins over the file |
+| Verification | `/icon.png` → 200 `image/png` 88,923 B; `/apple-icon.png` → 200; `/favicon.ico` → 308 to `/icon.png`; `/_next/static/media/logo-mark.2bue8mtykn2q2.webp` → 200 `image/webp` 5,738 B; mark present on `/`, `/pricing`, `/auth/login`, `/auth/register`; `manifest.webmanifest` icon `src` = `/icon.png`; JSON-LD Organization `logo` = `https://usecreatoros.co/icon.png`; health `{"ok":true,"db":"ok"}`; service active, `NRestarts=0`, no error-level entries |
+
+Note: the artwork is full-bleed with no alpha channel, so the mark is clipped to a rounded square rather
+than floated as a transparent glyph. `BrandMark` uses `unoptimized` because the asset is already 5.7 KB
+and the standalone server must not depend on the image optimizer.

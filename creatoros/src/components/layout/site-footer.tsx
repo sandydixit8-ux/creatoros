@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Facebook, Youtube, Linkedin } from "lucide-react";
+import { BrandMark } from "@/components/brand/brand-mark";
 
 export const SOCIALS = [
   { href: "https://www.facebook.com/1299369053270317", label: "Facebook", icon: Facebook },
@@ -43,9 +44,7 @@ export function SiteFooter() {
         <div className="grid gap-10 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
           <div>
             <Link href="/" className="inline-flex items-center gap-2.5 font-semibold text-ink" aria-label="CreatorOS home">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 text-sm font-bold text-white">
-                C
-              </span>
+              <BrandMark />
               <span className="text-base tracking-tight">
                 Creator<span className="bg-gradient-to-r from-brand-400 to-cyan-300 bg-clip-text text-transparent">OS</span>
               </span>

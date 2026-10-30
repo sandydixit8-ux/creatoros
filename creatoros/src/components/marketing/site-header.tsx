@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
+import { BrandMark } from "@/components/brand/brand-mark";
 
 const DEFAULT_NAV = [
   { label: "Features", href: "/#features" },
@@ -18,9 +19,7 @@ export function SiteHeader({ nav = DEFAULT_NAV }: { nav?: Array<{ label: string;
     <header className="sticky top-0 z-50 border-b border-white/10 bg-night-950/85 backdrop-blur">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
         <Link href="/" className="flex items-center gap-2.5 font-semibold text-ink" aria-label="CreatorOS home">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 text-sm font-bold text-white shadow-glow">
-            C
-          </span>
+          <BrandMark />
           <span className="text-base tracking-tight">
             Creator<span className="bg-gradient-to-r from-brand-400 to-cyan-300 bg-clip-text text-transparent">OS</span>
           </span>

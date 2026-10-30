@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, ShieldCheck, X } from "lucide-react";
 import { APP_NAV, appNavActive } from "@/components/layout/app-nav";
+import { BrandMark } from "@/components/brand/brand-mark";
 
 export function AppMobileNav({
   orgName,
@@ -67,7 +68,7 @@ export function AppMobileNav({
           <div className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-white shadow-2xl">
             <div className="flex h-16 items-center justify-between border-b border-navy-100 px-4">
               <Link href="/app" onClick={() => setOpen(false)} className="flex items-center gap-2 font-semibold text-navy-900">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-white">C</span>
+                <BrandMark />
                 <span>Creator<span className="text-brand-600">OS</span></span>
               </Link>
               <button

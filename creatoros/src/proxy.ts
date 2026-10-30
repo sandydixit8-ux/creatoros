@@ -46,10 +46,10 @@ export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Browsers and link checkers still ask for /favicon.ico even when the page
-  // declares /icon, so serve the generated icon there instead of a 404.
+  // declares /icon.png, so serve the app icon there instead of a 404.
   if (pathname === "/favicon.ico") {
     const url = request.nextUrl.clone();
-    url.pathname = "/icon";
+    url.pathname = "/icon.png";
     return NextResponse.redirect(url, 308);
   }
 

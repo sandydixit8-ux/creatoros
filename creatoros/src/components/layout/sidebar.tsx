@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 import { APP_NAV, appNavActive } from "@/components/layout/app-nav";
+import { BrandMark } from "@/components/brand/brand-mark";
 
 export function Sidebar({ orgName, plan, isAdmin }: { orgName: string; plan: string; isAdmin: boolean }) {
   const pathname = usePathname();
@@ -12,7 +13,7 @@ export function Sidebar({ orgName, plan, isAdmin }: { orgName: string; plan: str
   return (
     <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-navy-100 bg-white lg:flex">
       <div className="flex h-16 items-center gap-2 border-b border-navy-100 px-5 font-semibold text-navy-900">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-white">C</span>
+        <BrandMark />
         <span>Creator<span className="text-brand-600">OS</span></span>
       </div>
       <nav aria-label="Dashboard" className="flex-1 space-y-1 overflow-y-auto p-3">

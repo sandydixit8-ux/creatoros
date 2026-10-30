@@ -79,7 +79,7 @@ const jsonLd = {
       "@id": `${SITE_URL}/#organization`,
       name: "CreatorOS",
       url: SITE_URL,
-      logo: `${SITE_URL}/icon`,
+      logo: `${SITE_URL}/icon.png`,
       description,
       // Ties the site and the YouTube channel to one entity for search engines.
       // The channel carries a video with 7,978 views; before this, nothing on
