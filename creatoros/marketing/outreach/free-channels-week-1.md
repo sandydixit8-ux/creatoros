@@ -110,7 +110,9 @@ $94. Direct: $20 x (2.9% + $0.30) = $0.88 per sale; 40 = $35.20. Both rounded in
 ## 6. What to log after every touch
 
 One row in `tracker-2026-10-30.csv`: date, slot, place, thread, message number, status, reply,
-outcome, next step. `status` is only ever `posted`, `replied`, `no reply`, or `skipped`.
+outcome, next step. `status` is only ever `ready` (not posted yet), `posted`, `replied`, `no reply`,
+`skipped` or `planned` (the review row). The click-by-click version, with the copy for each slot,
+is in `HOW-TO-POST-WEEK-1.md`.
 
 ## 7. Review on 5 Nov - the only numbers that matter
 
