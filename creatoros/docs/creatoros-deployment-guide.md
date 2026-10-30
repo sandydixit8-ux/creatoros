@@ -132,6 +132,7 @@ indexes.
 - [ ] `npm run lint` 0 errors
 - [ ] `npx vitest run` all passing
 - [ ] `npm run build` succeeds
+- [ ] `npm audit --omit=dev` reports 0 vulnerabilities
 - [ ] DB snapshot taken
 - [ ] `BILLING_GRACE_DAYS` decided by the business (default 3)
 - [ ] `CRON_SECRET` set and cron entry installed

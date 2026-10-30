@@ -119,7 +119,7 @@ Legend:
 | 5.5 | Lint | Verified (0 errors) |
 | 5.6 | Production build | Verified |
 | 5.7 | CI enforcement | Missing (no `.github/`) |
-| 5.8 | Dependency audit | Missing (`npm audit` not run) |
+| 5.8 | Dependency audit | Verified — production deps 0 vulnerabilities; 3 dev-only advisories in the vitest runner (needs a major upgrade, tracked separately) |
 | 5.9 | Deployment | Blocked (not authorized in this pass) |
 | 5.10 | Docs and runbooks | Verified (this doc set) |
 | 5.11 | No fabricated results/claims | Verified — every number above came from an executed command |

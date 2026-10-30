@@ -173,7 +173,7 @@ src/lib/auth/totp.ts:12              'STEP_MS' unused
 | --- | --- |
 | Real Dodo/Cashfree/Stripe sandbox transaction | Would require a human to enter card data and would move real (test) money. Automated tests must not do this. |
 | Playwright end-to-end journeys (`@playwright/test` is installed) | No E2E suite exists in the repo and no browser run was authorized in this pass. |
-| `npm audit` | Not run; would report dependency vulnerabilities but does not change this work. Recommended before deploy. |
+| `npm audit` | Executed 2026-10-30. `--omit=dev` → **0 vulnerabilities**. Full tree → 3 dev-only advisories in `tinypool`/`vitest`/`@vitest/mocker`; `vite` was patched 7.3.6 → 7.3.7 by `npm audit fix`. Clearing the rest needs a vitest major upgrade (`--force`), which is a separate change. |
 | Load/performance test | No SLA is claimed and no load harness exists. |
 | Email deliverability (SPF/DKIM/DMARC) | Requires DNS access and a real send to a mailbox. |
 

@@ -185,7 +185,7 @@ implementation plan and require approval.
 | Secrets only server-side | Implemented — no `NEXT_PUBLIC_` key for any payment secret | `src/lib/payments/*` |
 | Log redaction | Implemented — Caddy redacts `Cookie`; webhook logs are PII-free length/host only | `src/app/api/webhooks/stripe/route.ts:58` |
 | Cron endpoints gated | Implemented — `CRON_SECRET` bearer/query, else owner/admin session | `src/lib/cron.ts` |
-| Dependency audit | Not run in this pass | `npm audit` not executed |
+| Dependency audit | Executed — production dependencies clean (0 vulnerabilities); 3 dev-only advisories remain in the vitest runner | `npm audit --omit=dev`, `npm audit` |
 
 Do not read this table as a compliance claim. It is a description of code controls only.
 

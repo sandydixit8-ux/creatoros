@@ -44,7 +44,7 @@ be quoted as one.
 | --- | --- | --- |
 | In-memory rate limiter is per-process | Medium | Single instance today. If scaled, move the counter to the database or a shared store. |
 | `AUTH_SECRET` rotation pending (see 837 authenticated hits) | **High until confirmed** | Confirm ownership; rotate if unexplained. Rotation logs everyone out. |
-| No dependency vulnerability scan in this pass | Medium | Run `npm audit` before the next deploy; patch high/critical. |
+| Test-toolchain advisories (`tinypool` critical, `vitest` critical, `@vitest/mocker` moderate) | Low (dev-only) | `npm audit --omit=dev` reports **0 vulnerabilities**: nothing in the production dependency tree. The remaining three are inside the vitest runner, which is not built or deployed. Fixing them needs a vitest major upgrade (`npm audit fix --force`), which is a separate change with its own test run. Run the full suite after that upgrade. |
 | No CSP/Trusted Types verification in this pass | Medium | Review headers at the edge; not changed here. |
 | Provider-side bounce/complaint data not ingested | Low | Add provider webhook ingestion before scaling marketing volume. |
 | Analytics can be inflated by JS-executing bots | Low | Documented limitation; do not treat visit counts as audited |
@@ -66,4 +66,4 @@ be quoted as one.
 2. Rotate the Dodo live API key if it has ever been shared outside the server.
 3. Reset the Meta App Secret if the Meta integration was ever configured with a shared value.
 4. Add redaction for any custom auth header (`AccessToken`) in the edge log config.
-5. Run `npm audit` and review.
+5. ~~Run `npm audit` and review.~~ Done 2026-10-30: production dependencies are clean (0 vulnerabilities); `vite` patched to 7.3.7. The three remaining advisories are in the vitest dev runner and need a major upgrade — decide separately.
