@@ -2,8 +2,8 @@
 
 Date: 2026-10-30
 
-Deployment was **not** performed as part of this work. This document is the procedure and the
-verification list for whoever is authorized to deploy.
+Deployment was **performed** on 2026-10-30 (see §10 for the record). This document remains the
+procedure and the verification list for the next one.
 
 ---
 
@@ -128,16 +128,38 @@ indexes.
 
 ## 9. Deployment checklist
 
-- [ ] `npx tsc --noEmit` clean
-- [ ] `npm run lint` 0 errors
-- [ ] `npx vitest run` all passing
-- [ ] `npm run build` succeeds
-- [ ] `npm audit --omit=dev` reports 0 vulnerabilities
-- [ ] DB snapshot taken
+- [x] `npx tsc --noEmit` clean
+- [x] `npm run lint` 0 errors (6 pre-existing warnings)
+- [x] `npx vitest run` all passing (51 files / 505 tests)
+- [x] `npm run build` succeeds
+- [x] `npm audit --omit=dev` reports 0 vulnerabilities
+- [x] DB snapshot taken
 - [x] `BILLING_GRACE_DAYS` decided by the business: **3 days**, confirmed 2026-10-30
-- [ ] `CRON_SECRET` set and cron entry installed
+- [x] `CRON_SECRET` set and cron entry installed
 - [ ] Dodo webhook registered and secret stored
 - [ ] SPF/DKIM/DMARC verified
-- [ ] Health + build marker checked after deploy
+- [x] Health + build marker checked after deploy
 - [ ] One test-mode purchase completed by a human
-- [ ] Rollback artifact identified
+- [x] Rollback artifact identified
+
+## 10. Deployment record — 2026-10-30
+
+| Item | Value |
+| --- | --- |
+| Commit | `c83a4c7` (build from `creatoros/`) |
+| Archive | `creatoros-20261030.tar.gz`, sha256 `5c071a40fd6d01ae6aae321f3a18a7819df9273067f60305f14d9a43b0ebcafa` |
+| Previous build | `Ba3GHZfMo0nwfAM-a8P04` |
+| New build | `xbb432yMnsmZcyhdOdhOl` |
+| DB snapshot | `/home/ubuntu/data/creatoros.db.snapshot-2026-10-30T12-05-39` |
+| Rollback artifact | `/home/ubuntu/app-pre-20261030.tar.gz` (9.3 MB) |
+| Migrations | 23 and 24 applied; `_migrations` max = 24; `email_jobs` + `subscription_events` present |
+| Data before/after | users 5, contacts 3, orders 0, payments 0 — unchanged |
+| Routes checked | `/`, `/pricing`, `/auth/login`, `/auth/register`, `/llms.txt`, `/sitemap.xml`, `/api/health` → all 200 |
+| Geo pricing | GB renders `£7 / mo` with “$9 in the US · ₹749 in India”; US renders `$9 / mo` with “£7 in the UK · ₹749 in India”; tax-inclusive copy present |
+| Cron auth | `POST /api/cron/email` → 200 with the secret, 403 without |
+| Scheduler | Installed under user `ubuntu`; first automatic run 12:08:01 UTC returned 200 |
+| Service | `creatoros` active, `NRestarts=0`, no error-level log entries in the 5 minutes after deploy |
+
+Not done here because it needs a dashboard or DNS: Dodo webhook registration, SPF/DKIM/DMARC, the
+test-mode purchase. `PAYMENT_PROVIDER`, `DODO_*` and email credentials were already present in the
+server `.env` and were preserved by `deploy.sh`.

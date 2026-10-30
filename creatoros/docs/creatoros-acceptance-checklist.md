@@ -120,7 +120,7 @@ Legend:
 | 5.6 | Production build | Verified |
 | 5.7 | CI enforcement | Verified — root `.github/workflows/ci.yml` runs lint, typecheck, tests, build, Playwright E2E and `npm audit --omit=dev`. First run after the change: **success**, both jobs, audit `found 0 vulnerabilities` (run `41051797883`, 2026-10-30) |
 | 5.8 | Dependency audit | Verified — production deps 0 vulnerabilities; 3 dev-only advisories in the vitest runner (needs a major upgrade, tracked separately) |
-| 5.9 | Deployment | Blocked (not authorized in this pass) |
+| 5.9 | Deployment | Verified — deployed 2026-10-30 from `c83a4c7`, BUILD_ID `xbb432yMnsmZcyhdOdhOl`, migrations 23/24 applied, health `{"ok":true,"db":"ok"}`, snapshot + previous artifact kept (deployment guide §10) |
 | 5.10 | Docs and runbooks | Verified (this doc set) |
 | 5.11 | No fabricated results/claims | Verified — every number above came from an executed command |
 
@@ -130,7 +130,8 @@ Legend:
    own account and egress; no `AUTH_SECRET` rotation. Optional hygiene: change the owner password.
 2. Complete one Dodo test-mode purchase and verify plan + email.
 3. Register the Dodo webhook and store `whsec_...` in production.
-4. Set `CRON_SECRET` and install the every-minute mail drain.
+4. ~~Set `CRON_SECRET` and install the every-minute mail drain.~~ Done 2026-10-30: 64-char secret in
+   the server `.env`, cron entry installed under `ubuntu`, first automatic run returned 200.
 5. Publish SPF/DKIM/DMARC.
 6. Approve or reject experiments E1–E5.
 7. ~~Decide whether to enable the missing lifecycle workflows.~~ Decided 2026-10-30: none for now;
