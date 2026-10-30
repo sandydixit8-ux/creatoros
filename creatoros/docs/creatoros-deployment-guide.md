@@ -181,7 +181,7 @@ server `.env` and were preserved by `deploy.sh`.
 
 | Item | Value |
 | --- | --- |
-| Commit | `4fe900d` (this commit) |
+| Commit | `f13beed` (deployed build; this docs line follows in a small follow-up commit) |
 | Archive | `creatoros-logo.tar.gz`, sha256 `3fc6b98c3d313ffac47468f19ef6d503452318da5e706fca217a03a9b78a64b5` |
 | Previous build | `N4n_xXCNiQbv0VMmr7Se7` |
 | New build | `Wi0fkp5eaT_U5Z8jASSdJ` |
