@@ -164,3 +164,15 @@ indexes.
 Not done here because it needs a dashboard or DNS: Dodo webhook registration, SPF/DKIM/DMARC, the
 test-mode purchase. `PAYMENT_PROVIDER`, `DODO_*` and email credentials were already present in the
 server `.env` and were preserved by `deploy.sh`.
+
+### 10.1 Content deploy — 2026-10-30 (later the same day)
+
+| Item | Value |
+| --- | --- |
+| Commit | `d91141b` |
+| Archive | `creatoros-20261030b.tar.gz`, sha256 `cfc89181b86715aa951444d3d5a3360d0fd81a323c01a490ddb590a133736bdc` |
+| Previous build | `xbb432yMnsmZcyhdOdhOl` |
+| New build | `N4n_xXCNiQbv0VMmr7Se7` |
+| Change | Adds the US blog post only; no migrations, no schema, no config |
+| Rollback artifact | `/home/ubuntu/app-pre-20261030b.tar.gz` (8.2 MB) |
+| Verification | `/blog/how-to-sell-digital-products-us` → 200, title and `datePublished 2026-10-30` present, all four internal links rendered as anchors, no literal markdown links, present in `/sitemap.xml` and `/blog`, service active with `NRestarts=0`, no error logs |

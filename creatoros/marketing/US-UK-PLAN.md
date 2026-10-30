@@ -76,6 +76,11 @@ Geo-restrict every campaign to **US + UK**. No India spend on these campaigns.
 - [x] YouTube Shorts rescheduled on corrected times (4 private, 1 already public).
 - [x] Site fires consent-gated Google Ads + Meta conversions (signup + purchase);
       enable by setting `NEXT_PUBLIC_GOOGLE_ADS_ID` / `_LABEL`s / `NEXT_PUBLIC_META_PIXEL_ID`.
+- [x] US SEO article published 2026-10-30: `/blog/how-to-sell-digital-products-us`
+      (counterpart to the UK step-by-step guide, real internal links, in the sitemap).
+- [x] Free-channel week-1 pack written: `marketing/outreach/free-channels-week-1.md`
+      (8 touches, 30 Oct - 5 Nov, US copy variants + review metrics).
+- [ ] Free-channel touches posted from the owner's own accounts (Reddit, Facebook, X, LinkedIn).
 - [ ] Ad accounts + billing + daily budget (owner: create in Google Ads / Meta).
 - [ ] Instagram / TikTok / LinkedIn / X publishers.
 - [ ] Google/Meta ads geo-restricted to US+UK (CSVs + kit ready; launch = owner).
