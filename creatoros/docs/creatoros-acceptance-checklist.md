@@ -118,7 +118,7 @@ Legend:
 | 5.4 | Typecheck | Verified |
 | 5.5 | Lint | Verified (0 errors) |
 | 5.6 | Production build | Verified |
-| 5.7 | CI enforcement | Missing (no `.github/`) |
+| 5.7 | CI enforcement | Verified — root `.github/workflows/ci.yml` runs lint, typecheck, tests, build and Playwright E2E; `npm audit --omit=dev` added 2026-10-30 |
 | 5.8 | Dependency audit | Verified — production deps 0 vulnerabilities; 3 dev-only advisories in the vitest runner (needs a major upgrade, tracked separately) |
 | 5.9 | Deployment | Blocked (not authorized in this pass) |
 | 5.10 | Docs and runbooks | Verified (this doc set) |
@@ -126,11 +126,24 @@ Legend:
 
 ## Open items requiring a human
 
-1. Confirm the `14.195.184.162` authenticated `/app` traffic; rotate `AUTH_SECRET` if it is not yours.
+1. ~~Confirm the `14.195.184.162` authenticated `/app` traffic.~~ Done 2026-10-30: traced to the owner's
+   own account and egress; no `AUTH_SECRET` rotation. Optional hygiene: change the owner password.
 2. Complete one Dodo test-mode purchase and verify plan + email.
 3. Register the Dodo webhook and store `whsec_...` in production.
 4. Set `CRON_SECRET` and install the every-minute mail drain.
 5. Publish SPF/DKIM/DMARC.
 6. Approve or reject experiments E1–E5.
-7. Decide whether to enable the missing lifecycle workflows with the rules in the plan.
-8. Rotate Dodo live key; reset Meta App Secret if it was ever shared.
+7. ~~Decide whether to enable the missing lifecycle workflows.~~ Decided 2026-10-30: none for now;
+   only payment-failed / recovered / cancellation transactional mail is live.
+8. Add `trusted_proxies` (Cloudflare ranges) to the Caddy site block so `audit_logs.ip` records real
+   clients instead of the CF edge (see security report §3).
+9. Rotate Dodo live key; reset Meta App Secret if it was ever shared.
+
+## Decisions recorded 2026-10-30
+
+| Decision | Value | Where it lives |
+| --- | --- | --- |
+| Grace window after a failed renewal | **3 days** (`BILLING_GRACE_DAYS=3`, clamped 0–30) | `src/lib/billing/subscriptions.ts`, deploy guide §3 |
+| Extra lifecycle email workflows | **None for now.** Only payment-failed, recovered and cancellation email is live. Welcome/abandoned/lead-magnet/booking stay proposals pending rules + consent basis | `docs/creatoros-email-report.md` |
+| CI enforcement | **Extended.** The pipeline already ran lint, typecheck, tests, build and Playwright E2E; it now also fails on a vulnerable production dependency and runs when the workflow file itself changes. It still never deploys | `.github/workflows/ci.yml` |
+| `14.195.184.162` authenticated traffic | **Owner's own tooling/egress.** No `AUTH_SECRET` rotation | `docs/creatoros-security-report.md` §2 |

@@ -5,9 +5,11 @@ on:
     branches: [main]
     paths:
       - "creatoros/**"
+      - ".github/workflows/**"
   pull_request:
     paths:
       - "creatoros/**"
+      - ".github/workflows/**"
 
 jobs:
   test:
@@ -42,6 +44,11 @@ jobs:
         env:
           NEXT_PUBLIC_SITE_URL: http://localhost:3000
           AUTH_SECRET: ci-only-test-secret-with-enough-entropy
+
+      # Gate on what actually ships: a dev-only advisory in the test runner must
+      # not block a release, but a vulnerable production dependency must be seen.
+      - name: Audit production dependencies
+        run: npm audit --omit=dev
 
   e2e:
     name: Playwright E2E

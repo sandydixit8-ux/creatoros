@@ -33,7 +33,7 @@ be quoted as one.
 | --- | --- | --- |
 | `34.92.143.179` probing `/.git/config`, `/.env*` | Opportunistic scanner | All returned **404**. No source or env file is served. No action beyond normal monitoring. |
 | `163.116.214.111`, `20.62.254.132` crawling | Crawlers, not exploitation | None |
-| `14.195.184.162` (AWS Mumbai) made 1,208 requests / 24 h, including **837 authenticated `/app/*` 200s** | **Unresolved.** Either the owner's own automation or a session that should not exist | **Human confirmation required.** If this is not the owner's automation, rotate `AUTH_SECRET` immediately, which invalidates all sessions, and review `audit` rows for that period. |
+| `14.195.184.162` (AWS Mumbai): 7,493 requests over 21–29 Oct, 7,477 × 200, including the owner's dashboard and 21 `POST /api/auth/login` | **Assessed: almost certainly the owner's own tooling/network, not a third party.** Evidence: (a) every successful login in that window is `sandydixit8@gmail.com`, the owner — no other account logged in; (b) the client visited `/u/sandeep-dixit` and the owner's dashboard pages; (c) it also issued `opencode/...`, `curl` and `node` requests to `/llms.txt`, `/sitemap.xml`, the IndexNow key file and `/api/health`, i.e. the egress also carried this project's own agent/verification traffic; (d) the login POSTs include one `401` (a typo) and the register POSTs one `409` (e-mail already exists) — human self-service behaviour; (e) traffic is confined to 04:00–12:00 UTC working hours. The owner's normal network at the time of this audit is a different IP (IPv6 `2401:4900:…`), so this was an alternate network/VPN/cloud egress. | No `AUTH_SECRET` rotation now: it would log every user out to defend against the owner's own traffic. Cheap hygiene instead: change the owner account password (invalidates only that credential) and, if this egress is ever unfamiliar, rotate `AUTH_SECRET` then — the change is one env value plus a restart. |
 | Caddy access log shows `Cookie` as `REDACTED` | Good | None |
 | A third-party `AccessToken` header logged in plaintext (4 requests, IP `14.99.190.46`, not CreatorOS's) | Not our credential; likely a misdirected client | No exposure of our secrets. Keep the redaction rule for `AccessToken` as well. |
 | ~97% of 24 h log volume was bots | Traffic truth must come from the first-party beacon, not logs | Already the rule (`docs/SEO-SETUP.md` §8) |
@@ -43,7 +43,8 @@ be quoted as one.
 | Risk | Severity | Mitigation / next step |
 | --- | --- | --- |
 | In-memory rate limiter is per-process | Medium | Single instance today. If scaled, move the counter to the database or a shared store. |
-| `AUTH_SECRET` rotation pending (see 837 authenticated hits) | **High until confirmed** | Confirm ownership; rotate if unexplained. Rotation logs everyone out. |
+| `AUTH_SECRET` rotation | Low (downgraded from High) | The authenticated traffic was traced to the owner's own account and egress (see §2). Rotation remains a one-line change if that assessment ever changes; it logs everyone out. |
+| `audit_logs.ip` stores the Cloudflare **edge** IP, not the visitor | Medium | Caddy replaces the inbound `X-Forwarded-For` with the peer address (the CF edge), and `getClientIp()` reads that header. Forensics therefore need Caddy's `Cf-Connecting-Ip` field, not the database. Correct fix at deploy time: set `trusted_proxies` in the Caddy site block to Cloudflare's ranges, after which `X-Forwarded-For` carries the real client and the app needs no change. Not done in this pass because it changes production edge config and the app is not deployed yet. |
 | Test-toolchain advisories (`tinypool` critical, `vitest` critical, `@vitest/mocker` moderate) | Low (dev-only) | `npm audit --omit=dev` reports **0 vulnerabilities**: nothing in the production dependency tree. The remaining three are inside the vitest runner, which is not built or deployed. Fixing them needs a vitest major upgrade (`npm audit fix --force`), which is a separate change with its own test run. Run the full suite after that upgrade. |
 | No CSP/Trusted Types verification in this pass | Medium | Review headers at the edge; not changed here. |
 | Provider-side bounce/complaint data not ingested | Low | Add provider webhook ingestion before scaling marketing volume. |
@@ -54,16 +55,21 @@ be quoted as one.
 ## 4. What was deliberately not changed
 
 - No Caddy configuration change for real client IP. `Cf-Connecting-Ip` is already logged and the
-  parser was fixed instead, which carries zero production risk.
-- No `AUTH_SECRET` rotation performed, because it logs every user out and the owner has not confirmed
-  whether the authenticated traffic is theirs.
+  parser was fixed instead, which carries zero production risk. The residual consequence (the app's
+  `audit_logs.ip` holds the edge IP) is documented in §3 with the exact fix for deploy time.
+- No `AUTH_SECRET` rotation performed. The traffic was traced to the owner's own account and egress
+  (§2), so rotation would log every user out to defend against the owner.
 - No payment provider switch.
 - No claim of PCI DSS, SOC 2, GDPR or tax compliance anywhere in the product or docs.
 
 ## 5. Manual actions required
 
-1. Confirm whether `14.195.184.162` is the owner's automation; rotate `AUTH_SECRET` if not.
+1. ~~Confirm whether `14.195.184.162` is the owner's automation; rotate `AUTH_SECRET` if not.~~
+   Done 2026-10-30: traced to the owner's account and egress. Recommended instead: change the owner
+   password and keep Caddy's `Cf-Connecting-Ip` as the forensic source.
 2. Rotate the Dodo live API key if it has ever been shared outside the server.
 3. Reset the Meta App Secret if the Meta integration was ever configured with a shared value.
 4. Add redaction for any custom auth header (`AccessToken`) in the edge log config.
+5. Add `trusted_proxies` (Cloudflare ranges) to the Caddy site block at the next deploy so
+   `audit_logs.ip` records real clients.
 5. ~~Run `npm audit` and review.~~ Done 2026-10-30: production dependencies are clean (0 vulnerabilities); `vite` patched to 7.3.7. The three remaining advisories are in the vitest dev runner and need a major upgrade — decide separately.

@@ -134,7 +134,7 @@ indexes.
 - [ ] `npm run build` succeeds
 - [ ] `npm audit --omit=dev` reports 0 vulnerabilities
 - [ ] DB snapshot taken
-- [ ] `BILLING_GRACE_DAYS` decided by the business (default 3)
+- [x] `BILLING_GRACE_DAYS` decided by the business: **3 days**, confirmed 2026-10-30
 - [ ] `CRON_SECRET` set and cron entry installed
 - [ ] Dodo webhook registered and secret stored
 - [ ] SPF/DKIM/DMARC verified

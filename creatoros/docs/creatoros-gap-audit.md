@@ -214,5 +214,5 @@ Do not read this table as a compliance claim. It is a description of code contro
 | Google Search Console review | User's Google account only | Owner opens GSC |
 | YouTube metadata fixes for 3 videos + 5 unlists | YouTube API token belongs to the personal channel; writes return 403 | Manual Studio edits listed in `marketing/publisher/youtube-metadata-fixes.md` |
 | Ad conversion IDs | Missing credentials | Set `NEXT_PUBLIC_GOOGLE_ADS_ID` + labels, Meta pixel |
-| CI workflow | No `.github/` directory and no authorization to add one | Add a workflow that runs `npm test`, `tsc`, `lint`, `build` |
+| CI workflow | Existed at the repo root (`ci.yml`: lint, typecheck, tests, build, Playwright E2E) and was missed by the first audit pass, which only looked inside `creatoros/` | **Extended 2026-10-30** — added `npm audit --omit=dev` and made workflow-file edits trigger the pipeline |
 | Bounce/DMARC monitoring | DNS + provider dashboard | Configure DNS records, enable provider webhooks |
