@@ -225,3 +225,64 @@ views to one. The gate reduces monitor inflation but does not eliminate a monito
 dwell window; interaction (scroll/pointer/key/touch) remains the reliable signal. Raising the window is
 a separate decision, not part of this deploy. A real visitor at 06:25 UTC (Android 15, IN) counted
 normally after scrolling.
+
+### 10.4 View-gate 30 s + campaign attribution — 2026-10-31
+
+| Item | Value |
+| --- | --- |
+| Commits | `101a640` (30 s dwell + UTM), `2a86483` (schema-order fix) |
+| Archive | `creatoros-utm2.tar.gz`, sha256 `9043816a59fd694feb35860a9ac48f2027861ad7e1c33f46eadb78e81dc98c4f` |
+| Local archive | 8,834,686 bytes; checksum re-checked on the host after `scp` and matched |
+| Previous build | `MEAkDVZIHJEGP6WvL5w46` |
+| New build | `1oi5BnytILhaZFF-G5Nor` |
+| DB snapshot | `/home/ubuntu/data/creatoros.db.snapshot-2026-10-31T07-01-13` |
+| Rollback artifact | `/home/ubuntu/app-pre-utm2.tar.gz` (8.7 MB, built with `-C /home/ubuntu/app .`, so the archive root is the app root) |
+| Change | Dwell window raised from 10 s to 30 s (interaction still counts instantly); migration 25 adds `site_visits.utm_source` and `utm_campaign` plus `idx_site_visits_utm`; the beacon sends the labels from the existing `creatoros_attr` cookie; `/api/site-view` validates and caps them; the admin traffic panel adds "Top sources" |
+| CI | Run `41177995092` green for `101a640`; run `41178575351` green for `2a86483` |
+| Migrations | `_migrations` now 1–25; both columns present; `idx_site_visits_utm` present |
+| Data | 1,082 rows / 760 visitor-days before the live check, 0 tagged; no existing row was rewritten |
+| Health | `{"ok":true,"db":"ok"}`; service active, `NRestarts=0`; `/`, `/pricing`, `/blog`, `/auth/register`, `/auth/login` → 200 |
+| Live check | Tagged landing (`utm_source=verify_fixb&utm_campaign=live-check`) + one scroll → exactly 1 `POST /api/site-view` (200) and 1 row (`/`, IN, desktop, `utm_source=verify_fixb`, `utm_campaign=live-check`); 12 s dwell with no interaction → 0 requests and 0 rows; ~31 s dwell with no interaction → exactly 1 request and 1 row |
+| Cleanup | The 2 verification rows were deleted; 0 tagged rows remain; totals returned to 1,083 rows / 761 visitor-days (one organic mobile visit arrived during the window) |
+
+Headless Playwright still sends `HeadlessChrome`, which the server filters as a bot, so the live check used a
+normal macOS Chrome UA. The beacon body is not exposed by Playwright's `request.postData()` for
+`navigator.sendBeacon`, so the payload was proven from `site_visits` instead of from the request object.
+
+**Monitor behaviour not yet observed under 30 s.** The last monitor cycle was at 06:23 UTC, before this
+deploy; the Caddy log shows no request from `20.171.1.0` between 06:43 and 07:10. The next cycle will be
+reported separately. Under the previous 10 s window one page in that cycle stayed 12 s and still counted.
+
+**Incident: the first attempt returned 503 (06:51–06:52 UTC).** Archive `creatoros-utm.tar.gz`
+(sha256 `7818e2abc397d13461bba71087d469b36a17d78224550052e0bf9b4013402906`, build
+`qULuOsX_NCMk5qPezNrBn`) passed the deploy sanity check and restarted, but health returned
+`{"ok":false,"db":"unavailable"}`. The journal showed `Error: no such column: utm_source` when `getDb()`
+executed the schema. `schema.sql` runs before migrations, and its new
+`CREATE INDEX ... ON site_visits(utm_source)` ran against a table where migration 25 had not added the
+column yet, so the whole schema exec threw. No data changed: migrations stayed at 1–24 and the deploy
+script had already taken a snapshot.
+
+Rollback hit a second problem: `app-pre-utm.tar.gz` had been created with `-C /home/ubuntu app` instead
+of `-C /home/ubuntu/app .`, so its entries were `app/...` and `deploy.sh` refused it with "server.js
+missing at archive root". The app was restored manually with
+`tar -xzf /home/ubuntu/app-pre-utm.tar.gz -C /home/ubuntu/app --strip-components=1`, the `.env` mode was
+fixed, and a restart brought the previous build `MEAkDVZIHJEGP6WvL5w46` back with health 200. A correctly
+rooted `/home/ubuntu/app-pre-utm-fixed.tar.gz` was created for future rollbacks.
+
+Fix `2a86483` removes the index from `schema.sql`; migration 25 creates it after the columns exist, which
+works on both fresh and existing databases. It also adds `src/lib/db/migrate.test.ts`: the test builds a
+pre-25 `site_visits` table, runs the real `migrate()`, and asserts that the old row survives, both columns
+exist and read as untagged, and migration 25 is recorded. That test fails against the previous
+`schema.sql`. The corrected archive was deployed at 07:01 UTC.
+
+Rule for future schema changes: nothing in `schema.sql` may reference a column that a migration adds,
+because the file is executed first on every database.
+
+**Ops fix found during verification.** `/home/ubuntu/app/.env` was `root:root 600` while the service runs
+as `ubuntu`. systemd's `EnvironmentFile` reads the file as root, so the app still received every variable,
+but each start logged `Failed to load env from .env ... EACCES`. `deploy.sh` now chowns the preserved file
+to `ubuntu:ubuntu` before `chmod 600` (backup: `/home/ubuntu/deploy.sh.bak-20261031`), the current file is
+chowned, and after a restart the journal has no env error. Health 200, `NRestarts=0`, and
+`PAYMENT_PROVIDER`, `DODO_ENV`, `EMAIL_PROVIDER` and `BILLING_CURRENCY` are still present in the process
+environment.
+

@@ -32,7 +32,7 @@ Browser events never establish revenue. Revenue is only recorded from server-sid
 | Checkout completion | confirmed purchases ÷ checkout starts | window | `funnel_events` | A person may start checkout twice; denominator counts starts, not people |
 | Signup → activation | users reaching the activation step ÷ signups | window | `funnel_events` | Activation definition is the first published page |
 | Conversion rate | conversions ÷ eligible visitors or sessions | window | `analytics_events`, `funnel_events` | The tenant tracker gates on consent, not on dwell; a bot that executes JS there is still indistinguishable from a human. Marketing `site_visits` is dwell-gated (next row) |
-| Marketing page view | One `site_visits` row, written only after 10 s on the page or the first scroll/pointer/key/touch (`createViewGate`) | window | `site_visits` | A load-and-leave never counts, so short bounces are missing by design; a bot that stays or scrolls still counts |
+| Marketing page view | One `site_visits` row, written only after 30 s on the page or the first scroll/pointer/key/touch (`createViewGate`) | window | `site_visits` | A load-and-leave never counts, so short bounces are missing by design; a monitor that stays 30 s or scrolls still counts |
 | Email delivery rate | sent ÷ attempted | window | `email_jobs`, `email_sends` | Provider-side bounces are not ingested yet |
 | Unsubscribe rate | unsubscribes ÷ delivered | window | `unsubscribes`, `email_sends` | — |
 
@@ -83,6 +83,10 @@ append-only and are read by distinct entity where a count must not double.
 - The cookie is first-party and consent-gated for ad pixels; UTM capture itself is not an ad pixel.
 - First-touch is not stored separately. Do not claim first-touch or multi-touch attribution.
 - Unknown attribution is labelled as direct/unknown rather than guessed.
+- Since 2026-10-31 the same cookie also labels each marketing page view (`site_visits.utm_source`
+  and `utm_campaign`, migration 25), so the admin traffic panel shows which post or ad produced the
+  visits, not only which one produced the signup. A tagged view is reported under its campaign and
+  not again under its referrer, so nothing is counted twice. Existing rows stay untagged.
 
 ## 7. Privacy
 
@@ -97,7 +101,7 @@ append-only and are read by distinct entity where a count must not double.
 | No historical subscription events before migration 24 | MRR movement is empty for periods before this deploy |
 | MRR uses list price, not the actual charged amount | A manual discount in the gateway is not reflected |
 | No FX conversion | Totals are always per currency; a blended number is never shown |
-| Marketing page views are dwell-gated, not audited | A view counts only after 10 s on the page or a real interaction (`createViewGate`), so the load-and-leave monitors seen on 30 Oct no longer register. A bot that stays 10 s or scrolls still counts, and real bounces under 10 s are deliberately not counted. Raw hits stay in the Caddy access log |
+| Marketing page views are dwell-gated, not audited | A view counts only after 30 s on the page or a real interaction (`createViewGate`), so the load-and-leave monitors seen on 30 Oct no longer register. A bot that stays 30 s or scrolls still counts, and real bounces under 30 s are deliberately not counted. Raw hits stay in the Caddy access log |
 | Provider-side bounces not ingested | Email delivery metrics stop at "provider accepted" |
 | Bookings have no collected amount | Booking value is shown as a separate figure, never added to revenue |
 
@@ -137,7 +141,9 @@ Also seen in the same window: 40 `404`s, almost all a WordPress scanner from one
 which are the pre-rotation `CRON_SECRET` calls already documented in the security report. No action
 needed on either.
 
-Attribution gap worth knowing before the outreach links go out: `site_visits` has no UTM columns, so
-campaign tags are not visible in the marketing-site traffic panel. Signup attribution does work —
+Attribution gap worth knowing before the outreach links go out: `site_visits` had no UTM columns, so
+campaign tags were not visible in the marketing-site traffic panel. Signup attribution did work —
 `UtmCapture` stores the tags in a first-party cookie and `/api/auth/register` forwards them — so a
-signup from `utm_source=outreach` will be attributable even though the page views are not.
+signup from `utm_source=outreach` was attributable even though the page views were not. This was closed
+on 2026-10-31 (migration 25 plus the beacon change): page views now carry `utm_source`/`utm_campaign`
+and the panel shows a "Top sources" table.
