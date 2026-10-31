@@ -11,11 +11,17 @@
  * A load-and-leave never counts. The page still loads and renders identically;
  * only the counter changes.
  *
+ * The first version used 10 s. After the deploy the same monitor came back and
+ * sat 12 s on one page, so that page still counted (one view out of five loads
+ * instead of five). The window is 30 s because the observed pauses are 8-12 s
+ * while a person who never scrolls, taps or types for 30 s is rare on a
+ * marketing page.
+ *
  * Kept as a plain factory with injected `setTimeout`/`clearTimeout` so the
  * timing can be tested without a DOM or a browser.
  */
 
-export const VIEW_MIN_DWELL_MS = 10_000;
+export const VIEW_MIN_DWELL_MS = 30_000;
 
 export interface ViewGate {
   /** A real interaction happened: send now, at most once. */

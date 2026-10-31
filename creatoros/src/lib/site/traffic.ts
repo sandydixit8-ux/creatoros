@@ -13,14 +13,17 @@ import { SITE_URL } from "@/lib/constants";
  * numbers must not leak into any customer's reports - the same split as
  * `funnel_events`.
  *
- * Privacy: no cookie and no client storage are involved. A "visitor" is a
- * daily-rotating salted hash of IP + user agent, so the same person on the same
- * day collapses to one entry and there is nothing durable to attach to a
- * person. That is why this needs no consent gate, unlike the tenant tracker.
+ * Privacy: no cookie and no client storage are involved on the server side. A
+ * "visitor" is a daily-rotating salted hash of IP + user agent, so the same
+ * person on the same day collapses to one entry and there is nothing durable to
+ * attach to a person. That is why this needs no consent gate, unlike the tenant
+ * tracker. The optional campaign labels come from the first-party attribution
+ * cookie (see `utm.ts`); they describe the ad or link, never the person.
  */
 
 const MAX_PATH = 300;
 const MAX_REF = 200;
+const MAX_UTM = 100;
 
 export interface SiteVisitInput {
   path: string;
@@ -29,6 +32,13 @@ export interface SiteVisitInput {
   ref?: string;
   ip?: string;
   userAgent?: string;
+  utmSource?: string;
+  utmCampaign?: string;
+}
+
+/** Campaign labels are attacker-controlled URL text: cap them and drop control characters. */
+export function normalizeUtm(raw: string | undefined): string {
+  return (raw || "").replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, MAX_UTM);
 }
 
 /** Absolute-path form, query and fragment stripped, length-capped. */
@@ -86,14 +96,16 @@ export function recordSiteVisit(input: SiteVisitInput): void {
     const visitorId = ip || ua ? hashVisitorId(`${ip}|${ua}|${day}`) : "";
 
     run(
-      `INSERT INTO site_visits (id, path, country, device, ref, visitor_id, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO site_visits (id, path, country, device, ref, visitor_id, utm_source, utm_campaign, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       newId("sv"),
       normalizePath(input.path),
       (input.country || "").toUpperCase().slice(0, 2),
       (input.device || "").slice(0, 20),
       referrerHost(input.ref || ""),
       visitorId,
+      normalizeUtm(input.utmSource),
+      normalizeUtm(input.utmCampaign),
       created
     );
   } catch (e) {
@@ -121,12 +133,21 @@ export interface SiteTrafficDay {
   visitors: number;
 }
 
+export interface SiteTrafficSource {
+  source: string;
+  campaign: string;
+  kind: "campaign" | "referrer" | "direct";
+  visitors: number;
+  views: number;
+}
+
 export interface SiteTraffic {
   days: number;
   visitors: number;
   pageViews: number;
   countries: SiteTrafficCountry[];
   pages: SiteTrafficPage[];
+  sources: SiteTrafficSource[];
   daily: SiteTrafficDay[];
 }
 
@@ -203,5 +224,31 @@ export function siteTrafficSummary(days = 30, opts?: { countryLimit?: number; pa
     from
   ).map((r) => ({ date: String(r.date ?? ""), views: num(r.views), visitors: num(r.visitors) }));
 
-  return { days, visitors, pageViews, countries, pages, daily };
+  // Campaign label wins over the referrer host, because that is the deliberate
+  // tag the marketer put on the link; a tagged visit also has a referrer, and
+  // showing both would double it. Untagged visits fall back to the referrer.
+  const sources = all<{ source: string; campaign: string; kind: string; visitors: number; views: number }>(
+    `SELECT CASE WHEN utm_source != '' THEN utm_source
+                 WHEN ref != '' THEN ref
+                 ELSE '(direct)' END AS source,
+            CASE WHEN utm_source != '' THEN utm_campaign ELSE '' END AS campaign,
+            CASE WHEN utm_source != '' THEN 'campaign'
+                 WHEN ref != '' THEN 'referrer'
+                 ELSE 'direct' END AS kind,
+            COUNT(DISTINCT CASE WHEN visitor_id != '' THEN visitor_id END) AS visitors,
+            COUNT(*) AS views
+     FROM site_visits WHERE created_at >= ?
+     GROUP BY source, campaign, kind
+     ORDER BY views DESC, visitors DESC
+     LIMIT 10`,
+    from
+  ).map((r) => ({
+    source: String(r.source ?? "(direct)"),
+    campaign: String(r.campaign ?? ""),
+    kind: (r.kind === "campaign" || r.kind === "referrer" ? r.kind : "direct") as SiteTrafficSource["kind"],
+    visitors: num(r.visitors),
+    views: num(r.views),
+  }));
+
+  return { days, visitors, pageViews, countries, pages, sources, daily };
 }

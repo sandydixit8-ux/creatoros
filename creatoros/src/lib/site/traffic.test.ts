@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getDb, closeDb } from "@/lib/db/db";
 import { SITE_URL } from "@/lib/constants";
-import { normalizePath, referrerHost, recordSiteVisit, siteTrafficSummary } from "./traffic";
+import { normalizePath, normalizeUtm, referrerHost, recordSiteVisit, siteTrafficSummary } from "./traffic";
 
 let dir: string;
 
@@ -32,6 +32,12 @@ describe("site traffic helpers", () => {
     expect(referrerHost("not a url")).toBe("");
     expect(referrerHost(`${SITE_URL}/pricing`)).toBe("");
     expect(referrerHost("https://www.google.com/search?q=creator")).toBe("www.google.com");
+  });
+
+  it("sanitizes campaign labels", () => {
+    expect(normalizeUtm("  outreach\u0000 ")).toBe("outreach");
+    expect(normalizeUtm(undefined)).toBe("");
+    expect(normalizeUtm("x".repeat(200)).length).toBe(100);
   });
 });
 
@@ -65,5 +71,36 @@ describe("site traffic summary", () => {
     const s = siteTrafficSummary(30);
     expect(s.daily.length).toBeGreaterThan(0);
     expect(s.daily.every((d) => d.date.length === 10)).toBe(true);
+  });
+
+  it("records campaign labels and ranks them ahead of the raw referrer", () => {
+    recordSiteVisit({
+      path: "/",
+      country: "US",
+      ref: "https://www.reddit.com/r/something",
+      utmSource: "reddit",
+      utmCampaign: "week-1",
+      ip: "9.9.9.9",
+      userAgent: "ua9",
+    });
+    recordSiteVisit({
+      path: "/pricing",
+      country: "US",
+      ref: "https://www.reddit.com/r/something",
+      utmSource: "reddit",
+      utmCampaign: "week-1",
+      ip: "9.9.9.9",
+      userAgent: "ua9",
+    });
+
+    const s = siteTrafficSummary(30);
+    const tagged = s.sources.find((x) => x.source === "reddit");
+    expect(tagged?.kind).toBe("campaign");
+    expect(tagged?.campaign).toBe("week-1");
+    expect(tagged?.views).toBe(2);
+    expect(tagged?.visitors).toBe(1);
+    // Untagged visits are still reported, as referrer or direct.
+    expect(s.sources.some((x) => x.kind === "direct")).toBe(true);
+    expect(s.sources.some((x) => x.source === "www.reddit.com")).toBe(false);
   });
 });

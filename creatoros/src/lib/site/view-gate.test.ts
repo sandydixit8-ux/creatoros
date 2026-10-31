@@ -10,6 +10,10 @@ afterEach(() => {
 });
 
 describe("createViewGate", () => {
+  it("uses a 30 s dwell window", () => {
+    expect(VIEW_MIN_DWELL_MS).toBe(30_000);
+  });
+
   it("does not count a load-and-leave", () => {
     const send = vi.fn();
     const gate = createViewGate(send);

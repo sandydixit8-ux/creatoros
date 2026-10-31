@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { createViewGate } from "@/lib/site/view-gate";
+import { readUtmCookie } from "@/lib/utm";
 
 // Mirrors the server-side filter in /api/site-view: the app/creator surface,
 // short links and internal endpoints are not marketing traffic.
@@ -20,9 +21,11 @@ const INTERACTION_EVENTS = ["scroll", "pointerdown", "keydown", "touchstart"] as
  * visitors: on 2026-10-30 a monitoring service produced more than half of the
  * day's page views from nine Azure addresses with a normal desktop user agent.
  *
- * Client-only and dependency-free: no cookie, no stored id. The server derives a
- * daily-rotating salted visitor hash, so this cannot identify anyone. Skipped
- * inside the app so a signed-in user browsing /app does not generate noise.
+ * Client-only and dependency-free: it sets nothing on the device. The server
+ * derives a daily-rotating salted visitor hash, so this cannot identify anyone.
+ * It only reads the campaign cookie that `UtmCapture` already wrote, so a page
+ * view can say which post or ad produced it. Skipped inside the app so a
+ * signed-in user browsing /app does not generate noise.
  */
 export function SiteViewBeacon() {
   const pathname = usePathname();
@@ -32,7 +35,13 @@ export function SiteViewBeacon() {
     if (IGNORED_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return;
 
     const send = () => {
-      const body = JSON.stringify({ path: pathname, ref: document.referrer || "" });
+      const utm = readUtmCookie();
+      const body = JSON.stringify({
+        path: pathname,
+        ref: document.referrer || "",
+        utm_source: utm.utm_source || "",
+        utm_campaign: utm.utm_campaign || "",
+      });
       try {
         if (navigator.sendBeacon) {
           navigator.sendBeacon("/api/site-view", new Blob([body], { type: "application/json" }));

@@ -14,6 +14,8 @@ import { recordSiteVisit } from "@/lib/site/traffic";
 const schema = z.object({
   path: z.string().max(500).default("/"),
   ref: z.string().max(500).default(""),
+  utm_source: z.string().max(100).default(""),
+  utm_campaign: z.string().max(100).default(""),
 });
 
 // The app/creator surface, short links and internal endpoints are not marketing
@@ -46,6 +48,8 @@ export async function POST(req: Request) {
     device,
     ip: getClientIp(req),
     userAgent: req.headers.get("user-agent") || "",
+    utmSource: parsed.data.utm_source,
+    utmCampaign: parsed.data.utm_campaign,
   });
 
   return ok({ tracked: true });

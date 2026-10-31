@@ -483,6 +483,18 @@ const MIGRATIONS: Array<{ id: number; up: (db: DatabaseSync) => void }> = [
       db.exec("CREATE INDEX IF NOT EXISTS idx_sub_events_tenant_time ON subscription_events(tenant_id, created_at)");
     },
   },
+  {
+    // Page-level campaign attribution (Gap 3 follow-up). Signup attribution
+    // already worked through the first-party cookie; without these columns the
+    // marketing-site traffic panel could not show which post or ad produced the
+    // visits. Additive and defaulted, so old rows read as untagged.
+    id: 25,
+    up: (db) => {
+      addColumn(db, "site_visits", "utm_source", "TEXT NOT NULL DEFAULT ''");
+      addColumn(db, "site_visits", "utm_campaign", "TEXT NOT NULL DEFAULT ''");
+      db.exec("CREATE INDEX IF NOT EXISTS idx_site_visits_utm ON site_visits(utm_source, created_at)");
+    },
+  },
 ];
 
 function addColumn(db: DatabaseSync, table: string, column: string, ddl: string) {

@@ -6,7 +6,7 @@ import type { SiteTraffic } from "@/lib/site/traffic";
  * hydrate on the client.
  */
 export function SiteTrafficPanel({ traffic }: { traffic: SiteTraffic }) {
-  const { visitors, pageViews, countries, pages, daily } = traffic;
+  const { visitors, pageViews, countries, pages, sources, daily } = traffic;
   const known = countries.filter((c) => c.country !== "");
   const maxViews = daily.reduce((m, d) => Math.max(m, d.views), 0);
 
@@ -41,6 +41,44 @@ export function SiteTrafficPanel({ traffic }: { traffic: SiteTraffic }) {
               <span>{daily[0]?.date ?? ""}</span>
               <span>{daily[daily.length - 1]?.date ?? ""}</span>
             </div>
+          </div>
+
+          <div className="card overflow-hidden">
+            <div className="border-b border-navy-100 px-4 py-3 text-xs font-medium uppercase tracking-wide text-navy-400">
+              Top sources
+            </div>
+            {sources.length === 0 ? (
+              <div className="px-4 py-6 text-sm text-navy-500">No source data yet.</div>
+            ) : (
+              <table className="w-full text-sm">
+                <caption className="sr-only">Traffic by campaign or referrer</caption>
+                <thead>
+                  <tr className="border-b border-navy-100 text-left text-xs uppercase tracking-wide text-navy-400">
+                    <th scope="col" className="px-4 py-2 font-medium">Source</th>
+                    <th scope="col" className="px-4 py-2 font-medium">Campaign</th>
+                    <th scope="col" className="px-4 py-2 font-medium text-right">Visitors</th>
+                    <th scope="col" className="px-4 py-2 font-medium text-right">Views</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sources.map((s) => (
+                    <tr key={`${s.kind}:${s.source}:${s.campaign}`} className="border-b border-navy-50 last:border-0">
+                      <td className="px-4 py-2 text-navy-700">
+                        <span className="font-mono text-xs">{s.source}</span>
+                        {s.kind === "campaign" ? (
+                          <span className="ml-2 rounded bg-navy-100 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-navy-500">
+                            tagged
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="px-4 py-2 text-xs text-navy-500">{s.campaign || "—"}</td>
+                      <td className="px-4 py-2 text-right text-navy-700">{s.visitors}</td>
+                      <td className="px-4 py-2 text-right text-navy-500">{s.views}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
