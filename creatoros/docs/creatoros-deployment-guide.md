@@ -215,5 +215,13 @@ and the standalone server must not depend on the image optimizer.
 
 Headless Playwright sends `HeadlessChrome`, which the server still classifies as a bot, so the gate check
 was run twice: once as-is (proves the client-side suppression) and once with a normal desktop UA
-(proves the row is written). The monitor effect is recorded below once a full monitor cycle has been
-observed after the deploy.
+(proves the row is written).
+
+**Effect observed after the deploy.** The monitoring service came back at 06:22 UTC from `20.171.1.0`
+(US) and loaded `/`, `/` again, `/pricing`, `/pricing` again and `/blog`, roughly 8–12 s apart. It
+produced **one** beacon instead of five: the first `/` sat for 12 s, which crossed the 10 s threshold;
+the later pages were left after 8 s and produced nothing. So this cycle went from about five counted
+views to one. The gate reduces monitor inflation but does not eliminate a monitor that stays past the
+dwell window; interaction (scroll/pointer/key/touch) remains the reliable signal. Raising the window is
+a separate decision, not part of this deploy. A real visitor at 06:25 UTC (Android 15, IN) counted
+normally after scrolling.
