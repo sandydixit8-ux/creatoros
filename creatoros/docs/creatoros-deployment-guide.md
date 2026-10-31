@@ -286,3 +286,28 @@ chowned, and after a restart the journal has no env error. Health 200, `NRestart
 `PAYMENT_PROVIDER`, `DODO_ENV`, `EMAIL_PROVIDER` and `BILLING_CURRENCY` are still present in the process
 environment.
 
+### 10.5 Etsy fee accuracy fix - 2026-10-31
+
+| Item | Value |
+| --- | --- |
+| Commit | `13241e7` |
+| Archive | `creatoros-etsyfee.tar.gz`, sha256 `9f7af8fed313d9b8404791fdb86702627ec1031a34e370d497fb80d66231762c` |
+| Local archive | 9,397,658 bytes; checksum re-checked on the host after `scp` and matched |
+| Previous build | `1oi5BnytILhaZFF-G5Nor` |
+| New build | `M0ZowUEIdL2AL4R8dlZvz` |
+| DB snapshot | `/home/ubuntu/data/creatoros.db.snapshot-2026-10-31T15-41-42` |
+| Rollback artifact | `/home/ubuntu/app-pre-etsyfee.tar.gz` (8.7 MB, built with `-C /home/ubuntu/app .`) |
+| Change | Adds the UK 0.48% Regulatory Operating Fee to the calculator (totals and VAT-on-fees base), corrects the UK own-store comparison from the US 2.9% + 30p to Stripe UK 1.5% + 20p, and syncs the £20/£5/monthly worked examples across the tool page, blog, outreach runbook, UK DM copy and YouTube metadata |
+| Rates verified | UK 0.48% regulatory fee and "charged on item price plus shipping and gift wrap, subject to VAT where applicable" from Etsy Help, "What is a Regulatory Operating Fee?"; Stripe UK 1.5% + 20p for UK/EEA personal cards |
+| CI | Run `41215530774` green; Lighthouse run `41215530805` green |
+| Migrations | None; `_migrations` stays 1-25 |
+| Health | `{"ok":true,"db":"ok"}`; service active, `NRestarts=0` |
+| Live check | `/etsy-fee-calculator` 200: 0 matches for `£2.46` / `12.3%`, 6 for `£2.56`, 7 for `12.8%`, 7 for `0.48%`; `/blog/how-much-does-etsy-take-uk` 200: 0 matches for `£2.46` / `12.3%`, new `£2.56`, `£17.44`, `£11.34` and `0.48%` present |
+| Same build | Local build ID matched the deployed build; no live traffic rows were written during verification |
+
+The UK regulatory fee was the missing fourth charge: the calculator and articles had been quoting three
+fees. Worked examples now read £2.56 / 12.8% on £20, £0.91 / 18.2% on £5, and about £102 in fees on 40
+orders a month. The £5 test pins the fixed-fee effect, and `etsy-fees.test.ts` asserts the 0.48% rate, a
+zero US regulatory fee and the blog's published numbers.
+
+
