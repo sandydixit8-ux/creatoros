@@ -506,7 +506,7 @@ export const BLOG_POSTS: BlogPost[] = [
     slug: "how-much-does-etsy-take-uk",
     title: "How Much Does Etsy Take From a UK Sale? (2026 Fees Breakdown)",
     description:
-      "Exactly what Etsy takes from a UK sale in 2026 - listing fee, transaction fee and payment processing - with a worked example on a £20 digital download.",
+      "Exactly what Etsy takes from a UK sale in 2026 - listing fee, transaction fee, payment processing and the 0.48% Regulatory Operating Fee - with a worked example on a £20 digital download.",
     date: "2026-10-24",
     readingMinutes: 7,
     tag: "Monetization",
@@ -519,14 +519,15 @@ export const BLOG_POSTS: BlogPost[] = [
         ],
       },
       {
-        heading: "The three fees every UK sale pays",
+        heading: "The four fees every UK sale pays",
         paragraphs: [
-          "Etsy stacks three charges on the same order. Most sellers only quote the middle one, which is why their margin estimates come out too high.",
+          "Etsy stacks four charges on the same order. Most sellers only quote the middle one, which is why their margin estimates come out too high.",
         ],
         bullets: [
           "Listing fee: £0.16 each time a listing is published or renewed. Auto-renew charges it again every four months, whether or not the item sells.",
           "Transaction fee: 6.5% of the item price, plus any shipping and gift wrap you charge.",
           "Payment processing: 4% + £0.20 per order through Etsy Payments in the UK.",
+          "Regulatory Operating Fee: 0.48% of the item price plus shipping and gift wrap, charged on top of the other fees and subject to VAT where applicable.",
         ],
       },
       {
@@ -538,14 +539,15 @@ export const BLOG_POSTS: BlogPost[] = [
           "Listing fee: £0.16",
           "Transaction fee at 6.5%: £1.30",
           "Payment processing at 4% + £0.20: £1.00",
-          "Total fees: £2.46, or 12.3% of the sale",
-          "You keep: £17.54",
+          "Regulatory Operating Fee at 0.48%: £0.10",
+          "Total fees: £2.56, or 12.8% of the sale",
+          "You keep: £17.44",
         ],
       },
       {
         heading: "The fixed fees punish cheap products",
         paragraphs: [
-          "Run the same maths on a £5 product and the percentage gets much worse: £0.89 in fees, or 17.8%. The listing fee and the £0.20 processing charge do not shrink with your price.",
+          "Run the same maths on a £5 product and the percentage gets much worse: £0.91 in fees, or 18.2%. The listing fee and the £0.20 processing charge do not shrink with your price.",
           "That is why £3 to £5 digital downloads rarely work as a business on a marketplace. Either the price goes up or the volume has to be enormous.",
         ],
       },
@@ -555,12 +557,12 @@ export const BLOG_POSTS: BlogPost[] = [
           "The percentage you lose depends on the price. Here is the same maths across the range UK digital sellers use most, with no shipping and no ads.",
         ],
         bullets: [
-          "£5: £0.89 in fees, you keep £4.11 (17.8%)",
-          "£12: £1.62 in fees, you keep £10.38 (13.5%)",
-          "£20: £2.46 in fees, you keep £17.54 (12.3%)",
-          "£35: £4.04 in fees, you keep £30.96 (11.5%)",
-          "£50: £5.61 in fees, you keep £44.39 (11.2%)",
-          "£100: £10.86 in fees, you keep £89.14 (10.9%)",
+          "£5: £0.91 in fees, you keep £4.09 (18.2%)",
+          "£12: £1.68 in fees, you keep £10.32 (14.0%)",
+          "£20: £2.56 in fees, you keep £17.44 (12.8%)",
+          "£35: £4.20 in fees, you keep £30.80 (12.0%)",
+          "£50: £5.85 in fees, you keep £44.15 (11.7%)",
+          "£100: £11.34 in fees, you keep £88.66 (11.3%)",
         ],
         links: [
           {
@@ -572,14 +574,14 @@ export const BLOG_POSTS: BlogPost[] = [
       {
         heading: "The floor you can never get below",
         paragraphs: [
-          "Look at the shape of those numbers: the percentage falls towards 10.5% as the price rises, because only the two fixed fees (£0.16 listing and £0.20 processing) get diluted by a bigger order. The 6.5% and 4% move with the price and never shrink.",
-          "That floor is the strongest argument for a £19 product over a £4 one. Four £5 sales earn £16.44 after fees. One £20 sale earns £17.54 from a quarter of the transactions - more money, less admin, fewer support messages.",
+          "Look at the shape of those numbers: the percentage falls towards about 11% as the price rises, because only the two fixed fees (£0.16 listing and £0.20 processing) get diluted by a bigger order. The 6.5%, 4% and 0.48% move with the price and never shrink.",
+          "That floor is the strongest argument for a £19 product over a £4 one. Four £5 sales earn £16.36 after fees. One £20 sale earns £17.44 from a quarter of the transactions - more money, less admin, fewer support messages.",
         ],
       },
       {
         heading: "What else can take a bite",
         paragraphs: [
-          "The three headline fees are not the whole story. These are the extras that surprise sellers at the end of the month.",
+          "The four headline fees are not the whole story. These are the extras that surprise sellers at the end of the month.",
         ],
         bullets: [
           "Offsite Ads: 15% of the sale when Etsy advertises your listing and the buyer clicks the ad. It drops to 12% for sellers under the $10,000 threshold, and is optional below that level.",
@@ -600,13 +602,13 @@ export const BLOG_POSTS: BlogPost[] = [
         heading: "What the same £20 sale costs on your own store",
         paragraphs: [
           "Sell from your own branded page and the only unavoidable fee is your payment processor's. There is no listing fee, no transaction fee and no marketplace commission - just a small percentage plus a fixed amount per transaction.",
-          "On a £20 sale that is about £0.50 through Stripe at 1.5% + 20p, or roughly £0.88 through PayPal at 2.9% + 30p. Against £2.46 on Etsy, you keep almost two pounds more per order.",
+          "On a £20 sale that is about £0.50 through Stripe at 1.5% + 20p, or roughly £0.88 through PayPal at 2.9% + 30p. Against £2.56 on Etsy, you keep about two pounds more per order.",
           "The trade-off is honest: Etsy brings the buyers, your own store does not. You have to bring the traffic yourself through search, social, email and word of mouth. That is the work you are buying back when you skip the marketplace.",
         ],
         bullets: [
-          "£20 on Etsy: you keep £17.54",
+          "£20 on Etsy: you keep £17.44",
           "£20 on your own store: you keep about £19.50",
-          "Difference: £1.96 per sale, or around £235 a year at ten sales a month",
+          "Difference: £2.06 per sale, or around £247 a year at ten sales a month",
         ],
         links: [
           { label: "Best Platforms to Sell Digital Products in the UK (2026)", href: "/blog/best-platforms-to-sell-digital-products-uk" },
@@ -619,7 +621,7 @@ export const BLOG_POSTS: BlogPost[] = [
           "These are the questions UK sellers ask most often about Etsy fees.",
         ],
         bullets: [
-          "Does Etsy take 6.5% or more? 6.5% is only the transaction fee. Add payment processing at 4% + £0.20 and the fixed listing fee, and a £20 digital sale loses roughly 12%.",
+          "Does Etsy take 6.5% or more? 6.5% is only the transaction fee. Add payment processing at 4% + £0.20, the fixed listing fee and the 0.48% Regulatory Operating Fee, and a £20 digital sale loses roughly 13%.",
           "Is Etsy cheaper than my own store? For paid discovery, sometimes yes. For repeat sales, bundles and email marketing, your own store keeps far more.",
           "Do the numbers change? Yes. Etsy adjusts fees and thresholds regularly, so check the current UK fee schedule before you price a product. The figures here are for illustration.",
         ],
@@ -657,7 +659,7 @@ export const BLOG_POSTS: BlogPost[] = [
       {
         heading: "The cost of staying",
         paragraphs: [
-          "On a £20 digital sale, Etsy's fees land around 12% once listing, transaction and payment processing are added. On a £5 download it climbs past 17%.",
+          "On a £20 digital sale, Etsy's fees land around 12.8% once listing, transaction, payment processing and the Regulatory Operating Fee are added. On a £5 download it climbs past 18%.",
           "The bigger cost is not the percentage. It is that repeat buyers cost you the full fee every time, and you cannot take the relationship with you. Five years of sales on a marketplace leaves you with a shop, not an audience.",
         ],
         links: [
@@ -690,15 +692,15 @@ export const BLOG_POSTS: BlogPost[] = [
           "Numbers settle this argument faster than opinions. Say you sell 40 digital products a month at £20, which is about £800 in revenue.",
         ],
         bullets: [
-          "Etsy at roughly 12% in fees: about £98 a month, or £1,176 a year.",
+          "Etsy at roughly 12.8% in fees: about £102 a month, or £1,229 a year.",
           "Your own store on a free plan: about £20 a month in processing, or £240 a year.",
-          "Difference: about £936 a year, before you count repeat buyers you can email for free.",
+          "Difference: about £989 a year, before you count repeat buyers you can email for free.",
         ],
       },
       {
         heading: "The honest counterweight",
         paragraphs: [
-          "That £936 is only a saving if you can replace Etsy's discovery. If paid ads, content and outreach cost more than £936 a year to produce the same £800 a month, then Etsy is still doing its job and leaving is a pay cut dressed up as a fee cut.",
+          "That £989 is only a saving if you can replace Etsy's discovery. If paid ads, content and outreach cost more than £989 a year to produce the same £800 a month, then Etsy is still doing its job and leaving is a pay cut dressed up as a fee cut.",
           "Run that comparison with your own numbers before you migrate. The question is never are the fees lower, it is what does a buyer cost me on each channel.",
         ],
       },

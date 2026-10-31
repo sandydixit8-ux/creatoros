@@ -5,6 +5,11 @@
  * quote (see src/lib/blog.ts, "how-much-does-etsy-take-uk"). Keep the two in
  * sync: the blog's worked example is asserted in etsy-fees.test.ts, so a rate
  * change fails the test rather than silently contradicting the article.
+ *
+ * UK Regulatory Operating Fee: 0.48% of item + shipping + gift wrap, per
+ * Etsy Help, "What is a Regulatory Operating Fee?" (checked 31 Oct 2026).
+ * It is subject to VAT where applicable, so it sits inside the VAT-on-fees
+ * base below. The US has no equivalent fee, hence 0 for usd.
  */
 
 export type FeeCurrency = "gbp" | "usd";
@@ -20,6 +25,8 @@ export interface EtsyRates {
   processingFixed: number;
   /** Offsite Ads commission when the sale is attributed to an ad. */
   offsiteAdsPct: number;
+  /** UK Regulatory Operating Fee, % of item + shipping + gift wrap (0 outside the UK). */
+  regulatoryPct: number;
   /** VAT Etsy adds on top of its own fees (UK only). */
   feeVatPct: number;
   /** Typical card fee for a self-hosted store (Stripe standard pricing). */
@@ -34,9 +41,11 @@ export const ETSY_RATES: Record<FeeCurrency, EtsyRates> = {
     processingPct: 0.04,
     processingFixed: 0.2,
     offsiteAdsPct: 0.15,
+    regulatoryPct: 0.0048,
     feeVatPct: 0.2,
-    ownStorePct: 0.029,
-    ownStoreFixed: 0.3,
+    // Stripe UK: 1.5% + 20p for UK/EEA personal cards.
+    ownStorePct: 0.015,
+    ownStoreFixed: 0.2,
   },
   usd: {
     listing: 0.2,
@@ -44,8 +53,11 @@ export const ETSY_RATES: Record<FeeCurrency, EtsyRates> = {
     processingPct: 0.03,
     processingFixed: 0.25,
     offsiteAdsPct: 0.15,
+    // No US regulatory operating fee.
+    regulatoryPct: 0,
     // Etsy does not add VAT to fees for US sellers.
     feeVatPct: 0,
+    // Stripe US: 2.9% + 30c.
     ownStorePct: 0.029,
     ownStoreFixed: 0.3,
   },
@@ -69,10 +81,12 @@ export interface FeeBreakdown {
   transaction: number;
   processing: number;
   offsiteAds: number;
+  /** UK Regulatory Operating Fee (0 for US sales). */
+  regulatory: number;
   feeVat: number;
   totalFees: number;
   net: number;
-  /** Total fees as a share of the order total, e.g. 0.123 for 12.3%. */
+  /** Total fees as a share of the order total, e.g. 0.128 for 12.8%. */
   effectivePct: number;
   ownStoreFees: number;
   ownStoreNet: number;
@@ -103,6 +117,7 @@ export function calculateFees(input: FeeInput): FeeBreakdown {
       transaction: 0,
       processing: 0,
       offsiteAds: 0,
+      regulatory: 0,
       feeVat: 0,
       totalFees: 0,
       net: 0,
@@ -117,7 +132,8 @@ export function calculateFees(input: FeeInput): FeeBreakdown {
   const transaction = gross * rates.transactionPct;
   const processing = gross * rates.processingPct + rates.processingFixed;
   const offsiteAds = input.offsiteAds ? gross * rates.offsiteAdsPct : 0;
-  const beforeVat = listing + transaction + processing + offsiteAds;
+  const regulatory = gross * rates.regulatoryPct;
+  const beforeVat = listing + transaction + processing + offsiteAds + regulatory;
   // Etsy charges VAT on its own fees, not on the item price.
   const feeVat = input.feeVat && rates.feeVatPct > 0 ? beforeVat * rates.feeVatPct : 0;
   const totalFees = beforeVat + feeVat;
@@ -131,6 +147,7 @@ export function calculateFees(input: FeeInput): FeeBreakdown {
     transaction: money(transaction),
     processing: money(processing),
     offsiteAds: money(offsiteAds),
+    regulatory: money(regulatory),
     feeVat: money(feeVat),
     totalFees: money(totalFees),
     net: money(net),

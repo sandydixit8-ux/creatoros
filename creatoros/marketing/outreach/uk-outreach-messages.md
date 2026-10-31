@@ -37,13 +37,14 @@ Cadence for two weeks: **3 Reddit replies + 2 Facebook comments + 5 DMs per day*
 
 ## 1. Reddit — reply to an Etsy fee complaint (r/EtsySellers)
 
-> The percentage that surprises people is the payment processing. On a £20 digital sale:
+> The percentages that surprise people are payment processing and the Regulatory Operating Fee. On a £20 digital sale:
 >
 > - listing £0.16
 > - transaction 6.5% = £1.30
 > - processing 4% + £0.20 = £1.00
+> - regulatory 0.48% = £0.10
 >
-> That's £2.46, about 12.3%, before any ads. On a £5 product it's worse — £0.89, nearly
+> That's £2.56, about 12.8%, before any ads. On a £5 product it's worse — £0.91, about
 > 18% — because the two fixed fees don't shrink with the price.
 >
 > Practical fixes that don't need a new platform: raise the entry price to £15-19, bundle
@@ -59,7 +60,7 @@ Cadence for two weeks: **3 Reddit replies + 2 Facebook comments + 5 DMs per day*
 > staying is rational — you're paying ~12% for demand you can't generate yet.
 >
 > Run the numbers on your own shop: 40 sales a month at £20 is £800. Etsy takes roughly
-> £98 of that. Your own store would take ~£20 in processing. That £78/month gap is real,
+> £102 of that. Your own store would take ~£20 in processing. That £82/month gap is real,
 > but it only matters if you can replace the buyers.
 >
 > The signals I'd watch for: repeat customers you can't email, most traffic already coming
@@ -86,7 +87,7 @@ Cadence for two weeks: **3 Reddit replies + 2 Facebook comments + 5 DMs per day*
 > - Gumroad: 10% + 50¢ → you keep ~£17.60 (30% if the sale comes through Discover)
 > - Payhip free: 5% + Stripe → ~£18.50
 > - Payhip Pro: $99/mo, 0% → breakeven around £1,980/month
-> - Etsy: 6.5% + 4% + £0.20 + £0.16 → ~£17.54
+> - Etsy: 6.5% + 4% + 0.48% + £0.20 + £0.16 → ~£17.44
 >
 > So Gumroad and Etsy cost about the same per sale; Payhip is cheaper; the subscription only
 > wins at volume. Everything else is about what you get beyond checkout — email, courses,
@@ -102,7 +103,7 @@ Cadence for two weeks: **3 Reddit replies + 2 Facebook comments + 5 DMs per day*
 > listing fee separately from the transaction and processing fees, so the total looks smaller
 > than it is.
 >
-> On a £20 sale you're at about £2.46 all in. On a £6 download it's £0.95, which is 16% —
+> On a £20 sale you're at about £2.56 all in. On a £6 download it's £1.02, which is 17% —
 > that's why cheap digital listings feel like they barely pay. Bundling three files into one
 > listing is the quickest fix, because you pay the fixed fees once.
 
@@ -110,11 +111,11 @@ Cadence for two weeks: **3 Reddit replies + 2 Facebook comments + 5 DMs per day*
 
 > Did the maths on moving from Etsy to an own store, in case it's useful to anyone here.
 >
-> 40 sales/month at £20 = £800 revenue. Etsy, all fees in: ~£98/month. Own store on a free
-> platform: ~£20/month in card fees. Difference: ~£78/month, £936/year.
+> 40 sales/month at £20 = £800 revenue. Etsy, all fees in: ~£102/month. Own store on a free
+> platform: ~£20/month in card fees. Difference: ~£82/month, £989/year.
 >
 > But — and this is the bit people skip — that's only a saving if you can replace Etsy's
-> traffic. If ads or content cost more than £936/year to bring the same buyers, Etsy is
+> traffic. If ads or content cost more than £989/year to bring the same buyers, Etsy is
 > still doing its job.
 >
 > What worked for me: keep Etsy live, move the three best sellers to the store, and put all
@@ -122,8 +123,9 @@ Cadence for two weeks: **3 Reddit replies + 2 Facebook comments + 5 DMs per day*
 
 ## 7. X — reply to a public fee complaint
 
-> The 6.5% is only the transaction fee. Add 4% + £0.20 processing and £0.16 listing and a
-> £20 sale is ~12%. On a £5 download it's ~18%, because the fixed fees don't scale.
+> The 6.5% is only the transaction fee. Add 4% + £0.20 processing, £0.16 listing and the
+> 0.48% Regulatory Operating Fee and a £20 sale is ~13%. On a £5 download it's ~18%, because
+> the fixed fees don't scale.
 >
 > Bundling + a £15+ entry price fixes more of this than switching platforms does.
 
@@ -137,7 +139,7 @@ Cadence for two weeks: **3 Reddit replies + 2 Facebook comments + 5 DMs per day*
 ## 9. LinkedIn — comment on a creator-economy post
 
 > The ownership point is the one that compounds. On a marketplace, every repeat customer
-> costs the full fee again, and you can't email them before a launch. A £20 sale nets ~£17.54
+> costs the full fee again, and you can't email them before a launch. A £20 sale nets ~£17.44
 > on Etsy versus ~£19.50 direct — small per order, but it's the email list that changes the
 > second launch, not the 10%.
 

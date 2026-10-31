@@ -61,8 +61,9 @@ Etsy fees vs your own store: what UK creators actually keep
 **Description**
 
 ```
-On a £20 digital sale Etsy takes £2.46 — about 12.3% — before a penny of ads:
-16p listing, 6.5% transaction (£1.30), and 4% + 20p processing (£1.00).
+On a £20 digital sale Etsy takes £2.56 — about 12.8% — before a penny of ads:
+16p listing, 6.5% transaction (£1.30), 4% + 20p processing (£1.00) and the 0.48%
+Regulatory Operating Fee (£0.10).
 On a £5 product it is closer to 18%, because the two fixed fees do not shrink with the price.
 
 Free calculator, no account needed:
@@ -93,7 +94,7 @@ already correct. Only the description is missing: no link, no call to action, no
 **Description** (both videos, same text)
 
 ```
-Etsy takes four separate cuts of a digital sale. On £20 that is £2.46 (12.3%) before ads; on £5 it is nearly 18% because two of the fees are fixed.
+Etsy takes four separate cuts of a digital sale. On £20 that is £2.56 (12.8%) before ads; on £5 it is about 18% because two of the fees are fixed.
 
 Work out your own price in ten seconds — free, no account:
 https://usecreatoros.co/etsy-fee-calculator?utm_source=youtube&utm_medium=short&utm_campaign=etsy-fees-uk

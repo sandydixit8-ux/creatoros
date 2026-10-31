@@ -9,7 +9,7 @@ import { SITE_URL } from "@/lib/constants";
 export const metadata: Metadata = {
   title: "Etsy Fee Calculator UK & US (2026) — What You Actually Keep",
   description:
-    "Free Etsy fee calculator for UK and US sellers. See the listing fee, 6.5% transaction fee, payment processing and Offsite Ads taken from any sale, plus what you keep per order and per month.",
+    "Free Etsy fee calculator for UK and US sellers. See the listing fee, 6.5% transaction fee, payment processing, the UK Regulatory Operating Fee and Offsite Ads taken from any sale, plus what you keep per order and per month.",
   alternates: { canonical: "/etsy-fee-calculator" },
   openGraph: {
     title: "Etsy Fee Calculator UK & US (2026)",
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
 const FAQ = [
   {
     q: "How much does Etsy take from a UK sale in 2026?",
-    a: "Etsy charges three fees on a normal UK order: a £0.16 listing fee, a 6.5% transaction fee on the item price plus shipping, and payment processing of 4% + £0.20. On a £20 digital download that is £2.46, or 12.3% of the sale, before any advertising.",
+    a: "Etsy charges four fees on a normal UK order: a £0.16 listing fee, a 6.5% transaction fee on the item price plus shipping, payment processing of 4% + £0.20, and the 0.48% Regulatory Operating Fee. On a £20 digital download that is £2.56, or 12.8% of the sale, before any advertising.",
   },
   {
     q: "Does the calculator work for digital downloads?",
@@ -38,11 +38,11 @@ const FAQ = [
   },
   {
     q: "Why do cheap products lose such a high percentage?",
-    a: "Two of Etsy's fees are fixed: the £0.16 listing fee and the £0.20 processing charge. On a £5 download they add up to £0.89, which is 17.8%, because the fixed part does not shrink with the price. Bundling several files into one listing, and pricing at £15 or above, brings the effective rate down quickly.",
+    a: "Two of Etsy's fees are fixed: the £0.16 listing fee and the £0.20 processing charge. On a £5 download they add up to £0.91, which is 18.2%, because the fixed part does not shrink with the price. Bundling several files into one listing, and pricing at £15 or above, brings the effective rate down quickly.",
   },
   {
     q: "Is it cheaper to sell on my own store?",
-    a: "Per sale, usually yes — a self-hosted store pays card processing of roughly 2.9% + 30p and no transaction fee. The catch is discovery: Etsy's fees buy you buyers you would otherwise have to find yourself. Most UK sellers run both for a quarter and compare, rather than switching on fees alone.",
+    a: "Per sale, usually yes — a self-hosted store pays card processing of roughly 1.5% + 20p for UK cards (2.9% + 30¢ for US cards) and no transaction fee. The catch is discovery: Etsy's fees buy you buyers you would otherwise have to find yourself. Most UK sellers run both for a quarter and compare, rather than switching on fees alone.",
   },
   {
     q: "Does Etsy charge a fee on shipping?",
@@ -70,7 +70,7 @@ export default function EtsyFeeCalculatorPage() {
     operatingSystem: "Any",
     offers: { "@type": "Offer", price: "0", priceCurrency: "GBP" },
     description:
-      "Calculate the listing fee, 6.5% transaction fee, payment processing and Offsite Ads Etsy takes from a UK or US sale.",
+      "Calculate the listing fee, 6.5% transaction fee, payment processing, UK Regulatory Operating Fee and Offsite Ads Etsy takes from a UK or US sale.",
   };
 
   return (
@@ -93,7 +93,7 @@ export default function EtsyFeeCalculatorPage() {
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-lg text-ink-secondary">
               Etsy never charges one fee. Enter a price to see the listing fee, the 6.5% transaction fee, payment
-              processing and Offsite Ads — and what actually lands in your account.
+              processing, the UK Regulatory Operating Fee and Offsite Ads — and what actually lands in your account.
             </p>
           </div>
         </section>
@@ -107,14 +107,15 @@ export default function EtsyFeeCalculatorPage() {
             <h2 className="text-2xl font-bold tracking-tight text-ink sm:text-3xl">How Etsy&apos;s fees stack up</h2>
             <div className="mt-6 space-y-4 text-ink-secondary">
               <p className="leading-relaxed">
-                A UK order pays three separate charges. The listing fee is flat and charged every time a listing is
+                A UK order pays four separate charges. The listing fee is flat and charged every time a listing is
                 published or auto-renews — every four months, sold or not. The transaction fee is 6.5% of the item
                 price, shipping and gift wrap. Payment processing is 4% + £0.20 for UK sellers on Etsy Payments, and
-                3% + $0.25 for US sellers.
+                3% + $0.25 for US sellers. On top of those, UK sellers pay a 0.48% Regulatory Operating Fee on the
+                same item-plus-shipping base, with VAT added where applicable.
               </p>
               <p className="leading-relaxed">
-                Because two of those three are fixed, the effective rate depends almost entirely on your price point. A
-                £20 download loses about 12.3%. A £5 download loses about 17.8% for the same fees. That is the single
+                Because two of those are fixed, the effective rate depends almost entirely on your price point. A
+                £20 download loses about 12.8%. A £5 download loses about 18.2% for the same fees. That is the single
                 most useful number on this page: not the percentage Etsy advertises, but the percentage your own price
                 list produces.
               </p>

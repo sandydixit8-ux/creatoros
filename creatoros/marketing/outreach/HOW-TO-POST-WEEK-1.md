@@ -71,7 +71,7 @@ fee or payout surprise.
 
 > Worth checking your fee breakdown per order rather than the monthly total - Etsy bills the listing fee separately from the transaction and processing fees, so the total looks smaller than it is.
 >
-> On a £20 sale you're at about £2.46 all in. On a £6 download it's £0.95, which is 16% - that's why cheap digital listings feel like they barely pay. Bundling three files into one listing is the quickest fix, because you pay the fixed fees once.
+> On a £20 sale you're at about £2.56 all in. On a £6 download it's £1.02, which is 17% - that's why cheap digital listings feel like they barely pay. Bundling three files into one listing is the quickest fix, because you pay the fixed fees once.
 
 ### Touch 3 - Sat 31 Oct 09:00 ET, r/smallbusiness (US variant A)
 
@@ -97,7 +97,7 @@ that will drown the reply.
 >
 > Bundling + a $15+ entry price fixes more of this than switching platforms does.
 
-UK audience: swap `$` for `£` and use `4% + £0.20` plus `£0.16` listing.
+UK audience: swap `$` for `£` and use `4% + £0.20` processing, `£0.16` listing and the 0.48% Regulatory Operating Fee.
 
 ### Touch 5 - Mon 2 Nov 09:00 ET, r/Entrepreneur (message 4)
 
@@ -111,7 +111,7 @@ platforms; anywhere else it reads as a plug.
 > - Gumroad: 10% + 50¢ → you keep ~£17.60 (30% if the sale comes through Discover)
 > - Payhip free: 5% + Stripe → ~£18.50
 > - Payhip Pro: $99/mo, 0% → breakeven around £1,980/month
-> - Etsy: 6.5% + 4% + £0.20 + £0.16 → ~£17.54
+> - Etsy: 6.5% + 4% + 0.48% + £0.20 + £0.16 → ~£17.44
 >
 > So Gumroad and Etsy cost about the same per sale; Payhip is cheaper; the subscription only wins at volume. Everything else is about what you get beyond checkout - email, courses, bookings. Buying those separately is $30-100/month, which usually costs more than the fee difference.
 >
@@ -131,9 +131,9 @@ Own value post in the group - check the group rules first; if links are banned, 
 
 > Did the maths on moving from Etsy to an own store, in case it's useful to anyone here.
 >
-> 40 sales/month at £20 = £800 revenue. Etsy, all fees in: ~£98/month. Own store on a free platform: ~£20/month in card fees. Difference: ~£78/month, £936/year.
+> 40 sales/month at £20 = £800 revenue. Etsy, all fees in: ~£102/month. Own store on a free platform: ~£20/month in card fees. Difference: ~£82/month, £989/year.
 >
-> But - and this is the bit people skip - that's only a saving if you can replace Etsy's traffic. If ads or content cost more than £936/year to bring the same buyers, Etsy is still doing its job.
+> But - and this is the bit people skip - that's only a saving if you can replace Etsy's traffic. If ads or content cost more than £989/year to bring the same buyers, Etsy is still doing its job.
 >
 > What worked for me: keep Etsy live, move the three best sellers to the store, and put all social traffic into the store for 90 days. Then decide with data instead of frustration.
 

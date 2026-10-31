@@ -79,7 +79,7 @@ to what you sell — without saying it.
 Only after a comment, save, or reply. Never cold.
 
 > Thanks for commenting on the Etsy fees one — the £5 product is the case that
-> surprises people (17.8%, because the two fixed fees don't shrink).
+> surprises people (18.2%, because the two fixed fees don't shrink).
 >
 > Out of curiosity, are you selling on Etsy already or still deciding? If you tell
 > me what you make I'll send you the maths for your price point — no signup, I've

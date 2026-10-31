@@ -95,6 +95,11 @@ export default function EtsyFeeCalculator() {
       value: breakdown.processing,
       always: true,
     },
+    {
+      label: "Regulatory Operating Fee (0.48%)",
+      value: breakdown.regulatory,
+      always: currency === "gbp",
+    },
     { label: "Offsite Ads (15%)", value: breakdown.offsiteAds, always: false },
     { label: "VAT on Etsy's fees (20%)", value: breakdown.feeVat, always: false },
   ].filter((r) => r.always || r.value > 0);
@@ -244,6 +249,9 @@ export default function EtsyFeeCalculator() {
             {money(month.ownStoreNet)} instead of {money(month.net)} — about{" "}
             <span className="font-semibold text-ink-secondary">{money(Math.abs(month.delta))} a month more</span>. That
             only counts if you can bring the buyers yourself: Etsy&apos;s cut buys discovery.
+          </p>
+          <p className="mt-2 text-xs leading-relaxed text-ink-muted">
+            Own-store comparison uses Stripe standard pricing: 1.5% + 20p for UK cards, 2.9% + 30¢ for US cards.
           </p>
         </div>
 
