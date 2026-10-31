@@ -31,7 +31,8 @@ Browser events never establish revenue. Revenue is only recorded from server-sid
 | AOV | net sales ÷ paid orders | window | `orders` | Multi-currency orders are not comparable without FX, so read it per currency |
 | Checkout completion | confirmed purchases ÷ checkout starts | window | `funnel_events` | A person may start checkout twice; denominator counts starts, not people |
 | Signup → activation | users reaching the activation step ÷ signups | window | `funnel_events` | Activation definition is the first published page |
-| Conversion rate | conversions ÷ eligible visitors or sessions | window | `analytics_events`, `funnel_events` | Bot traffic that executes JS is indistinguishable from a human |
+| Conversion rate | conversions ÷ eligible visitors or sessions | window | `analytics_events`, `funnel_events` | The tenant tracker gates on consent, not on dwell; a bot that executes JS there is still indistinguishable from a human. Marketing `site_visits` is dwell-gated (next row) |
+| Marketing page view | One `site_visits` row, written only after 10 s on the page or the first scroll/pointer/key/touch (`createViewGate`) | window | `site_visits` | A load-and-leave never counts, so short bounces are missing by design; a bot that stays or scrolls still counts |
 | Email delivery rate | sent ÷ attempted | window | `email_jobs`, `email_sends` | Provider-side bounces are not ingested yet |
 | Unsubscribe rate | unsubscribes ÷ delivered | window | `unsubscribes`, `email_sends` | — |
 
@@ -96,7 +97,7 @@ append-only and are read by distinct entity where a count must not double.
 | No historical subscription events before migration 24 | MRR movement is empty for periods before this deploy |
 | MRR uses list price, not the actual charged amount | A manual discount in the gateway is not reflected |
 | No FX conversion | Totals are always per currency; a blended number is never shown |
-| Bot traffic that runs JS inflates visits | Traffic reports are directionally useful, not audited |
+| Marketing page views are dwell-gated, not audited | A view counts only after 10 s on the page or a real interaction (`createViewGate`), so the load-and-leave monitors seen on 30 Oct no longer register. A bot that stays 10 s or scrolls still counts, and real bounces under 10 s are deliberately not counted. Raw hits stay in the Caddy access log |
 | Provider-side bounces not ingested | Email delivery metrics stop at "provider accepted" |
 | Bookings have no collected amount | Booking value is shown as a separate figure, never added to revenue |
 
