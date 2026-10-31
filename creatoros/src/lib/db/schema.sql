@@ -782,7 +782,10 @@ CREATE INDEX IF NOT EXISTS idx_site_visits_time ON site_visits(created_at);
 CREATE INDEX IF NOT EXISTS idx_site_visits_country ON site_visits(country, created_at);
 CREATE INDEX IF NOT EXISTS idx_site_visits_path ON site_visits(path, created_at);
 CREATE INDEX IF NOT EXISTS idx_site_visits_visitor ON site_visits(visitor_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_site_visits_utm ON site_visits(utm_source, created_at);
+-- idx_site_visits_utm is created by migration 25, not here: this file runs before
+-- migrations, so on an existing database the columns do not exist yet and the
+-- index would abort the whole schema exec (which is exactly what happened on
+-- 2026-10-31 and took the app to 503).
 
 CREATE INDEX IF NOT EXISTS idx_courses_tenant ON courses(tenant_id, published);
 CREATE INDEX IF NOT EXISTS idx_sections_course ON course_sections(course_id, position);
