@@ -193,3 +193,27 @@ server `.env` and were preserved by `deploy.sh`.
 Note: the artwork is full-bleed with no alpha channel, so the mark is clipped to a rounded square rather
 than floated as a transparent glyph. `BrandMark` uses `unoptimized` because the asset is already 5.7 KB
 and the standalone server must not depend on the image optimizer.
+
+### 10.3 View-gate deploy — 2026-10-31
+
+| Item | Value |
+| --- | --- |
+| Commit | `6925d57` |
+| Archive | `creatoros-viewgate.tar.gz`, sha256 `acfbd1ec477ee887478e4796b81f7016151a29e50a10d9242358a45bb1456e23` |
+| Local archive | 8,835,878 bytes; checksum re-checked on the host after `scp` and matched |
+| Previous build | `Wi0fkp5eaT_U5Z8jASSdJ` |
+| New build | `MEAkDVZIHJEGP6WvL5w46` |
+| DB snapshot | `/home/ubuntu/data/creatoros.db.snapshot-2026-10-31T06-16-42` |
+| Rollback artifact | `/home/ubuntu/app-pre-viewgate.tar.gz` (8.7 MB) |
+| Change | Marketing page view counts only after 10 s on the page or the first scroll/pointerdown/keydown/touchstart (`createViewGate`). No migration, schema or env change |
+| CI | Run `41175655026`: "Lint, typecheck, test, build" and "Playwright E2E" both green (509 unit tests) |
+| Served bundle | `/_next/static/chunks/2woq5g0i6bmrs.js` contains `site-view`, `sendBeacon`, `1e4`, `scroll`, `pointerdown`, `keydown`, `touchstart` |
+| Live browser check | Load-and-leave (3 s) → 0 beacons; scroll at 2 s → exactly 1, still 1 after 12.5 s; no interaction, 11 s dwell → exactly 1 |
+| Write path | A normal-UA browser that scrolled produced exactly one `POST /api/site-view` → 200 and one `site_visits` row (`/`, IN, desktop) |
+| Health | `{"ok":true,"db":"ok"}`; `creatoros` active, `NRestarts=0`, no error-level entries since the restart |
+| Routes checked | `/` 200 (`CreatorOS — Create. Grow. Sell. Automate. All in One Place.`), `/pricing`, `/blog`, `/auth/register`, `/auth/login`, `/api/health` 200; `/icon.png` 200 `image/png` 88,923 B |
+
+Headless Playwright sends `HeadlessChrome`, which the server still classifies as a bot, so the gate check
+was run twice: once as-is (proves the client-side suppression) and once with a normal desktop UA
+(proves the row is written). The monitor effect is recorded below once a full monitor cycle has been
+observed after the deploy.

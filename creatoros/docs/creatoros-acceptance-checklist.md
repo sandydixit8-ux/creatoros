@@ -124,7 +124,8 @@ Legend:
 | 5.10 | Docs and runbooks | Verified (this doc set) |
 | 5.11 | No fabricated results/claims | Verified — every number above came from an executed command |
 | 5.12 | Brand mark | Verified — the supplied artwork is the single mark (header, footer, sidebar, mobile nav, six auth/account screens), served as a 5.7 KB webp; `/icon.png` 200 (88,923 B), `/apple-icon.png` 200, `/favicon.ico` 308 → `/icon.png`, manifest and JSON-LD `logo` point at `/icon.png`; deployed as BUILD_ID `Wi0fkp5eaT_U5Z8jASSdJ` (deployment guide §10.2) |
-| 5.13 | Typecheck on a fresh clone | Verified — `*.webp` imports are declared in `src/types/static-assets.d.ts`, because `next-env.d.ts` is gitignored and CI typechecks before it is generated. `tsc` exits 0 with and without `next-env.d.ts`; CI run `41084793654` green (both jobs) |
+| 5.13 | Typecheck on a fresh clone | Verified - `*.webp` imports are declared in `src/types/static-assets.d.ts`, because `next-env.d.ts` is gitignored and CI typechecks before it is generated. `tsc` exits 0 with and without `next-env.d.ts`; CI run `41084793654` green (both jobs) |
+| 5.14 | Marketing traffic is not inflated by monitors | Verified - a marketing page view now needs 10 s on the page or the first scroll/pointerdown/keydown/touchstart (`createViewGate`, 4 unit tests, suite 509/509, CI run `41175655026` green). On the live site: load-and-leave 0 beacons, scroll exactly 1 (no duplicate after 12.5 s), 11 s dwell exactly 1, and a normal-UA scroll wrote one `site_visits` row. Deployed as BUILD_ID `MEAkDVZIHJEGP6WvL5w46` (deployment guide §10.3). Bounces under 10 s are deliberately not counted |
 
 ## Open items requiring a human
 
